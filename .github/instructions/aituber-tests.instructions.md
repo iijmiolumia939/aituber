@@ -29,7 +29,9 @@ applyTo: 'AITuber/Assets/Tests/**/*.cs'
 | `TC-ADSP-xx` | ActionDispatcher |
 | `TC-MSG-xx` | AvatarMessageParser |
 | `TC-INTG-xx` | Growth Integration (PlayMode) |
+| `TC-REFL-xx` | ReflectionRunner / ProposalValidator / PolicyUpdater (Python) |
 
 ## 参考ドキュメント
 
 - [M1 実装設計（テストケース仕様含む）](../../docs/m1-design.md)
+- [M2 ReflectionRunner 完了記録](../../docs/exec-plans/completed/m2-reflection-runner.md)
