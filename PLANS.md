@@ -1,6 +1,6 @@
 # PLANS.md — AITuber 実装計画トラッカー
 
-> **最終更新**: 2026-03-03  
+> **最終更新**: 2026-03-03 (M2完了)  
 > これは計画の索引です。詳細はリンク先の exec-plan を参照。  
 > 完了した計画は `exec-plans/completed/` に移動し、ここでは状態を「✅完了」に更新する。
 
@@ -8,9 +8,7 @@
 
 ## 進行中
 
-| 計画 | 優先度 | ステータス | exec-plan |
-|---|---|---|---|
-| M2: ReflectionRunner (LLM-Modulo Gap解析) | 🔴 高 | 🔧 設計中 | [exec-plans/active/m2-reflection-runner.md](AITuber/docs/exec-plans/active/m2-reflection-runner.md) |
+*現在アクティブな計画なし。M3 はバックログで優先度評価待ち。*
 
 ---
 
@@ -33,6 +31,7 @@
 | 計画 | 完了日 | 成果 | 詳細 |
 |---|---|---|---|
 | M1: ActionDispatcher + GapLogger | 2026-03-03 | 61/61テスト グリーン | [exec-plans/completed/m1-gap-logger.md](AITuber/docs/exec-plans/completed/m1-gap-logger.md) |
+| M2: ReflectionRunner (LLM-Modulo) | 2026-03-03 | 41/41テスト グリーン, ruff クリーン | [exec-plans/completed/m2-reflection-runner.md](AITuber/docs/exec-plans/completed/m2-reflection-runner.md) |
 
 ---
 

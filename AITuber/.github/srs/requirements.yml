@@ -117,3 +117,78 @@ fr:
       - "AvatarMessage.cs: RoomChangeParams・RoomChangeEnvelope 追加"
       - "AvatarController.cs: case 'room_change' → HandleRoomChange()"
 
+  # ── Growth / ReflectionRunner (FR-REFL) ──────────────────────────────────
+
+  - id: FR-REFL-01
+    title: "Gap JSONL loading and filtering"
+    srs_ref: "autonomous-growth.md M2"
+    description: >
+      ReflectionRunner がセッション後の capability_gaps/<stream_id>.jsonl を
+      読み込み、GapEntry のリストとしてパースする。不正行はスキップ (警告ログ)。
+      gap_category / priority_score によるフィルタリング・ソートをサポートする。
+    acceptance:
+      - "有効な JSONL → GapEntry dict のリストを返す"
+      - "空ファイル → 空リストを返す（例外なし）"
+      - "不正 JSON 行はスキップして残りを返す"
+      - "存在しないファイル → FileNotFoundError を送出"
+      - "filter_gaps(category=X) で gap_category が X のエントリのみ返す"
+      - "sort_by_priority() が priority_score 降順に並び直し、入力を変更しない"
+    impl:
+      - "orchestrator/reflection_runner.py: load_gaps(), filter_gaps(), sort_by_priority()"
+      - "tests/test_reflection_runner.py: TC-REFL-01〜08"
+
+  - id: FR-REFL-02
+    title: "LLM-Modulo Gap → Proposal generation"
+    srs_ref: "autonomous-growth.md M2"
+    description: >
+      LLM-Modulo パターン (Kambhampati et al. 2024) に基づき、
+      Gap リストをまとめてバッチプロンプトで LLM に入力し、
+      behavior_policy.yml 追加エントリ案を YAML リスト形式で生成する。
+      LLM エラーおよび YAML パースエラーは空リストを返して吸収する。
+    acceptance:
+      - "build_prompt() が Gap の intent 名を含むプロンプトを生成"
+      - "複数 Gap を1回の LLM 呼び出しにまとめる"
+      - "プロンプトが YAML 出力形式の指示を含む"
+      - "モック LLM の YAML 応答から proposal dict を生成"
+      - "LLM 例外発生時 → 空リストを返す（例外伝播なし）"
+      - "空 YAML 応答 → 空リストを返す"
+    impl:
+      - "orchestrator/reflection_runner.py: build_prompt(), generate_proposals()"
+      - "tests/test_reflection_runner.py: TC-REFL-04〜06"
+
+  - id: FR-REFL-03
+    title: "Proposal validation (schema + safety)"
+    srs_ref: "autonomous-growth.md M2"
+    description: >
+      ProposalValidator が LLM 生成 proposal を検証する。
+      必須フィールド・cmd アローリスト・intent 命名規約・安全ワードブロック・
+      重複 intent チェックの5層を順に適用する。
+    acceptance:
+      - "intent・cmd が揃い、action フィールド1つ以上 → VALID"
+      - "intent 欠落または空文字 → INVALID（'intent' が reason に含まれる）"
+      - "cmd 欠落 → INVALID（'cmd' が reason に含まれる）"
+      - "cmd が allowlist (avatar_update|avatar_event) 以外 → INVALID"
+      - "gesture/emotion/look_target/event がすべて欠落 → INVALID"
+      - "ブロックワード (exec, shutdown, delete_all, rm -rf 等) → INVALID"
+      - "既存 intent と同名 → DUPLICATE"
+      - "intent にスペースや ; & | → INVALID"
+      - "snake_case intent → VALID"
+    impl:
+      - "orchestrator/proposal_validator.py: ProposalValidator.validate(), ValidationResult, ValidationStatus"
+      - "tests/test_proposal_validator.py: TC-REFL-09〜15"
+
+  - id: FR-REFL-04
+    title: "behavior_policy.yml append"
+    srs_ref: "autonomous-growth.md M2"
+    description: >
+      PolicyUpdater が検証済みエントリを behavior_policy.yml 末尾に追記する。
+      ファイルが存在しない場合は新規作成する。追記件数を返す。
+    acceptance:
+      - "既存 YAML を読んで dict リストを返す (load_policy)"
+      - "空ファイル → 空リストを返す"
+      - "新エントリを末尾に追記し、追記件数を返す"
+      - "空リスト渡し → 0 を返し、ファイルを変更しない"
+      - "ファイルが存在しない場合は新規作成して追記"
+    impl:
+      - "orchestrator/policy_updater.py: PolicyUpdater.load_policy(), append_entries()"
+      - "tests/test_proposal_validator.py: TC-REFL-16〜18"

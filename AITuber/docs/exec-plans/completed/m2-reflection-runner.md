@@ -53,15 +53,15 @@ Gap JSONL はファイルシステム経由でやり取りする（M3 で WebSoc
 
 ## タスクブレークダウン
 
-- [ ] `orchestrator/reflection_runner.py` — Gap JSONL 読み込み + LLM 呼び出し
-- [ ] `orchestrator/proposal_validator.py` — YAML スキーマ + 安全チェック
-- [ ] `orchestrator/policy_updater.py` — behavior_policy.yml 追記
-- [ ] Gap JSONL → LLM プロンプトの設計（few-shot 例を含む）
-- [ ] `tests/test_reflection_runner.py` — モック LLM で全フロー検証 (TC-REFL-01〜)
-- [ ] `tests/test_proposal_validator.py` — Valid/Invalid YAML テスト (TC-REFL-XX〜)
-- [ ] SRS に FR-REFL-01 等 追記
-- [ ] QUALITY_SCORE.md Growth/ReflectionRunner 行を D→B 更新
-- [ ] PLANS.md M2 を完了に更新
+- [x] `orchestrator/reflection_runner.py` — Gap JSONL 読み込み + LLM 呼び出し
+- [x] `orchestrator/proposal_validator.py` — YAML スキーマ + 安全チェック
+- [x] `orchestrator/policy_updater.py` — behavior_policy.yml 追記
+- [x] Gap JSONL → LLM プロンプトの設計（few-shot 例を含む）
+- [x] `tests/test_reflection_runner.py` — モック LLM で全フロー検証 (TC-REFL-01〜08)
+- [x] `tests/test_proposal_validator.py` — Valid/Invalid YAML テスト (TC-REFL-09〜18)
+- [x] SRS に FR-REFL-01〜04 追記
+- [x] QUALITY_SCORE.md Growth/ReflectionRunner 行を D→B 更新
+- [x] PLANS.md M2 を完了に更新
 
 ---
 
@@ -73,12 +73,24 @@ M1 が 61/61 テスト グリーンで完了。M2 計画を作成した。
 Gap JSONL フォーマットは `GapEntry.cs` で確定済み（autonomous-growth.md 参照）。
 LLM-Modulo の採用を決定（設計決定ログ参照）。
 
+### 2026-03-03: M2 実装完了
+
+TDD アプローチで実装。テスト先行（18ケース先行作成）→ 実装でグリーン化。
+
+| ファイル | 役割 | TC | 状態 |
+|---|---|---|---|
+| `orchestrator/reflection_runner.py` | Gap JSONL 読み込み・LLM バッチ呼び出し・YAML パース | TC-REFL-01〜08 | ✅ 17/17 |
+| `orchestrator/proposal_validator.py` | スキーマ + 安全 + 重複チェック | TC-REFL-09〜15 | ✅ 14/14 |
+| `orchestrator/policy_updater.py` | YAML 追記・読み込み | TC-REFL-16〜18 | ✅ 5/5 |
+
+**成果**: 41/41 テスト グリーン, ruff クリーン, SRS FR-REFL-01〜04 追記完了
+
 ---
 
 ## 完了チェック
 
-- [ ] 全テストグリーン (`pytest AITuber/tests/` + Unity)
-- [ ] ruff/black クリーン
-- [ ] QUALITY_SCORE.md の Growth/ReflectionRunner 行を更新
-- [ ] PLANS.md の M2 を完了に更新、M3 の依存を解除
-- [ ] このファイルを `exec-plans/completed/` に移動
+- [x] 全テストグリーン (`pytest AITuber/tests/` + Unity)
+- [x] ruff/black クリーン
+- [x] QUALITY_SCORE.md の Growth/ReflectionRunner 行を更新
+- [x] PLANS.md の M2 を完了に更新、M3 の依存を解除
+- [x] このファイルを `exec-plans/completed/` に移動
