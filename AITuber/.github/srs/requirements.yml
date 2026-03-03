@@ -1,0 +1,119 @@
+version: 1
+project:
+  name: "AI YouTube Streaming Host"
+  scope:
+    now: ["talk", "comment_interaction", "avatar_control"]
+    later: ["game_playing:Terraria"]
+  platforms:
+    orchestrator: "Python 3.11+"
+    avatar:
+      primary: "Unity (VRM)"
+      fallback: "Live2D (Cubism)"
+  ide:
+    primary: "VS Code"
+    notes: ["Unity is a thin renderer; Orchestrator is the brain."]
+
+fr:
+  - id: FR-A3-01
+    title: "YouTube LiveChat polling"
+    srs_ref: "A-3"
+    description: "Poll live chat using YouTube Data API and respect pollingIntervalMillis."
+    acceptance:
+      - "Uses LiveChatMessages.list polling; waits at least pollingIntervalMillis (clamped) between calls."
+      - "Bounded retries with exponential backoff."
+  - id: FR-A3-02
+    title: "Dedupe and TTL"
+    srs_ref: "A-3"
+    description: "Deduplicate chat messages and prevent unbounded growth."
+    acceptance:
+      - "seen_set TTL 30 minutes"
+      - "seen_set capacity <= 100000 IDs; evict oldest/expired"
+  - id: FR-A3-03
+    title: "Summary mode under burst"
+    srs_ref: "A-3"
+    description: "When chat rate spikes, switch to summarize_cluster behavior."
+    acceptance:
+      - "If chat_rate_15s >= 10, enable summary mode"
+      - "Summarize clustered comments and respond"
+  - id: FR-SAFE-01
+    title: "Safety filter ordering"
+    srs_ref: "Appendix E"
+    description: "Safety Filter runs before Bandit and LLM."
+    acceptance:
+      - "NG-confirmed comments never reach Bandit/LLM"
+  - id: FR-LLM-01
+    title: "LLM API fallback"
+    srs_ref: "Appendix E / FR-LLM-01"
+    description: "If LLM API fails, continue with template mode."
+    acceptance:
+      - "Retry max 2"
+      - "Then enter template mode without stopping speech"
+  - id: FR-A7-01
+    title: "Avatar WebSocket control"
+    srs_ref: "A-7"
+    description: "Control avatar via WS JSON thin client."
+    acceptance:
+      - "Endpoint ws://127.0.0.1:31900 default"
+      - "Backward compatible: ignore unknown fields"
+  - id: FR-LIPSYNC-01
+    title: "RMS mouth_open lip sync"
+    srs_ref: "A-7.5"
+    description: "Send mouth_open 0..1 based on audio RMS."
+    acceptance:
+      - "During playback, update mouth_open at 30Hz"
+  - id: FR-LIPSYNC-02
+    title: "Viseme timeline lip sync"
+    srs_ref: "A-7.11/A-7.12"
+    description: "Optionally send avatar_viseme event timeline; Live2D must map."
+    acceptance:
+      - "events sorted by t_ms"
+      - "crossfade_ms default 40..80"
+  - id: FR-RL-01
+    title: "Contextual bandit action selection"
+    srs_ref: "Appendix D"
+    description: "Bandit selects chat_action (reply/queue/summarize/ignore)."
+    acceptance:
+      - "Log each decision pre/post in bandit_log JSONL"
+      - "Do not update model on safe=true outcomes"
+
+  # ── Room / Environment system (FR-ROOM) ───────────────────────────────
+
+  - id: FR-ROOM-01
+    title: "Prefab-based room environment"
+    srs_ref: "A-7 (rendering)"
+    description: >
+      3D 背景は Unity Prefab として管理する。
+      各部屋は RoomDefinition (ScriptableObject) で識別・定義され、
+      RoomManager が起動時に全 Prefab をインスタンス化（非アクティブ）、
+      切り替え時に SetActive で表示/非表示を切り替える。
+    acceptance:
+      - "RoomDefinition に roomId / roomPrefab / cameraPosition / avatarPosition が定義できる"
+      - "RoomManager.SwitchRoom(roomId) で任意の部屋に切り替えられる"
+      - "切り替え時にカメラ位置・FOV・アバター位置が RoomDefinition の値に更新される"
+      - "useFadeTransition=true のとき CanvasGroup フェードが実行される"
+      - "[/] キーでデバッグ切り替えが可能"
+    impl:
+      - "Assets/Scripts/Room/RoomDefinition.cs (ScriptableObject)"
+      - "Assets/Scripts/Room/RoomManager.cs (MonoBehaviour)"
+      - "Assets/Rooms/ に Prefab・Definition・Materials を配置"
+    deprecated:
+      - "Assets/Scripts/AlchemistRoom.cs — プロシージャル生成方式は廃止（Start で自己無効化）"
+
+  - id: FR-ROOM-02
+    title: "Remote room switching via WebSocket"
+    srs_ref: "A-7"
+    description: >
+      Orchestrator から `room_change` コマンドを受信し、
+      AvatarController 経由で RoomManager.SwitchRoom() を呼び出す。
+    acceptance:
+      - "WS コマンド: { \"cmd\": \"room_change\", \"params\": { \"room_id\": \"<id>\" } }"
+      - "存在しない room_id はログ警告のみ（クラッシュしない）"
+      - "RoomManager が未配置の場合もログ警告のみ"
+    wire_protocol:
+      cmd: "room_change"
+      params:
+        room_id: "string — RoomDefinition.roomId と一致"
+    impl:
+      - "AvatarMessage.cs: RoomChangeParams・RoomChangeEnvelope 追加"
+      - "AvatarController.cs: case 'room_change' → HandleRoomChange()"
+

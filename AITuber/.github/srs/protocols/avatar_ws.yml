@@ -1,0 +1,45 @@
+version: 1
+endpoint:
+  default: "ws://127.0.0.1:31900"
+messages:
+  common_fields: ["id", "ts"]
+commands:
+  - cmd: "avatar_update"
+    params:
+      emotion: ["neutral","happy","thinking","surprised","sad","angry","panic"]
+      gesture: ["none","nod","shake","wave","cheer","shrug","facepalm"]
+      look_target: ["center","chat","camera","down","random"]
+      mouth_open: "0..1"
+    frequency:
+      mouth_open_hz: 30
+  - cmd: "avatar_event"
+    params:
+      event: ["comment_read_start","comment_read_end","topic_switch","break_start","break_end"]
+      intensity: "0..1"
+  - cmd: "avatar_config"
+    params:
+      mouth_sensitivity: "float"
+      blink_enabled: "bool"
+      idle_motion: "string"
+  - cmd: "avatar_reset"
+    params: {}
+  - cmd: "avatar_viseme"
+    params:
+      utterance_id: "string"
+      viseme_set: ["jp_basic_8"]
+      events: "list<{t_ms:int, v:str}>"
+      crossfade_ms: "int (40..80 recommended)"
+      strength: "0..1"
+viseme_sets:
+  jp_basic_8: ["sil","a","i","u","e","o","m","fv"]
+live2d_mapping:
+  required: true
+  recommended_params:
+    - "ParamMouthOpenY"
+    - "ParamMouthForm or V_*"
+capabilities_message:
+  optional: true
+  caps:
+    mouth_open: "bool"
+    viseme: "bool"
+    viseme_set: "list<string>"

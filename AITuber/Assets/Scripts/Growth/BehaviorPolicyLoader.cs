@@ -44,7 +44,7 @@ namespace AITuber.Growth
                 return;
             }
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying) DontDestroyOnLoad(gameObject);
             Load();
         }
 
@@ -81,6 +81,9 @@ namespace AITuber.Growth
                 : new Dictionary<string, BehaviorEntry>(StringComparer.OrdinalIgnoreCase);
         }
 
+        /// <summary>Directly clear the singleton reference for test isolation.</summary>
+        public static void ClearInstanceForTest() => Instance = null;
+
         // ── Internal ─────────────────────────────────────────────────────────
 
         /// <summary>Reads and parses behavior_policy.yml from StreamingAssets.</summary>
@@ -115,7 +118,7 @@ namespace AITuber.Growth
         /// </summary>
         public void ParseYamlLines(string[] lines)
         {
-            if (lines == null) return;
+            if (lines == null) { _policy.Clear(); return; }
             _policy.Clear();
 
             BehaviorEntry current = null;

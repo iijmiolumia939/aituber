@@ -536,6 +536,17 @@ namespace AITuber.Avatar
             HandleMessage(msg, typedParams);
         }
 
+        /// <summary>
+        /// Parse a raw JSON string and route to the appropriate handler.
+        /// Convenience overload for integration tests and external callers.
+        /// </summary>
+        public void HandleMessage(string json)
+        {
+            var (msg, typed) = AvatarMessageParser.Parse(json);
+            if (msg == null) return;
+            HandleMessage(msg, typed);
+        }
+
         // ── avatar_update ────────────────────────────────────────────
 
         private void HandleUpdate(AvatarUpdateParams p)

@@ -1,0 +1,135 @@
+"""Centralised configuration loaded from environment / .env.
+
+All secrets come from env‑vars; nothing is hard‑coded.
+SRS refs: NFR-SEC-01 (no secrets in logs).
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class YouTubeConfig:
+    api_key: str = field(default_factory=lambda: os.environ.get("YOUTUBE_API_KEY", ""), repr=False)
+    live_chat_id: str = field(default_factory=lambda: os.environ.get("YOUTUBE_LIVE_CHAT_ID", ""))
+    polling_interval_clamp_min_ms: int = 3_000
+    polling_interval_clamp_max_ms: int = 30_000
+    max_retries: int = 3
+    backoff_base_sec: float = 1.0
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    api_key: str = field(default_factory=lambda: os.environ.get("OPENAI_API_KEY", ""), repr=False)
+    model: str = "gpt-4o-mini"
+    max_retries: int = 2
+    timeout_sec: float = 10.0
+    cost_hard_limit_yen_per_hour: float = 300.0
+    cost_target_yen_per_hour: float = 150.0
+
+
+@dataclass(frozen=True)
+class TTSConfig:
+    """TTS 設定。
+
+    TTS_BACKEND でバックエンドを切替:
+      - "voicevox" (default): VOICEVOX
+      - "style_bert_vits2":   Style-BERT-VITS2
+    """
+
+    backend: str = field(
+        default_factory=lambda: os.environ.get("TTS_BACKEND", "voicevox")
+    )
+    host: str = "127.0.0.1"
+    port: int = field(
+        default_factory=lambda: int(os.environ.get("TTS_PORT", "50021"))
+    )
+    speaker_id: int = field(
+        default_factory=lambda: int(os.environ.get("TTS_SPEAKER_ID", "1"))
+    )
+    timeout_sec: float = 30.0
+    chunk_samples: int = 1600  # 48000 / 30
+    # Style-BERT-VITS2 固有設定
+    sbv2_model_id: int = field(
+        default_factory=lambda: int(os.environ.get("SBV2_MODEL_ID", "0"))
+    )
+    sbv2_style: str = field(
+        default_factory=lambda: os.environ.get("SBV2_STYLE", "Neutral")
+    )
+
+
+@dataclass(frozen=True)
+class AvatarWSConfig:
+    host: str = "127.0.0.1"
+    port: int = 31900
+    mouth_open_hz: int = 30
+    reconnect_interval_sec: float = 3.0
+    # ビゼームの送信タイミングを音声再生開始に合わせるオフセット(ms)。
+    # send_viseme は play_audio_chunks と同時に発火するため、補正が必要なのは
+    # sounddevice のバッファリング遅延分のみ。
+    #   blocksize=1024 @ 24000Hz = 42.7ms/ブロック × 2バッファ ≈ 85ms
+    # 正の値 = ビゼームを遅らせる。50–100ms が目安。0 で無効。
+    viseme_audio_offset_ms: int = field(
+        default_factory=lambda: int(os.environ.get("AVATAR_VISEME_OFFSET_MS", "80"))
+    )
+
+
+@dataclass(frozen=True)
+class SafetyConfig:
+    ng_categories: tuple[str, ...] = (
+        "personal_information",
+        "hate_or_harassment",
+        "crime_facilitation",
+        "minors_inappropriate",
+        "self_harm",
+    )
+
+
+@dataclass(frozen=True)
+class SeenSetConfig:
+    """FR-A3-02: Dedupe / TTL bounds."""
+
+    ttl_seconds: int = 30 * 60  # 30 minutes
+    max_capacity: int = 100_000
+
+
+@dataclass(frozen=True)
+class BanditConfig:
+    actions: tuple[str, ...] = (
+        "reply_now",
+        "queue_and_reply_later",
+        "summarize_cluster",
+        "ignore",
+    )
+    summary_mode_threshold: int = 10  # chat_rate_15s >= 10
+    k: float = 0.10
+    m: float = 0.05
+    n: float = 0.10
+    s: float = 5.0
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
+    tts: TTSConfig = field(default_factory=TTSConfig)
+    avatar_ws: AvatarWSConfig = field(default_factory=AvatarWSConfig)
+    safety: SafetyConfig = field(default_factory=SafetyConfig)
+    seen_set: SeenSetConfig = field(default_factory=SeenSetConfig)
+    bandit: BanditConfig = field(default_factory=BanditConfig)
+
+
+def load_config() -> AppConfig:
+    """Build config from environment variables.
+
+    Loads .env file (if present) before reading env vars.
+    """
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:  # pragma: no cover
+        pass
+    return AppConfig()

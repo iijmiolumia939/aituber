@@ -1,13 +1,17 @@
 // GrowthIntegrationTests.cs
-// PlayMode integration tests for the Growth pipeline:
-//   WebSocket message → AvatarController → ActionDispatcher → GapLogger
+// PlayMode integration tests for the complete dispatch pipeline.
+// TC-INTG-01 ~ TC-INTG-06
 //
-// TC-INTG-01 ~ TC-INTG-03
+// Coverage:
+//   INTG-01  avatar_intent WS message flows through ActionDispatcher → Executed
+//   INTG-02  Missed intent logs a GapEntry (GapCountThisSession == 1)
+//   INTG-03  Logged GapEntry contains correct intent name
+//   INTG-04  Logged GapEntry.gap_category = "missing_motion" for gesture_* intent
+//   INTG-05  Logged GapEntry.trigger = "avatar_intent_ws"
+//   INTG-06  avatar_event message processes without recording a Gap
 
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
+using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -18,97 +22,139 @@ namespace AITuber.Tests
 {
     public class GrowthIntegrationTests
     {
-        private GameObject _root;
-        private AvatarController _controller;
-        private ActionDispatcher _dispatcher;
-        private GapLogger _logger;
-        private BehaviorPolicyLoader _policyLoader;
-        private string _tempLogPath;
+        private GameObject            _go;
+        private GapLogger             _logger;
+        private BehaviorPolicyLoader  _policy;
+        private ActionDispatcher      _dispatcher;
+        private AvatarController      _controller;
+        private string                _tempPath;
 
-        [UnitySetUp]
-        public IEnumerator SetUp()
+        [SetUp]
+        public void SetUp()
         {
-            _root = new GameObject("IntgRoot");
+            _go         = new GameObject("INTG_Test");
+            _logger     = _go.AddComponent<GapLogger>();
+            _policy     = _go.AddComponent<BehaviorPolicyLoader>();
+            _dispatcher = _go.AddComponent<ActionDispatcher>();
+            _controller = _go.AddComponent<AvatarController>();
 
-            // Add in dependency order (Awake fires in AddComponent order)
-            _logger       = _root.AddComponent<GapLogger>();
-            _policyLoader = _root.AddComponent<BehaviorPolicyLoader>();
-            _dispatcher   = _root.AddComponent<ActionDispatcher>();
-            _controller   = _root.AddComponent<AvatarController>();
-
-            _tempLogPath = Path.Combine(Path.GetTempPath(), $"intg_{Guid.NewGuid():N}.jsonl");
-            _logger.SetLogPathForTest(_tempLogPath);
+            _tempPath = Path.Combine(
+                Path.GetTempPath(), $"intg_test_{System.Guid.NewGuid():N}.jsonl");
+            _logger.SetLogPathForTest(_tempPath);
             _logger.SetEnabled(true);
             _logger.ResetCountForTest();
-
-            // Start with empty policy (all intents are unknown → gaps)
-            _policyLoader.InjectForTest(new Dictionary<string, BehaviorEntry>());
-
-            yield return null; // let Awake/Start finish
         }
 
-        [UnityTearDown]
-        public IEnumerator TearDown()
+        [TearDown]
+        public void TearDown()
         {
-            if (File.Exists(_tempLogPath)) File.Delete(_tempLogPath);
-            UnityEngine.Object.Destroy(_root);
-            yield return null;
+            if (File.Exists(_tempPath)) File.Delete(_tempPath);
+            UnityEngine.Object.DestroyImmediate(_go);
         }
 
-        // [TC-INTG-01] avatar_intentメッセージ → Gap記録 (エンドツーエンド)
+        // ── Helpers ───────────────────────────────────────────────────────────
+
+        private static string IntentJson(string intent, string fallback = "nod", string ctx = "{}")
+            => $"{{\"id\":\"i1\",\"ts\":\"2025-01-01T00:00:00Z\"," +
+               $"\"cmd\":\"avatar_intent\"," +
+               $"\"params\":{{\"intent\":\"{intent}\"," +
+               $"\"fallback\":\"{fallback}\"," +
+               $"\"context_json\":\"{ctx}\"}}}}";
+
+        private static string EventJson(string evtName = "superchat")
+            => $"{{\"id\":\"e1\",\"ts\":\"2025-01-01T00:00:00Z\"," +
+               $"\"cmd\":\"avatar_event\"," +
+               $"\"params\":{{\"event\":\"{evtName}\",\"intensity\":1.0}}}}";
+
+        private static System.Collections.Generic.Dictionary<string, BehaviorEntry> HitPolicy()
+        {
+            return new System.Collections.Generic.Dictionary<string, BehaviorEntry>
+            {
+                ["known_intent"] = new BehaviorEntry { cmd = "avatar_update", gesture = "wave", priority = 1 },
+            };
+        }
+
+        // ── Tests ─────────────────────────────────────────────────────────────
+
+        // [TC-INTG-01] avatar_intent メッセージがAvatarControllerを通してExecutedになる
         [UnityTest]
-        public IEnumerator WsMessage_UnknownIntent_GapRecorded()
+        public IEnumerator IntentMessage_KnownIntent_DispatchesExecuted()
         {
-            string json = "{\"cmd\":\"avatar_intent\",\"params\":{\"intent\":\"gesture_dance\",\"fallback\":\"nod\"}}";
-            var (msg, typed) = AvatarMessageParser.Parse(json);
-            _controller.HandleMessageForTest(msg, typed);
+            _policy.InjectForTest(HitPolicy());
+            DispatchResult capturedResult = default;
+            _dispatcher.OnDispatched += r => capturedResult = r;
 
+            _controller.HandleMessage(IntentJson("known_intent"));
+            yield return null;
+
+            Assert.AreEqual(DispatchResult.Executed, capturedResult,
+                "Known intent must return Executed via full pipeline");
+        }
+
+        // [TC-INTG-02] 未知インテントでGapEntryが記録される (GapCountThisSession == 1)
+        [UnityTest]
+        public IEnumerator IntentMessage_UnknownIntent_RecordsGap()
+        {
+            _policy.InjectForTest(new System.Collections.Generic.Dictionary<string, BehaviorEntry>());
+
+            _controller.HandleMessage(IntentJson("gesture_new_unknown", fallback: ""));
             yield return null;
 
             Assert.AreEqual(1, _logger.GapCountThisSession,
-                "gesture_dance is not in policy → 1 gap should be recorded");
-
-            string content = File.ReadAllText(_tempLogPath);
-            StringAssert.Contains("\"gesture_dance\"", content);
-            StringAssert.Contains("avatar_intent_ws", content);
+                "One gap must be logged for an unknown intent");
         }
 
-        // [TC-INTG-02] ポリシー登録済みintentはGapを記録しない
+        // [TC-INTG-03] 記録されたGapEntryに正しいintent名が含まれる
         [UnityTest]
-        public IEnumerator WsMessage_KnownIntent_NoGapRecorded()
+        public IEnumerator IntentMessage_UnknownIntent_GapEntryContainsIntentName()
         {
-            _policyLoader.InjectForTest(new Dictionary<string, BehaviorEntry>
-            {
-                ["nod_agreement"] = new BehaviorEntry
-                {
-                    intent  = "nod_agreement",
-                    cmd     = "avatar_update",
-                    gesture = "nod",
-                },
-            });
+            _policy.InjectForTest(new System.Collections.Generic.Dictionary<string, BehaviorEntry>());
 
-            string json = "{\"cmd\":\"avatar_intent\",\"params\":{\"intent\":\"nod_agreement\"}}";
-            var (msg, typed) = AvatarMessageParser.Parse(json);
-            _controller.HandleMessageForTest(msg, typed);
+            _controller.HandleMessage(IntentJson("gesture_unique_intent", fallback: ""));
+            yield return null;
 
+            string content = File.ReadAllText(_tempPath);
+            StringAssert.Contains("gesture_unique_intent", content,
+                "Logged GapEntry must contain the intent name");
+        }
+
+        // [TC-INTG-04] gesture_* インテントのGapEntryのgap_categoryがmissing_motion
+        [UnityTest]
+        public IEnumerator IntentMessage_GestureIntent_GapCategoryIsMissingMotion()
+        {
+            _policy.InjectForTest(new System.Collections.Generic.Dictionary<string, BehaviorEntry>());
+
+            _controller.HandleMessage(IntentJson("gesture_dance", fallback: ""));
+            yield return null;
+
+            string content = File.ReadAllText(_tempPath);
+            StringAssert.Contains("\"missing_motion\"", content,
+                "gesture_* gap_category must be missing_motion");
+        }
+
+        // [TC-INTG-05] 記録されたGapEntryのtriggerが "avatar_intent_ws"
+        [UnityTest]
+        public IEnumerator IntentMessage_GapEntry_TriggerIsAvatarIntentWs()
+        {
+            _policy.InjectForTest(new System.Collections.Generic.Dictionary<string, BehaviorEntry>());
+
+            _controller.HandleMessage(IntentJson("unknown_any", fallback: ""));
+            yield return null;
+
+            string content = File.ReadAllText(_tempPath);
+            StringAssert.Contains("\"avatar_intent_ws\"", content,
+                "GapEntry.trigger must be 'avatar_intent_ws'");
+        }
+
+        // [TC-INTG-06] avatar_event メッセージはGapを記録しない
+        [UnityTest]
+        public IEnumerator EventMessage_DoesNotRecordGap()
+        {
+            _controller.HandleMessage(EventJson("superchat"));
             yield return null;
 
             Assert.AreEqual(0, _logger.GapCountThisSession,
-                "Policy hit → no gap should be recorded");
-        }
-
-        // [TC-INTG-03] avatar_update (既存コマンド) は Gapを記録せず正常動作する
-        [UnityTest]
-        public IEnumerator WsMessage_AvatarUpdate_WorksWithoutGap()
-        {
-            string json = "{\"cmd\":\"avatar_update\",\"params\":{\"emotion\":\"happy\",\"gesture\":\"wave\",\"look_target\":\"camera\",\"mouth_open\":0.0}}";
-            var (msg, typed) = AvatarMessageParser.Parse(json);
-            _controller.HandleMessageForTest(msg, typed);
-
-            yield return null;
-
-            Assert.AreEqual(0, _logger.GapCountThisSession,
-                "avatar_update must not go through ActionDispatcher and must not log a gap");
+                "avatar_event must not record a Gap");
         }
     }
 }

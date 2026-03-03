@@ -56,7 +56,7 @@ namespace AITuber.Growth
                 return;
             }
             Instance = this;
-            DontDestroyOnLoad(gameObject);
+            if (Application.isPlaying) DontDestroyOnLoad(gameObject);
             InitSession();
         }
 
@@ -111,13 +111,23 @@ namespace AITuber.Growth
         // ── Test helpers ──────────────────────────────────────────────────────
 
         /// <summary>Override the log path for unit tests (bypasses persistentDataPath).</summary>
-        public void SetLogPathForTest(string path) => _logPath = path;
+        public void SetLogPathForTest(string path)
+        {
+            _logPath = path;
+            // Ensure _streamId is initialized even when Awake's InitSession was not called
+            // (e.g. singleton guard short-circuit in EditMode tests).
+            if (string.IsNullOrEmpty(_streamId))
+                _streamId = "stream_test_" + System.Guid.NewGuid().ToString("N");
+        }
 
         /// <summary>Enable or disable logging (used in unit tests).</summary>
         public void SetEnabled(bool enabled) => _enableLogging = enabled;
 
         /// <summary>Reset session counter (used in unit tests).</summary>
         public void ResetCountForTest() => _gapCountThisSession = 0;
+
+        /// <summary>Directly clear the singleton reference for test isolation.</summary>
+        public static void ClearInstanceForTest() => Instance = null;
 
         // ── Internal ─────────────────────────────────────────────────────────
 

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Avatar WS Message",
+  "type": "object",
+  "required": [
+    "id",
+    "ts"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "ts": {
+      "type": "string"
+    },
+    "cmd": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "params": {
+      "type": "object"
+    },
+    "caps": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

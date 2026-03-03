@@ -1,0 +1,35 @@
+version: 1
+safety:
+  ordering:
+    - "SafetyFilter"
+    - "Bandit"
+    - "LLM"
+  ng_categories:
+    - "personal_information"
+    - "hate_or_harassment"
+    - "crime_facilitation"
+    - "minors_inappropriate"
+    - "self_harm"
+  handling:
+    confirmed_ng:
+      action: "block_or_template"
+      learnable: false
+    gray:
+      action: "llm_avoidance_prompt"
+      learnable: false
+templates:
+  - id: SAFE-TPL-01
+    use_when: "personal_information"
+    text_ja: "個人情報に関わる内容はお答えできないよ。別の話題にしよっか。"
+  - id: SAFE-TPL-02
+    use_when: "hate_or_harassment"
+    text_ja: "その話題は誰かを傷つける可能性があるからやめよう。"
+  - id: SAFE-TPL-03
+    use_when: "self_harm"
+    text_ja: "それは大事な話だね。つらいときは一人で抱えないで、身近な人や専門窓口に相談してね。"
+  - id: SAFE-TPL-04
+    use_when: "crime_facilitation"
+    text_ja: "それは法律に触れる可能性がある話題だから、ここでは控えておくね。"
+  - id: SAFE-TPL-05
+    use_when: "minors_inappropriate"
+    text_ja: "そういう話題はこの配信では扱えないんだ。別の楽しい話をしよう！"

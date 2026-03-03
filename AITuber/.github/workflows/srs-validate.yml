@@ -1,0 +1,23 @@
+name: SRS Validate
+
+on:
+  pull_request:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml jsonschema
+      - name: Validate SRS YAML
+        run: python .github/scripts/validate_srs.py
+      - name: Validate avatar schema examples
+        run: python .github/scripts/validate_avatar_schema.py

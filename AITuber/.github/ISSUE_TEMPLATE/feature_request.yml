@@ -1,0 +1,21 @@
+name: Feature request (SRS-driven)
+description: Request a feature referencing FR/NFR/TC
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+    validations:
+      required: true
+  - type: textarea
+    id: srs
+    attributes:
+      label: SRS IDs
+      description: Provide FR- / NFR- / TC- IDs from .github/srs
+      placeholder: |
+        FR-A3-01
+        NFR-LAT-01
+        TC-A3-01
+    validations:
+      required: false

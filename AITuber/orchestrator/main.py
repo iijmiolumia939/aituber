@@ -1,0 +1,596 @@
+"""Main orchestrator pipeline.
+
+Wires together: ChatPoller → Safety → Bandit → LLM → AvatarWS.
+Safety ordering: Safety → Bandit → LLM (FR-SAFE-01).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import random
+import time
+
+from orchestrator.audio_player import play_audio_chunks
+from orchestrator.avatar_ws import (
+    AvatarEventType,
+    AvatarWSSender,
+    Emotion,
+    Gesture,
+    LookTarget,
+)
+from orchestrator.bandit import BanditContext, ContextualBandit
+from orchestrator.character import load_character
+from orchestrator.chat_poller import ChatMessage, YouTubeChatPoller
+from orchestrator.config import AppConfig, TTSConfig, load_config
+from orchestrator.event_bus import EventType, get_event_bus
+from orchestrator.latency import LatencyTracker
+from orchestrator.llm_client import LLMClient, LLMResult
+from orchestrator.memory import MemoryTracker
+from orchestrator.emotion_gesture_selector import select_emotion_gesture, select_idle_emotion_gesture
+from orchestrator.overlay_server import OverlayServer
+from orchestrator.safety import SafetyVerdict, check_safety
+from orchestrator.summarizer import build_summary_prompt, cluster_messages, summarize_for_display
+from orchestrator.tts import TTSClient
+
+logger = logging.getLogger(__name__)
+
+
+class Orchestrator:
+    """Top-level pipeline that runs the AITuber stream loop."""
+
+    # アイドル発話: コメントが来ない時にアバターが自発的に喋る
+    _IDLE_TIMEOUT_SEC = 30.0  # この秒数コメントがなければ自動発話
+
+    def __init__(
+        self,
+        config: AppConfig | None = None,
+        character_name: str | None = None,
+    ) -> None:
+        self._cfg = config or load_config()
+        self._character = load_character(character_name)
+
+        # キャラクターの voice 設定で TTSConfig を上書き
+        voice = self._character.voice
+        self._cfg = AppConfig(
+            youtube=self._cfg.youtube,
+            llm=self._cfg.llm,
+            tts=TTSConfig(
+                backend=voice.tts_backend,
+                host=self._cfg.tts.host,
+                port=voice.tts_port or self._cfg.tts.port,
+                speaker_id=voice.speaker_id,
+                timeout_sec=self._cfg.tts.timeout_sec,
+                chunk_samples=self._cfg.tts.chunk_samples,
+                sbv2_model_id=voice.sbv2_model_id,
+                sbv2_style=voice.sbv2_style,
+            ),
+            avatar_ws=self._cfg.avatar_ws,
+            safety=self._cfg.safety,
+            seen_set=self._cfg.seen_set,
+            bandit=self._cfg.bandit,
+        )
+
+        self._poller = YouTubeChatPoller(self._cfg.youtube, self._cfg.seen_set)
+        self._bandit = ContextualBandit(self._cfg.bandit)
+        self._llm = LLMClient(self._cfg.llm, character=self._character)
+        self._avatar = AvatarWSSender(self._cfg.avatar_ws)
+        self._overlay = OverlayServer()
+        self._tts = TTSClient(self._cfg.tts)
+        self._idle_topics = self._character.idle_topics
+        self._last_reply_time: float = 0.0
+        self._reply_queue: asyncio.Queue[ChatMessage] = asyncio.Queue(maxsize=50)
+        self._latency = LatencyTracker()
+        self._memory = MemoryTracker()
+        self._event_bus = get_event_bus()
+        self._running = False
+
+    async def start(self) -> None:
+        """Start the orchestrator pipeline."""
+        self._running = True
+        self._start_time = time.monotonic()
+        logger.info("Orchestrator starting…")
+
+        # Start WS server (Unity connects to us)
+        try:
+            await self._avatar.start_server()
+        except Exception:
+            logger.warning("Avatar WS server failed to start; continuing without avatar.")
+
+        # Start overlay WS server (OBS browser sources connect to us)
+        try:
+            await self._overlay.start()
+            # Send initial config so browser sources know the character
+            await self._overlay.send_config(
+                character_name=self._character.name,
+            )
+        except Exception:
+            logger.warning("Overlay WS server failed to start; continuing without overlay.")
+
+        # Run poller + processor + queue consumer + idle talk + memory monitor
+        await asyncio.gather(
+            self._poll_loop(),
+            self._queue_consumer(),
+            self._idle_talk_loop(),
+            self._memory_monitor(),
+        )
+
+    async def stop(self) -> None:
+        self._running = False
+        await self._tts.close()
+        await self._avatar.disconnect()
+        await self._overlay.stop()
+
+    # ── Idle talk (コメントが来ない時の自動発話) ───────────────────
+
+    async def _idle_talk_loop(self) -> None:
+        """コメントが _IDLE_TIMEOUT_SEC 間なければ LLM で動的にアイドルトークを生成する。"""
+        while self._running:
+            await asyncio.sleep(5.0)
+            if self._last_reply_time:
+                elapsed = time.monotonic() - self._last_reply_time
+            else:
+                # まだ一度も返信していない → 起動からの経過時間で判定
+                elapsed = time.monotonic() - self._start_time
+            if elapsed < self._IDLE_TIMEOUT_SEC:
+                continue
+            if not self._avatar.connected:
+                logger.debug("[IDLE] Avatar未接続; TTS のみで発話します")
+
+            logger.info("[IDLE] LLMでアイドルトーク生成中...")
+
+            try:
+                result = await self._llm.generate_idle_talk(
+                    hints=self._idle_topics if self._idle_topics else None,
+                )
+                talk_text = result.text.strip()
+                if not talk_text:
+                    continue
+
+                self._event_bus.emit_simple(
+                    EventType.IDLE_TALK,
+                    text=talk_text,
+                    cost=getattr(result, "cost", 0.0),
+                )
+                logger.info("[IDLE] 自動発話: %s", talk_text[:60])
+
+                idle_emotion, idle_gesture = select_idle_emotion_gesture(talk_text)
+                await self._avatar.send_update(
+                    emotion=idle_emotion,
+                    gesture=idle_gesture,
+                    look_target=LookTarget.CAMERA,
+                )
+                dummy = ChatMessage(
+                    message_id=f"idle-{int(time.monotonic())}",
+                    text="",
+                    author_display_name="System",
+                    author_channel_id="system",
+                    published_at="",
+                )
+                self._last_reply_time = time.monotonic()
+                await self._speak(talk_text, dummy)
+                await self._avatar.send_update(
+                    emotion=Emotion.NEUTRAL,
+                    look_target=LookTarget.CAMERA,
+                )
+            except Exception:
+                logger.warning("Idle talk failed; continuing")
+
+    # ── Memory monitor (NFR-RES-02) ───────────────────────────────
+
+    _MEMORY_SAMPLE_INTERVAL_SEC = 30.0
+
+    async def _memory_monitor(self) -> None:
+        """NFR-RES-02: 定期的に RSS をサンプリングし、増加量を監視。"""
+        while self._running:
+            try:
+                self._memory.sample()
+            except Exception:
+                logger.debug("Memory sampling failed")
+            await asyncio.sleep(self._MEMORY_SAMPLE_INTERVAL_SEC)
+
+    # ── Poll loop ─────────────────────────────────────────────────────
+
+    async def _poll_loop(self) -> None:
+        """Continuously poll chat and process messages."""
+        while self._running:
+            try:
+                messages, interval_ms = await self._poller.poll_once()
+                for msg in messages:
+                    await self._process_message(msg)
+                await asyncio.sleep(interval_ms / 1000.0)
+            except Exception:
+                logger.exception("Poll loop error; retrying in 5s")
+                await asyncio.sleep(5.0)
+
+    # ── Message processing (Safety → Bandit → LLM) ───────────────────
+
+    async def _process_message(self, msg: ChatMessage) -> None:
+        """Process a single chat message through the pipeline.
+
+        Ordering: Safety → Bandit → LLM (FR-SAFE-01).
+        """
+        # 0) Latency tracking start
+        self._latency.start(msg.message_id)
+
+        # Dashboard: コメント受信通知
+        self._event_bus.emit_simple(
+            EventType.COMMENT_RECEIVED,
+            author=msg.author_display_name,
+            text=msg.text,
+            message_id=msg.message_id,
+        )
+
+        # OBS overlay: チャット欄にコメント表示
+        try:
+            await self._overlay.send_chat(
+                author=msg.author_display_name,
+                text=msg.text,
+            )
+        except Exception:
+            logger.debug("Overlay chat send failed")
+
+        # 1) Safety filter FIRST
+        safety_result = check_safety(msg.text)
+        if safety_result.verdict == SafetyVerdict.NG:
+            logger.info(
+                "NG filtered [%s]: %s → %s",
+                safety_result.category,
+                msg.message_id,
+                safety_result.template_response,
+            )
+            self._event_bus.emit_simple(
+                EventType.COMMENT_FILTERED,
+                author=msg.author_display_name,
+                text=msg.text,
+                category=safety_result.category,
+            )
+            # Send template response if needed, but NG never reaches Bandit/LLM
+            if safety_result.template_response:
+                await self._speak(safety_result.template_response, msg, is_safety_template=True)
+            return
+
+        # 2) NFR-COST-01: ソフトリミット超過時は応答率を削減
+        cost_ratio = self._llm.cost_tracker.template_ratio
+        if cost_ratio > 0 and random.random() < cost_ratio * 0.5:
+            logger.info(
+                "NFR-COST-01: skip reply (cost_ratio=%.2f) for %s",
+                cost_ratio,
+                msg.message_id,
+            )
+            return
+
+        # 3) Bandit selects action
+        now = time.monotonic()
+        # GRAY → safety_risk=0.5 (Banditに微リスクを伝達)
+        if safety_result.verdict == SafetyVerdict.OK:
+            risk = 0.0
+        elif safety_result.verdict == SafetyVerdict.GRAY:
+            risk = 0.5
+        else:
+            risk = 0.0  # NG はここに到達しない
+
+        ctx = BanditContext(
+            t_since_last_reply_sec=now - self._last_reply_time if self._last_reply_time else 0.0,
+            chat_rate_15s=self._poller.rate_tracker.rate(now),
+            is_summary_mode=self._poller.summary_mode,
+            safety_risk=risk,
+            unique_authors_60s=self._poller.author_tracker.unique_count(),
+            silence_risk=(
+                min(1.0, (now - self._last_reply_time) / 30.0) if self._last_reply_time else 0.0
+            ),
+        )
+        decision = self._bandit.select_action(ctx)
+
+        # 3) Execute action
+        if decision.action == "ignore":
+            logger.debug("Bandit: ignore %s", msg.message_id)
+            return
+        elif decision.action == "queue_and_reply_later":
+            if not self._reply_queue.full():
+                await self._reply_queue.put(msg)
+            return
+        elif decision.action == "summarize_cluster":
+            logger.info("Bandit: summarize_cluster for %s", msg.message_id)
+            if not self._reply_queue.full():
+                await self._reply_queue.put(msg)
+            return
+        else:
+            # reply_now
+            await self._reply_to(msg, avoidance_hint=safety_result.avoidance_hint)
+
+    async def _reply_to(self, msg: ChatMessage, *, avoidance_hint: str | None = None) -> None:
+        """Generate LLM reply and send to avatar."""
+        self._last_reply_time = time.monotonic()
+        try:
+            await self._avatar.send_event(AvatarEventType.COMMENT_READ_START)
+            await self._avatar.send_update(
+                emotion=Emotion.HAPPY,
+                gesture=Gesture.NOD,
+                look_target=LookTarget.CHAT,
+            )
+        except Exception:
+            logger.warning("Avatar WS send failed")
+
+        # LLM call (GRAYゾーンの場合は回避ヒント付き)
+        self._event_bus.emit_simple(
+            EventType.LLM_REQUEST_START,
+            author=msg.author_display_name,
+            text=msg.text,
+        )
+        result: LLMResult = await self._llm.generate_reply(msg.text, avoidance_hint=avoidance_hint)
+
+        if result.is_template:
+            self._event_bus.emit_simple(
+                EventType.LLM_TEMPLATE_FALLBACK, text=result.text,
+            )
+        else:
+            self._event_bus.emit_simple(
+                EventType.LLM_RESPONSE,
+                text=result.text,
+                cost_yen=result.cost_yen,
+                retries=result.retries_used,
+            )
+            self._event_bus.emit_simple(
+                EventType.COST_UPDATE,
+                hourly_spend=self._llm.cost_tracker.hourly_spend(),
+            )
+
+        # 返答内容に合わせて感情・ジェスチャーを動的選択
+        reply_emotion, reply_gesture = select_emotion_gesture(result.text)
+        try:
+            await self._avatar.send_update(
+                emotion=reply_emotion,
+                gesture=reply_gesture,
+                look_target=LookTarget.CHAT,
+            )
+        except Exception:
+            logger.warning("Avatar gesture update failed")
+
+        await self._speak(result.text, msg)
+
+        try:
+            await self._avatar.send_event(AvatarEventType.COMMENT_READ_END)
+            await self._avatar.send_update(emotion=Emotion.NEUTRAL, look_target=LookTarget.CAMERA)
+        except Exception:
+            logger.warning("Avatar WS send failed")
+
+        # Record reward (simplified)
+        self._bandit.update_action_reward("reply_now", 1.0)
+
+    async def _speak(
+        self,
+        text: str,
+        msg: ChatMessage,
+        *,
+        is_safety_template: bool = False,
+    ) -> None:
+        """TTS 合成 → 音声再生 + リップシンク + ビゼームタイムライン送信。
+
+        FR-LIPSYNC-01: RMS ベースの mouth_open を 30Hz で更新。
+        FR-LIPSYNC-02: VOICEVOX mora → ビゼームタイムラインを Unity へ送信。
+        NFR-LAT-01: TTS 合成完了時に latency.finish() で計測。
+        B2: sounddevice でスピーカー再生を並行実行。
+        """
+
+        # TTS 合成 + リップシンクストリーム
+        self._event_bus.emit_simple(EventType.TTS_START, text=text[:60])
+
+        # OBS overlay: 字幕表示
+        try:
+            await self._overlay.send_subtitle(text, duration_sec=10.0)
+        except Exception:
+            logger.debug("Overlay subtitle send failed")
+
+        try:
+            audio_queue: asyncio.Queue = asyncio.Queue()
+            tts_task = asyncio.create_task(self._tts.synthesize_and_stream(text, audio_queue))
+
+            # NFR-LAT-01: TTS 最初のチャンク生成 ≈ 音声再生開始とみなしレイテンシ計測
+            # Race queue.get() against tts_task to avoid hanging if TTS fails
+            get_task = asyncio.ensure_future(audio_queue.get())
+            done, _ = await asyncio.wait([tts_task, get_task], return_when=asyncio.FIRST_COMPLETED)
+            if get_task in done:
+                first_chunk = get_task.result()
+            else:
+                # TTS task finished first (likely an error) — re-raise
+                get_task.cancel()
+                tts_task.result()  # raises if failed
+                return  # shouldn't reach here
+
+            lat = self._latency.finish(msg.message_id)
+            logger.info(
+                "[SPEAK] %s → %s%s (lat=%.2fs, p95=%.2fs)",
+                msg.author_display_name,
+                text[:60],
+                " (safety)" if is_safety_template else "",
+                lat if lat > 0 else 0.0,
+                self._latency.p95,
+            )
+
+            # FR-LIPSYNC-02: ビゼームを音声再生開始と同時に送信。
+            # 旧実装は send_viseme → asyncio.gather の順で数十ms先走っていた。
+            # 修正後は play_task が開始した状態で send_viseme を送信するため
+            # Unity のタイマーが実際の再生タイミングと同期する。
+            # AVATAR_VISEME_OFFSET_MS はsounddevice バッファ遅延分のみを補正すれば良い。
+
+            playback_queue: asyncio.Queue = asyncio.Queue()
+            lip_queue: asyncio.Queue = asyncio.Queue()
+            await playback_queue.put(first_chunk)
+            await lip_queue.put(first_chunk)
+
+            async def _forward_and_send_viseme() -> "TTSResult":
+                # TTS完了を待つ（バッチ合成なら既に完了済み）
+                _result = await tts_task
+                # ここで send_viseme → play_task はすでに起動済みなので
+                # Unity タイマーが音声再生開始とほぼ同時にスタートする
+                if _result.viseme_events:
+                    try:
+                        await self._avatar.send_viseme(
+                            utterance_id=msg.message_id,
+                            events=_result.viseme_events,
+                        )
+                    except Exception:
+                        logger.debug("Viseme send failed; RMS lip sync still active")
+                # 残チャンクを転送
+                while True:
+                    chunk = await audio_queue.get()
+                    await playback_queue.put(chunk)
+                    await lip_queue.put(chunk)
+                    if chunk is None:
+                        break
+                return _result
+
+            fwd_task = asyncio.create_task(_forward_and_send_viseme())
+            lip_task = asyncio.create_task(self._avatar.run_lip_sync_loop(lip_queue))
+            play_task = asyncio.create_task(play_audio_chunks(playback_queue, sample_rate=24000))
+            tts_result = (await asyncio.gather(fwd_task, lip_task, play_task))[0]
+            self._event_bus.emit_simple(
+                EventType.TTS_COMPLETE,
+                text=text[:60],
+                duration=tts_result.duration_sec,
+            )
+            self._event_bus.emit_simple(
+                EventType.LATENCY_UPDATE,
+                p95=self._latency.p95,
+            )
+        except Exception:
+            logger.warning("TTS/lip sync failed; continuing without audio")
+            self._event_bus.emit_simple(EventType.TTS_ERROR, text=text[:60])
+
+    # ── Queue consumer (FR-A3-03: summary mode) ────────────────────────
+
+    _SUMMARY_BATCH_WAIT_SEC = 3.0  # 要約バッチ待機時間
+    _SUMMARY_MIN_BATCH = 3  # 要約に必要な最小メッセージ数
+
+    async def _queue_consumer(self) -> None:
+        """Process queued messages. In summary_mode, batch-summarize.
+
+        FR-A3-03: summary_mode 時はキュー内のコメントをクラスタリングし、
+        要約プロンプトとして LLM に渡す。
+        """
+        while self._running:
+            try:
+                msg = await asyncio.wait_for(self._reply_queue.get(), timeout=2.0)
+            except TimeoutError:
+                continue
+            except Exception:
+                logger.exception("Queue consumer error")
+                await asyncio.sleep(1.0)
+                continue
+
+            # summary_mode ならバッチ収集 → 要約
+            if self._poller.summary_mode:
+                batch = [msg]
+                # 短い待機でさらにキューにたまったメッセージを回収
+                try:
+                    deadline = asyncio.get_event_loop().time() + self._SUMMARY_BATCH_WAIT_SEC
+                    while asyncio.get_event_loop().time() < deadline:
+                        remaining = deadline - asyncio.get_event_loop().time()
+                        extra = await asyncio.wait_for(
+                            self._reply_queue.get(), timeout=max(0.1, remaining)
+                        )
+                        batch.append(extra)
+                except TimeoutError:
+                    pass
+
+                if len(batch) >= self._SUMMARY_MIN_BATCH:
+                    await self._reply_with_summary(batch)
+                else:
+                    # バッチが小さい → 個別返信
+                    for m in batch:
+                        await self._reply_to(m)
+            else:
+                await self._reply_to(msg)
+
+    async def _reply_with_summary(self, messages: list[ChatMessage]) -> None:
+        """FR-A3-03: コメントをクラスタリングし要約返信。"""
+        clusters = cluster_messages(messages)
+        prompt = build_summary_prompt(clusters)
+        display = summarize_for_display(clusters)
+        logger.info("[SUMMARY] %d msgs → %s", len(messages), display)
+
+        self._last_reply_time = time.monotonic()
+        try:
+            await self._avatar.send_event(AvatarEventType.COMMENT_READ_START)
+            await self._avatar.send_update(
+                emotion=Emotion.HAPPY,
+                gesture=Gesture.WAVE,
+                look_target=LookTarget.CHAT,
+            )
+        except Exception:
+            logger.warning("Avatar WS send failed")
+
+        result: LLMResult = await self._llm.generate_reply(prompt)
+        # 要約返信は最初のメッセージに紐づけてレイテンシ計測
+        await self._speak(result.text, messages[0])
+
+        try:
+            await self._avatar.send_event(AvatarEventType.COMMENT_READ_END)
+            await self._avatar.send_update(emotion=Emotion.NEUTRAL, look_target=LookTarget.CAMERA)
+        except Exception:
+            logger.warning("Avatar WS send failed")
+
+
+# ── Entry point ──────────────────────────────────────────────────────
+
+
+def main() -> None:
+    import argparse
+
+    from orchestrator.character import list_characters
+
+    parser = argparse.ArgumentParser(description="AITuber Orchestrator")
+    parser.add_argument(
+        "--character", "-c",
+        type=str,
+        default=None,
+        help="キャラクター名 (config/characters/<name>.yml) または YAML パス",
+    )
+    parser.add_argument(
+        "--list-characters",
+        action="store_true",
+        help="利用可能なキャラクター一覧を表示して終了",
+    )
+    parser.add_argument(
+        "--dashboard",
+        action="store_true",
+        help="Textual TUI ダッシュボード付きで起動",
+    )
+    args = parser.parse_args()
+
+    if args.list_characters:
+        chars = list_characters()
+        if chars:
+            print("利用可能なキャラクター:")
+            for c in chars:
+                print(f"  - {c}")
+        else:
+            print("config/characters/ にキャラクターが見つかりません。")
+        return
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+    config = load_config()
+    orch = Orchestrator(config, character_name=args.character)
+
+    if args.dashboard:
+        from orchestrator.dashboard import DashboardApp
+
+        app = DashboardApp(
+            character_name=orch._character.name,
+            orchestrator_coro=orch.start(),
+        )
+        app.run()
+    else:
+        try:
+            asyncio.run(orch.start())
+        except KeyboardInterrupt:
+            logger.info("Shutting down…")
+            asyncio.run(orch.stop())
+
+
+if __name__ == "__main__":
+    main()

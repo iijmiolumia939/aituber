@@ -1,0 +1,37 @@
+version: 1
+tests:
+  - id: TC-A3-01
+    title: "pollingIntervalMillis respected"
+    maps_to: [FR-A3-01]
+    type: "unit"
+    requires:
+      - "mock_youtube_api"
+      - "injectable_clock"
+  - id: TC-A3-02
+    title: "seen_set TTL and cap"
+    maps_to: [FR-A3-02, NFR-RES-02]
+    type: "unit"
+  - id: TC-A3-03
+    title: "summary mode triggers"
+    maps_to: [FR-A3-03]
+    type: "unit"
+  - id: TC-SAFE-01
+    title: "NG comment never reaches LLM"
+    maps_to: [FR-SAFE-01]
+    type: "unit"
+  - id: TC-LLM-01
+    title: "LLM fallback template mode"
+    maps_to: [FR-LLM-01]
+    type: "integration"
+  - id: TC-A7-07
+    title: "viseme events applied in order"
+    maps_to: [FR-LIPSYNC-02]
+    type: "contract"
+  - id: TC-A7-08
+    title: "crossfade prevents abrupt jumps"
+    maps_to: [FR-LIPSYNC-02]
+    type: "contract"
+  - id: TC-D-01
+    title: "bandit_log pre/post output"
+    maps_to: [FR-RL-01]
+    type: "unit"

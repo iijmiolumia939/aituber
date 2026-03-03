@@ -1,0 +1,23 @@
+version: 1
+nfr:
+  - id: NFR-LAT-01
+    title: "Latency P95"
+    metric: "p95_comment_to_speech_start_seconds"
+    target: 4.0
+    notes: ["Comment received -> audio playback start"]
+  - id: NFR-RES-02
+    title: "Memory growth"
+    metric: "rss_growth_mb_over_60min"
+    target: 300
+  - id: NFR-COST-01
+    title: "LLM cost guardrail"
+    metric: "yen_per_hour"
+    target: 150
+    hard_limit: 300
+    behavior_on_exceed:
+      - "reduce_comment_reply_rate"
+      - "increase_template_mode_ratio"
+  - id: NFR-SEC-01
+    title: "No secrets in logs"
+    metric: "secret_leak_events"
+    target: 0

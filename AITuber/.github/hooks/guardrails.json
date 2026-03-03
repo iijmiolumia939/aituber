@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "./.github/hooks/scripts/pretool-guardrails.sh",
+        "powershell": "./.github/hooks/scripts/pretool-guardrails.ps1",
+        "cwd": ".",
+        "timeoutSec": 15
+      }
+    ]
+  }
+}

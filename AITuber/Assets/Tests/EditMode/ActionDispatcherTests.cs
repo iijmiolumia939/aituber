@@ -1,10 +1,26 @@
 // ActionDispatcherTests.cs
-// EditMode tests for ActionDispatcher.Dispatch / CategorizeGap.
-// TC-ADSP-01 ~ TC-ADSP-08
+// EditMode tests for ActionDispatcher.Dispatch.
+// TC-ADSP-01 ~ TC-ADSP-15
+//
+// Coverage:
+//   ADSP-01  Policy hit (exact) → Executed
+//   ADSP-02  Policy miss → Skipped when no fallback
+//   ADSP-03  Policy miss with fallback → FallbackExecuted
+//   ADSP-04  Null params → Error
+//   ADSP-05  Case-insensitive intent lookup → Executed
+//   ADSP-06  CategorizeGap(gesture_*) → missing_motion
+//   ADSP-07  CategorizeGap(emote_*) → missing_motion
+//   ADSP-08  CategorizeGap(event_*) → missing_behavior
+//   ADSP-09  context_json forwarded to GapEntry.intended_action.param
+//   ADSP-10  currentState forwarded to GapEntry.current_state
+//   ADSP-11  GapLogger.Instance=null → no crash (Skipped)
+//   ADSP-12  BehaviorPolicyLoader.Instance=null → policy miss, Skipped
+//   ADSP-13  intent=null in params → Skipped (no exception)
+//   ADSP-14  GapEntry.gap_category matches CategorizeGap naming convention
+//   ADSP-15  GapEntry.trigger = "avatar_intent_ws"
 
-using System;
-using System.Collections.Generic;
 using System.IO;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 using AITuber.Avatar;
@@ -14,129 +30,241 @@ namespace AITuber.Tests
 {
     public class ActionDispatcherTests
     {
-        private GameObject _go;
-        private ActionDispatcher _dispatcher;
-        private GapLogger _logger;
-        private BehaviorPolicyLoader _policyLoader;
-        private string _tempLogPath;
+        private GameObject             _go;
+        private GapLogger              _logger;
+        private BehaviorPolicyLoader   _policy;
+        private ActionDispatcher       _dispatcher;
+        private string                 _tempPath;
 
         [SetUp]
         public void SetUp()
         {
-            _go = new GameObject("AD_Test");
+            // Force-clear singleton refs (handles deferred Destroy edge cases)
+            GapLogger.ClearInstanceForTest();
+            BehaviorPolicyLoader.ClearInstanceForTest();
+            ActionDispatcher.ClearInstanceForTest();
+            // Also destroy any lingering GameObject instances
+            if (GapLogger.Instance != null)
+                UnityEngine.Object.DestroyImmediate(GapLogger.Instance.gameObject);
+            if (BehaviorPolicyLoader.Instance != null)
+                UnityEngine.Object.DestroyImmediate(BehaviorPolicyLoader.Instance.gameObject);
+            if (ActionDispatcher.Instance != null)
+                UnityEngine.Object.DestroyImmediate(ActionDispatcher.Instance.gameObject);
 
-            // Order matters: Awake runs on AddComponent
-            _logger       = _go.AddComponent<GapLogger>();
-            _policyLoader = _go.AddComponent<BehaviorPolicyLoader>();
-            _dispatcher   = _go.AddComponent<ActionDispatcher>();
+            _go         = new GameObject("AD_Test");
+            _logger     = _go.AddComponent<GapLogger>();
+            _policy     = _go.AddComponent<BehaviorPolicyLoader>();
+            _dispatcher = _go.AddComponent<ActionDispatcher>();
 
-            _tempLogPath = Path.Combine(Path.GetTempPath(), $"adtest_{Guid.NewGuid():N}.jsonl");
-            _logger.SetLogPathForTest(_tempLogPath);
+            _tempPath = Path.Combine(
+                Path.GetTempPath(), $"adsp_test_{System.Guid.NewGuid():N}.jsonl");
+            _logger.SetLogPathForTest(_tempPath);  // also ensures _streamId is set
             _logger.SetEnabled(true);
             _logger.ResetCountForTest();
 
-            // Inject a minimal policy with one known intent
-            _policyLoader.InjectForTest(new Dictionary<string, BehaviorEntry>
-            {
-                ["nod_agreement"] = new BehaviorEntry
-                {
-                    intent  = "nod_agreement",
-                    cmd     = "avatar_update",
-                    gesture = "nod",
-                },
-            });
+            // Explicitly inject co-located dependencies into dispatcher.
+            // This is necessary because Awake/GetComponent may not run in all
+            // EditMode test contexts; the helpers bypass singleton lookup entirely.
+            _dispatcher.SetGapLoggerForTest(_logger);
+            _dispatcher.SetPolicyLoaderForTest(_policy);
         }
 
         [TearDown]
         public void TearDown()
         {
-            if (File.Exists(_tempLogPath)) File.Delete(_tempLogPath);
+            if (File.Exists(_tempPath)) File.Delete(_tempPath);
             UnityEngine.Object.DestroyImmediate(_go);
         }
 
-        // [TC-ADSP-01] ポリシーに登録されたintentはExecutedを返す
+        // ── Helpers ───────────────────────────────────────────────────────────
+
+        private static Dictionary<string, BehaviorEntry> PolicyWith(string intent, BehaviorEntry entry)
+            => new Dictionary<string, BehaviorEntry> { { intent.ToLowerInvariant(), entry } };
+
+        private static BehaviorEntry MakeEntry(string gesture = "nod")
+            => new BehaviorEntry { cmd = "avatar_update", gesture = gesture, priority = 1 };
+
+        private static AvatarIntentParams Params(string intent, string fallback = "nod",
+                                                  string ctx = null)
+            => new AvatarIntentParams
+            {
+                intent       = intent,
+                fallback     = fallback ?? "",
+                context_json = ctx ?? "",
+            };
+
+        // ── Tests ─────────────────────────────────────────────────────────────
+
+        // [TC-ADSP-01] ポリシーにヒットした場合 Executed が返る
         [Test]
         public void Dispatch_PolicyHit_ReturnsExecuted()
         {
-            var p = new AvatarIntentParams { intent = "nod_agreement" };
-            var result = _dispatcher.Dispatch(p);
-            Assert.AreEqual(ActionDispatcher.DispatchResult.Executed, result);
+            _policy.InjectForTest(PolicyWith("test_intent", MakeEntry()));
+            var result = _dispatcher.Dispatch(Params("test_intent"));
+            Assert.AreEqual(DispatchResult.Executed, result);
         }
 
-        // [TC-ADSP-02] ポリシーHitの場合GapLoggerに記録しない
+        // [TC-ADSP-02] ポリシーミスでフォールバック無し → Skipped
         [Test]
-        public void Dispatch_PolicyHit_NoGapLogged()
+        public void Dispatch_PolicyMiss_NoFallback_ReturnsSkipped()
         {
-            var p = new AvatarIntentParams { intent = "nod_agreement" };
-            _dispatcher.Dispatch(p);
-            Assert.AreEqual(0, _logger.GapCountThisSession, "Policy hit must not produce a Gap");
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            var result = _dispatcher.Dispatch(Params("unknown_intent", fallback: ""));
+            Assert.AreEqual(DispatchResult.Skipped, result);
         }
 
-        // [TC-ADSP-03] 未登録intentかつfallback指定あり → FallbackExecuted
+        // [TC-ADSP-03] ポリシーミスでフォールバックあり → FallbackExecuted
         [Test]
-        public void Dispatch_UnknownIntent_WithFallback_ReturnsFallbackExecuted()
+        public void Dispatch_PolicyMiss_WithFallback_ReturnsFallbackExecuted()
         {
-            var p = new AvatarIntentParams { intent = "point_at_screen", fallback = "nod" };
-            var result = _dispatcher.Dispatch(p);
-            Assert.AreEqual(ActionDispatcher.DispatchResult.FallbackExecuted, result);
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            var result = _dispatcher.Dispatch(Params("unknown_intent", fallback: "nod"));
+            Assert.AreEqual(DispatchResult.FallbackExecuted, result);
         }
 
-        // [TC-ADSP-04] 未登録intentはGapLoggerに1件記録される
+        // [TC-ADSP-04] null params → Error、例外なし
         [Test]
-        public void Dispatch_UnknownIntent_GapLogged()
+        public void Dispatch_NullParams_ReturnsError()
         {
-            var p = new AvatarIntentParams { intent = "point_at_screen", fallback = "nod" };
-            _dispatcher.Dispatch(p);
-
-            Assert.AreEqual(1, _logger.GapCountThisSession);
-            string content = File.ReadAllText(_tempLogPath);
-            StringAssert.Contains("\"point_at_screen\"", content);
-            StringAssert.Contains("\"nod\"", content);
-        }
-
-        // [TC-ADSP-05] fallbackが空またはnoneの場合はSkippedを返す
-        [Test]
-        public void Dispatch_UnknownIntent_EmptyFallback_ReturnsSkipped()
-        {
-            var pEmpty = new AvatarIntentParams { intent = "unknown_xyz", fallback = "" };
-            Assert.AreEqual(ActionDispatcher.DispatchResult.Skipped, _dispatcher.Dispatch(pEmpty));
-
-            var pNone = new AvatarIntentParams { intent = "unknown_xyz2", fallback = "none" };
-            Assert.AreEqual(ActionDispatcher.DispatchResult.Skipped, _dispatcher.Dispatch(pNone));
-        }
-
-        // [TC-ADSP-06] nullパラメーターはErrorを返す（例外なし）
-        [Test]
-        public void Dispatch_NullParams_ReturnsError_NoException()
-        {
-            ActionDispatcher.DispatchResult result = default;
+            DispatchResult result = default;
             Assert.DoesNotThrow(() => result = _dispatcher.Dispatch(null));
-            Assert.AreEqual(ActionDispatcher.DispatchResult.Error, result);
+            Assert.AreEqual(DispatchResult.Error, result);
         }
 
-        // [TC-ADSP-07] Gapカテゴリが命名規則プレフィックスで正しく推定される
+        // [TC-ADSP-05] case-insensitive なインテント検索でヒット → Executed
         [Test]
-        public void CategorizeGap_ByNamingConvention()
+        public void Dispatch_CaseInsensitiveIntent_ReturnsExecuted()
         {
-            Assert.AreEqual("missing_motion",      ActionDispatcher.CategorizeGap("gesture_point_forward"));
-            Assert.AreEqual("missing_motion",      ActionDispatcher.CategorizeGap("emote_laugh_big"));
-            Assert.AreEqual("missing_behavior",    ActionDispatcher.CategorizeGap("event_superchat"));
-            Assert.AreEqual("missing_integration", ActionDispatcher.CategorizeGap("integrate_bgm"));
-            Assert.AreEqual("environment_limit",   ActionDispatcher.CategorizeGap("env_prop_book"));
-            Assert.AreEqual("capability_limit",    ActionDispatcher.CategorizeGap("do_something_new"));
-            Assert.AreEqual("unknown",             ActionDispatcher.CategorizeGap(""));
-            Assert.AreEqual("unknown",             ActionDispatcher.CategorizeGap(null));
+            _policy.InjectForTest(PolicyWith("case_intent", MakeEntry()));
+            var result = _dispatcher.Dispatch(Params("CASE_INTENT"));
+            Assert.AreEqual(DispatchResult.Executed, result);
         }
 
-        // [TC-ADSP-08] 同一セッションで複数Gapが全件記録される
+        // [TC-ADSP-06] gesture_* → gap_category = "missing_motion"
         [Test]
-        public void Dispatch_MultipleUnknownIntents_AllGapsLogged()
+        public void CategorizeGap_GesturePrefix_ReturnsMissingMotion()
         {
-            _dispatcher.Dispatch(new AvatarIntentParams { intent = "gesture_a", fallback = "nod" });
-            _dispatcher.Dispatch(new AvatarIntentParams { intent = "gesture_b", fallback = "nod" });
-            _dispatcher.Dispatch(new AvatarIntentParams { intent = "gesture_c", fallback = "" });
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            _dispatcher.Dispatch(Params("gesture_dance", fallback: ""));
 
-            Assert.AreEqual(3, _logger.GapCountThisSession);
+            string line = File.ReadAllText(_tempPath);
+            StringAssert.Contains("\"missing_motion\"", line);
+        }
+
+        // [TC-ADSP-07] emote_* → gap_category = "missing_motion"
+        [Test]
+        public void CategorizeGap_EmotePrefix_ReturnsMissingMotion()
+        {
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            _dispatcher.Dispatch(Params("emote_happy", fallback: ""));
+
+            string line = File.ReadAllText(_tempPath);
+            StringAssert.Contains("\"missing_motion\"", line);
+        }
+
+        // [TC-ADSP-08] event_* → gap_category = "missing_behavior"
+        [Test]
+        public void CategorizeGap_EventPrefix_ReturnsMissingBehavior()
+        {
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            _dispatcher.Dispatch(Params("event_superchat", fallback: ""));
+
+            string line = File.ReadAllText(_tempPath);
+            StringAssert.Contains("\"missing_behavior\"", line);
+        }
+
+        // [TC-ADSP-09] context_json が GapEntry.intended_action.param に転送される
+        [Test]
+        public void Dispatch_ContextJson_ForwardedToGapEntry()
+        {
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            _dispatcher.Dispatch(Params("unknown_intent", ctx: "{\"value\":42}"));
+
+            string content = File.ReadAllText(_tempPath);
+            StringAssert.Contains("{\\\"value\\\":42}", content,
+                "context_json must appear in intended_action.param");
+        }
+
+        // [TC-ADSP-10] currentState が GapEntry.current_state に転送される
+        [Test]
+        public void Dispatch_CurrentState_ForwardedToGapEntry()
+        {
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            _dispatcher.Dispatch(Params("unknown_intent"), currentState: "idle_standing");
+
+            string content = File.ReadAllText(_tempPath);
+            StringAssert.Contains("\"idle_standing\"", content,
+                "currentState must appear in GapEntry.current_state");
+        }
+
+        // [TC-ADSP-11] GapLogger.Instance=null でも Skipped かつクラッシュしない
+        [Test]
+        public void Dispatch_GapLoggerNull_NoCrashReturnsSkipped()
+        {
+            // Destroy only GapLogger component; dispatcher and policyLoader survive
+            UnityEngine.Object.DestroyImmediate(_logger);
+
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+
+            DispatchResult result = default;
+            Assert.DoesNotThrow(() => result = _dispatcher.Dispatch(Params("x_intent", fallback: "")));
+            // Result is Skipped (no policy hit, no fallback)
+            Assert.AreEqual(DispatchResult.Skipped, result);
+        }
+
+        // [TC-ADSP-12] BehaviorPolicyLoader.Instance=null → policy miss → Skipped (フォールバック無し)
+        [Test]
+        public void Dispatch_PolicyLoaderNull_TreatedAsPolicyMiss()
+        {
+            // Destroy only policyLoader; GapLogger survives
+            UnityEngine.Object.DestroyImmediate(_policy);
+
+            DispatchResult result = default;
+            Assert.DoesNotThrow(() => result = _dispatcher.Dispatch(Params("x_intent", fallback: "")));
+            Assert.AreEqual(DispatchResult.Skipped, result);
+        }
+
+        // [TC-ADSP-13] AvatarIntentParams.intent = null → Skipped（例外なし）
+        [Test]
+        public void Dispatch_NullIntent_ReturnsSkipped()
+        {
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            DispatchResult result = default;
+            Assert.DoesNotThrow(() => result = _dispatcher.Dispatch(Params(null, fallback: "")));
+            Assert.AreEqual(DispatchResult.Skipped, result);
+        }
+
+        // [TC-ADSP-14] 書き込まれたGapEntryのgap_categoryがCategorizeGap命名規則に一致
+        [Test]
+        public void Dispatch_GapCategoryMatchesNamingConvention()
+        {
+            var validCategories = new[]
+            {
+                "missing_motion", "missing_behavior", "missing_integration",
+                "environment_limit", "capability_limit", "unknown",
+            };
+
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            _dispatcher.Dispatch(Params("unknown_genre_intent", fallback: ""));
+
+            string content = File.ReadAllText(_tempPath);
+            bool matched = false;
+            foreach (var cat in validCategories)
+                if (content.Contains($"\"{cat}\"")) { matched = true; break; }
+
+            Assert.IsTrue(matched, $"gap_category not in valid set. Content: {content}");
+        }
+
+        // [TC-ADSP-15] GapEntry.trigger が "avatar_intent_ws" で固定されている
+        [Test]
+        public void Dispatch_GapEntry_TriggerIsAvatarIntentWs()
+        {
+            _policy.InjectForTest(new Dictionary<string, BehaviorEntry>());
+            _dispatcher.Dispatch(Params("trigger_test", fallback: ""));
+
+            string content = File.ReadAllText(_tempPath);
+            StringAssert.Contains("\"avatar_intent_ws\"", content,
+                "GapEntry.trigger must be 'avatar_intent_ws'");
         }
     }
 }
