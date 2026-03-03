@@ -1,6 +1,6 @@
 # QUALITY_SCORE.md — AITuber 品質スコアカード
 
-> **最終更新**: 2026-03-03 (M2完了)  
+> **最終更新**: 2026-03-03 (M3完了)  
 > **更新ルール**: PR マージ後、影響するドメインのスコアを更新する。  
 > 改善が必要な領域は `tech-debt-tracker.md` にも反映すること。
 
@@ -24,6 +24,7 @@
 | Growth/ActionDispatcher (M1) | A | 高 (15/15 TC) | AvatarController stub依存。実機テストなし |
 | Growth/BehaviorPolicyLoader (M1) | A | 高 (15/15 TC) | YAML スキーマバリデーションなし |
 | Growth/ReflectionRunner (M2) | B | 高 (41/41 TC) | LLM 本番呼び出しなし (モックのみ)。バッチ実行 CLI 未整備 |
+| Growth/GapDashboard (M3) | A | 高 (26/26 TC) | rich 未インストールの場合はプレーンテキストフォールバック |
 | WebSocket プロトコル準拠 | B | 中 | スキーマバリデーション未実装 (FR-A7) |
 | Overlay / OBS 連携 | C | 低 | 手動確認のみ |
 
@@ -50,6 +51,7 @@
 |---|---|---|---|
 | Unity EditMode | 55 | 55 | 0 |
 | Unity PlayMode | 6 | 6 | 0 |
+| Python pytest (new M3) | 26 | 26 | 0 |
 | Python pytest (new M2) | 41 | 41 | 0 |
 | Python pytest (全スイート) | 265+ | 263+ | 2 (pre-existing: emotion_gesture_selector) |
 
@@ -62,3 +64,4 @@
 3. **WebSocket スキーマバリデーション** — JSON Schema チェックを受信時に実施 (B→A)
 4. **BehaviorPolicy YAML スキーマ** — 不正エントリの早期検出 (A維持)
 5. **M2 ReflectionRunner 実装** — (D→実装)
+6. ~~**M3 GapDashboard 実装** — (D→A)完了~~

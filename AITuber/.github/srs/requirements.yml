@@ -192,3 +192,47 @@ fr:
     impl:
       - "orchestrator/policy_updater.py: PolicyUpdater.load_policy(), append_entries()"
       - "tests/test_proposal_validator.py: TC-REFL-16〜18"
+
+  # ── Growth / GapDashboard (FR-DASH) ──────────────────────────────────────
+
+  - id: FR-DASH-01
+    title: "Capability Gap JSONL aggregation"
+    srs_ref: "autonomous-growth.md M3"
+    description: >
+      GapDashboard が gaps_dir 以下の *.jsonl を再帰的に読み込み、
+      gap_category / intended_action.name / stream_id ごとに件数を集計する。
+      不正 JSON 行はスキップ（警告ログ）。ディレクトリ不在は空リストを返す。
+    acceptance:
+      - "全 *.jsonl ファイルを glob し、行ごとに JSON パースして結合"
+      - "不正 JSON 行はスキップして残りを返す"
+      - "存在しないディレクトリ → 空リストを返す（例外なし）"
+      - "非 .jsonl ファイルは無視"
+      - "aggregate_by_category() がカテゴリ別件数 dict を返す"
+      - "aggregate_by_intent() が intent 名別件数 dict を返す"
+      - "aggregate_by_stream() が stream_id 別件数 dict を返す"
+    impl:
+      - "orchestrator/gap_dashboard.py: GapDashboard.load_all_gaps()"
+      - "orchestrator/gap_dashboard.py: GapDashboard.aggregate_by_category/intent/stream()"
+      - "tests/test_gap_dashboard.py: TC-DASH-01〜06"
+
+  - id: FR-DASH-02
+    title: "Priority scoring and top-N gap surface"
+    srs_ref: "autonomous-growth.md M3"
+    description: >
+      GapDashboard が intent ごとに priority_score を算出し、
+      上位 N 件の代表 Gap エントリを返す CLI を提供する。
+      priority_score = (freq / total_gaps) × (1 / cost_weight[gap_category])。
+      スコアは [0.0, 1.0] に収まる。
+    acceptance:
+      - "高頻度 intent のスコアが低頻度 intent より高い"
+      - "cost_weight が小さいカテゴリ（missing_motion=1.0）が高スコアになる"
+      - "全 Gap が同一 intent の場合 score = 1.0"
+      - "スコアは [0.0, 1.0] の範囲内"
+      - "get_top_gaps(top_n=N) が N 件以内の intent 代表エントリを返す"
+      - "category フィルタで gap_category を絞り込める"
+      - "build_summary() が total_gaps / by_category / by_intent / top_gaps / streams を含む dict を返す"
+    impl:
+      - "orchestrator/gap_dashboard.py: GapDashboard.compute_priority_scores()"
+      - "orchestrator/gap_dashboard.py: GapDashboard.get_top_gaps(), build_summary()"
+      - "orchestrator/gap_dashboard.py: main() CLI"
+      - "tests/test_gap_dashboard.py: TC-DASH-07〜12"

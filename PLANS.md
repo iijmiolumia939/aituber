@@ -1,6 +1,6 @@
 # PLANS.md — AITuber 実装計画トラッカー
 
-> **最終更新**: 2026-03-03 (M2完了)  
+> **最終更新**: 2026-03-03 (M3 GapDashboard 完了)  
 > これは計画の索引です。詳細はリンク先の exec-plan を参照。  
 > 完了した計画は `exec-plans/completed/` に移動し、ここでは状態を「✅完了」に更新する。
 
@@ -8,7 +8,9 @@
 
 ## 進行中
 
-*現在アクティブな計画なし。M3 はバックログで優先度評価待ち。*
+| 計画 | 優先度 | ステータス | exec-plan |
+|---|---|---|---|
+| M3: GapDashboard (Gap 集計 CLI) | 🔴 高 | ✅ 完了 (2026-03-03) | [exec-plans/completed/m3-gap-dashboard.md](AITuber/docs/exec-plans/completed/m3-gap-dashboard.md) |
 
 ---
 
@@ -16,7 +18,8 @@
 
 | 計画 | 優先度 | 依存 | 概要 |
 |---|---|---|---|
-| M3: 自律コード生成 (BehaviorPolicy自動拡張) | 🟡 中 | M2完了 | LLM提案→YAML自動マージ + 人間承認フロー |
+| M4: 上位Gap 手動実装（初回成長） | 🔴 高 | M3完了 | GapDashboard の集計結果を元に上位 Gap のモーションを手動実装 |
+| M5→: 自律コード生成 (BehaviorPolicy自動拡張) | 🟡 中 | M4完了 | LLM提案→YAML自動マージ + 人間承認フロー（自律成長 Phase 2） |
 | TTS/AudioPlayer テスト強化 | 🟡 中 | なし | VOICEVOX モック、音素テーブル検証 |
 | WebSocket スキーマバリデーション | 🟡 中 | なし | 受信時 JSON Schema チェック実装 |
 | Room/Environment テスト強化 | 🟠 低 | なし | ScriptableObject シリアライズ、Prefab 読み込み検証 |

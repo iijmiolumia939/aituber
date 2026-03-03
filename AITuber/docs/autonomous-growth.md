@@ -448,7 +448,7 @@ GapLogの該当エントリをクローズ
 |---|---|---|---|
 | M1 | `ActionDispatcher` + `GapLogger` 実装・ログ収集開始（[設計書](m1-design.md)） | — | ✅ 2026-03-03 (61/61 TC) |
 | M2 | `ReflectionRunner` + `ProposalValidator` + `PolicyUpdater` 実装（[完了記録](exec-plans/completed/m2-reflection-runner.md)） | M1 | ✅ 2026-03-03 (41/41 TC) |
-| M3 | `GapDashboard` で初回集計・上位5 Gap特定・Issue作成 | M2 | 未着手 |
+| M3 | `GapDashboard` で初回集計・上位5 Gap特定・Issue作成 | M2 | ✅ 2026-03-03 (26/26 TC) |
 | M4 | 上位GapのモーションをPhase 1で手動実装（初回成長） | M3 | M3+4週 |
 | M5 | `BehaviorPolicy` YAML導入・`ActionDispatcher`完全分離 | M4 | M4+2週 |
 | M6 | `LLMModuloValidator` 実装・全ゲート稼働確認 | M5 | M5+2週 |

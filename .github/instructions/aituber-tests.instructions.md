@@ -30,6 +30,7 @@ applyTo: 'AITuber/Assets/Tests/**/*.cs'
 | `TC-MSG-xx` | AvatarMessageParser |
 | `TC-INTG-xx` | Growth Integration (PlayMode) |
 | `TC-REFL-xx` | ReflectionRunner / ProposalValidator / PolicyUpdater (Python) |
+| `TC-DASH-xx` | GapDashboard (Python) — FR-DASH-01, FR-DASH-02 |
 
 ## 参考ドキュメント
 
