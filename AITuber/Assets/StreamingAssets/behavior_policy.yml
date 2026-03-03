@@ -1,0 +1,126 @@
+# behavior_policy.yml
+# Intent → Action mapping for the autonomous-growth pipeline.
+#
+# Schema:
+#   - intent:    <string>              # required; unique lookup key
+#     cmd:       avatar_update|avatar_event
+#     # avatar_update fields (any combination):
+#     gesture:    <string>
+#     emotion:    <string>
+#     look_target: <string>
+#     # avatar_event fields:
+#     event:      <string>
+#     intensity:  <float, default 1.0>
+#     # metadata:
+#     priority:   <int, default 0>
+#     notes:      <string>
+#
+# Editing rules:
+#   1. Lines starting with '#' are comments (ignored by parser).
+#   2. Each entry starts with "- intent:" – no indentation required for this line.
+#   3. Key-value pairs follow on subsequent lines; whitespace before keys is stripped.
+#   4. Only the keys listed above are recognised; others are silently ignored.
+#   5. If intent is empty the entry is skipped.
+#
+# Gap-driven growth: when ActionDispatcher encounters an unknown intent it logs a
+# GapEntry. ReflectionRunner (M2) reads these logs and suggests new entries here.
+
+# ── Basic gestures (already implemented in AvatarAnimatorController) ────────
+
+- intent: nod_agreement
+  cmd: avatar_update
+  gesture: nod
+  priority: 0
+  notes: Nod gesture – standard affirmation / agreement
+
+- intent: shake_disagreement
+  cmd: avatar_update
+  gesture: shake
+  priority: 0
+  notes: Head-shake gesture – negation / disagreement
+
+- intent: wave_greeting
+  cmd: avatar_update
+  gesture: wave
+  priority: 0
+  notes: Wave hand – greeting / farewell
+
+- intent: bow_thanks
+  cmd: avatar_update
+  gesture: bow
+  priority: 0
+  notes: Bow for gratitude or greeting
+
+# ── Expressions / emotions ───────────────────────────────────────────────────
+
+- intent: express_happy
+  cmd: avatar_update
+  emotion: happy
+  priority: 0
+  notes: Joy expression
+
+- intent: express_surprised
+  cmd: avatar_update
+  emotion: surprised
+  priority: 0
+  notes: Surprise expression – raised eyebrows
+
+- intent: express_sad
+  cmd: avatar_update
+  emotion: sad
+  priority: 0
+  notes: Sorrow expression – heavy eyelids
+
+- intent: express_angry
+  cmd: avatar_update
+  emotion: angry
+  priority: 0
+  notes: Angry expression
+
+- intent: express_thinking
+  cmd: avatar_update
+  emotion: thinking
+  priority: 0
+  notes: Thinking / contemplating expression
+
+- intent: express_neutral
+  cmd: avatar_update
+  emotion: neutral
+  priority: 0
+  notes: Reset to neutral expression
+
+# ── Look targets ─────────────────────────────────────────────────────────────
+
+- intent: look_at_camera
+  cmd: avatar_update
+  look_target: camera
+  priority: 0
+  notes: Direct eye-contact with the viewer
+
+- intent: look_at_chat
+  cmd: avatar_update
+  look_target: chat
+  priority: 0
+  notes: Glance toward the chat panel
+
+- intent: look_down
+  cmd: avatar_update
+  look_target: down
+  priority: 0
+  notes: Downward gaze – shy / thoughtful
+
+# ── Comment read events ───────────────────────────────────────────────────────
+
+- intent: look_at_comment
+  cmd: avatar_event
+  event: comment_read_start
+  intensity: 1.0
+  priority: 0
+  notes: Redirect gaze to comment area during reading
+
+- intent: comment_read_done
+  cmd: avatar_event
+  event: comment_read_end
+  intensity: 1.0
+  priority: 0
+  notes: Return gaze after reading a comment

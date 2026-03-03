@@ -1,0 +1,17 @@
+{
+    "name": "AITuber.Tests.PlayMode",
+    "rootNamespace": "AITuber.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "AITuber.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
