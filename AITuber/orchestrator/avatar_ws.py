@@ -14,7 +14,7 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -143,7 +143,20 @@ class AvatarWSSender:
         self._lock = asyncio.Lock()
         self._ready = asyncio.Event()
         self._schema_validator = WsSchemaValidator()
+        # FR-E4-01: incoming message handlers keyed by message type
+        self._incoming_handlers: dict[str, Callable[[dict], None]] = {}
 
+
+    # ── Incoming message dispatch (FR-E4-01) ──────────────────────
+
+    def register_incoming_handler(self, msg_type: str, handler: Callable[[dict], None]) -> None:
+        """Register a handler for incoming Unity→Python messages of *msg_type*.
+
+        FR-E4-01: Used to hook ``perception_update`` (and future types) from Unity.
+        The *handler* is called synchronously with the decoded JSON dict.
+        """
+        self._incoming_handlers[msg_type] = handler
+        logger.debug("Registered incoming handler for type=%s", msg_type)
 
     @property
     def connected(self) -> bool:
@@ -187,11 +200,33 @@ class AvatarWSSender:
             # Keep connection alive — read messages if Unity sends any
             async for _message in websocket:
                 logger.debug("Received from Unity: %s", _message[:200] if _message else "")
+                # FR-E4-01: dispatch typed incoming messages
+                self._dispatch_incoming(_message)
         except Exception:
             pass
         finally:
             self._clients.discard(websocket)
             logger.info("Avatar client disconnected from %s", remote)
+
+    def _dispatch_incoming(self, raw: str) -> None:
+        """Parse incoming message and call registered handler if any.
+
+        FR-E4-01: Boundary validation – parse here, trust inside handlers.
+        """
+        try:
+            msg = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("Received non-JSON message from Unity; ignoring")
+            return
+        msg_type = msg.get("type", "")
+        handler = self._incoming_handlers.get(msg_type)
+        if handler is not None:
+            try:
+                handler(msg)
+            except Exception:  # noqa: BLE001
+                logger.warning("Incoming handler error for type=%s", msg_type, exc_info=True)
+        else:
+            logger.debug("No handler for incoming type=%s", msg_type)
 
     async def stop_server(self) -> None:
         """Stop the server and close all client connections."""

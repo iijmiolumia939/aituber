@@ -196,5 +196,28 @@ namespace AITuber.Avatar
         }
 
         public bool IsConnected => _connected;
+
+        /// <summary>
+        /// Send a raw JSON string to the Orchestrator over the WebSocket.
+        /// FR-E4-01: Used by PerceptionReporter to push perception_update messages.
+        /// No-ops when not connected.
+        /// </summary>
+        public async Task SendJsonAsync(string json)
+        {
+            if (_ws == null || _ws.State != WebSocketState.Open) return;
+            try
+            {
+                var bytes = Encoding.UTF8.GetBytes(json);
+                await _ws.SendAsync(
+                    new ArraySegment<byte>(bytes),
+                    WebSocketMessageType.Text,
+                    true,
+                    _cts?.Token ?? CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[AvatarWS] SendJsonAsync failed: {ex.Message}");
+            }
+        }
     }
 }

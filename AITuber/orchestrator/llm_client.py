@@ -178,6 +178,8 @@ class LLMClient:
             hard_limit=self._cfg.cost_hard_limit_yen_per_hour,
         )
         self._history: list[tuple[str, str]] = []  # (user, assistant)
+        # FR-E1-01: dynamic world context fragment injected into system prompt
+        self._world_context_fragment: str = ""
 
         # テンプレート応答をキャラクター設定から更新
         global TEMPLATE_RESPONSES
@@ -203,6 +205,14 @@ class LLMClient:
         """会話履歴をクリア。"""
         self._history.clear()
 
+    def set_world_context_fragment(self, fragment: str) -> None:
+        """Update the world-context text injected into every system prompt.
+
+        FR-E1-01: Called by Orchestrator whenever WorldContext is updated.
+        Pass empty string to disable injection.
+        """
+        self._world_context_fragment = fragment
+
     async def generate_reply(
         self, user_text: str, *, avoidance_hint: str | None = None
     ) -> LLMResult:
@@ -224,6 +234,9 @@ class LLMClient:
             return LLMResult(text=_next_template(), is_template=True)
 
         system = self._system_prompt
+        if self._world_context_fragment:
+            # FR-E1-01: prepend world context so the avatar knows where it is
+            system = f"{system}\n\n{self._world_context_fragment}"
         if avoidance_hint:
             system = f"{system}\n\n【注意】{avoidance_hint}"
 

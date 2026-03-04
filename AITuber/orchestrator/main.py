@@ -36,6 +36,7 @@ from orchestrator.overlay_server import OverlayServer
 from orchestrator.safety import SafetyVerdict, check_safety
 from orchestrator.summarizer import build_summary_prompt, cluster_messages, summarize_for_display
 from orchestrator.tts import TTSClient
+from orchestrator.world_context import WorldContext
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,8 @@ class Orchestrator:
         self._memory = MemoryTracker()
         self._event_bus = get_event_bus()
         self._running = False
+        # FR-E1-01, FR-E4-01: world context (situatedness + avatar self-perception)
+        self._world_context = WorldContext()
 
     async def start(self) -> None:
         """Start the orchestrator pipeline."""
@@ -98,6 +101,8 @@ class Orchestrator:
         # Start WS server (Unity connects to us)
         try:
             await self._avatar.start_server()
+            # FR-E4-01: register perception_update handler
+            self._avatar.register_incoming_handler("perception_update", self._on_perception_update)
         except Exception:
             logger.warning("Avatar WS server failed to start; continuing without avatar.")
 
@@ -167,6 +172,20 @@ class Orchestrator:
         await self._tts.close()
         await self._avatar.disconnect()
         await self._overlay.stop()
+
+    # ── World context / perception (FR-E1-01, FR-E4-01) ──────────────
+
+    def _on_perception_update(self, msg: dict) -> None:
+        """Handle perception_update from Unity and refresh LLM context.
+
+        FR-E4-01: Called synchronously by AvatarWSSender when Unity sends
+        a ``perception_update`` JSON message over the WS connection.
+        Updates WorldContext and propagates the prompt fragment to LLMClient.
+        """
+        self._world_context.update(msg)
+        fragment = self._world_context.to_prompt_fragment()
+        self._llm.set_world_context_fragment(fragment)
+        logger.debug("[WorldContext] LLM context updated: %s", fragment[:120])
 
     # ── Idle talk (コメントが来ない時の自動発話) ───────────────────
 
