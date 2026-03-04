@@ -111,10 +111,14 @@ class OpenAIBackend:
         if self._client is None:
             import openai
 
-            self._client = openai.AsyncOpenAI(
-                api_key=self._cfg.api_key,
-                timeout=self._cfg.timeout_sec,
-            )
+            kwargs: dict = {
+                "api_key": self._cfg.api_key,
+                "timeout": self._cfg.timeout_sec,
+            }
+            # FR-LLM-BACKEND-01: OpenAI 互換エンドポイントへの切替
+            if self._cfg.base_url is not None:
+                kwargs["base_url"] = self._cfg.base_url
+            self._client = openai.AsyncOpenAI(**kwargs)
 
     async def chat(self, system: str, user: str) -> tuple[str, float]:
         self._ensure_client()
@@ -127,7 +131,8 @@ class OpenAIBackend:
             max_tokens=256,
         )
         text = resp.choices[0].message.content or ""
-        # Rough cost estimation (gpt-4o-mini pricing)
+        # 概算コスト (USD→JPY)。プロバイダ・モデルによって実単価は異なる。
+        # gpt-4o-mini 相当の単価を基準値として使用。
         prompt_tokens = resp.usage.prompt_tokens if resp.usage else 0
         completion_tokens = resp.usage.completion_tokens if resp.usage else 0
         cost_usd = (prompt_tokens * 0.15 + completion_tokens * 0.60) / 1_000_000

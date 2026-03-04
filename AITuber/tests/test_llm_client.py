@@ -192,3 +192,48 @@ class TestSoftLimitTemplateMode:
 
         # ratio=0.9 → 100回中かなりの割合がテンプレートになるはず
         assert template_count > 20  # 最低限 20% 以上
+
+
+class TestLLMBackendSwitch:
+    """TC-LLM-BACKEND-01〜05: LLM_BASE_URL / LLM_MODEL 環境変数によるバックエンド切替。
+
+    Maps to: FR-LLM-BACKEND-01.
+    """
+
+    def test_default_base_url_is_none(self):
+        """TC-LLM-BACKEND-01: base_url のデフォルトは None (OpenAI エンドポイント)。"""
+        cfg = LLMConfig()
+        assert cfg.base_url is None
+
+    def test_base_url_from_env(self, monkeypatch):
+        """TC-LLM-BACKEND-02: LLM_BASE_URL 環境変数が base_url に反映される。"""
+        monkeypatch.setenv("LLM_BASE_URL", "https://api.groq.com/openai/v1")
+        cfg = LLMConfig()
+        assert cfg.base_url == "https://api.groq.com/openai/v1"
+
+    def test_empty_base_url_env_becomes_none(self, monkeypatch):
+        """TC-LLM-BACKEND-03: LLM_BASE_URL='' は None 扱い（デフォルト内無効化防止）。"""
+        monkeypatch.setenv("LLM_BASE_URL", "")
+        cfg = LLMConfig()
+        assert cfg.base_url is None
+
+    def test_model_from_env(self, monkeypatch):
+        """TC-LLM-BACKEND-04: LLM_MODEL 環境変数がモデル名に反映される。"""
+        monkeypatch.setenv("LLM_MODEL", "llama-3.3-70b-versatile")
+        cfg = LLMConfig()
+        assert cfg.model == "llama-3.3-70b-versatile"
+
+    def test_default_model_is_gpt4o_mini(self, monkeypatch):
+        """TC-LLM-BACKEND-05: LLM_MODEL 未設定時のデフォルトは gpt-4o-mini。"""
+        monkeypatch.delenv("LLM_MODEL", raising=False)
+        cfg = LLMConfig()
+        assert cfg.model == "gpt-4o-mini"
+
+    @pytest.mark.asyncio
+    async def test_custom_backend_works_with_base_url_config(self):
+        """TC-LLM-BACKEND-06: base_url 付き LLMConfig で任意バックエンドを受け付ける。"""
+        cfg = LLMConfig(base_url="https://api.groq.com/openai/v1", model="llama-3.3-70b-versatile")
+        client = LLMClient(config=cfg, backend=SuccessBackend())
+        result = await client.generate_reply("テスト")
+        assert result.is_template is False
+        assert result.text != ""

@@ -22,8 +22,28 @@ class YouTubeConfig:
 
 @dataclass(frozen=True)
 class LLMConfig:
+    """LLM 接続設定。
+
+    環境変数で OpenAI 互換の任意バックエンドに切替可能。
+    SRS refs: FR-LLM-BACKEND-01.
+
+    Examples::
+
+        # Groq (grok は OpenAI 互換 API)
+        LLM_BASE_URL=https://api.groq.com/openai/v1
+        OPENAI_API_KEY=gsk_xxxx
+        LLM_MODEL=llama-3.3-70b-versatile
+
+        # DeepSeek
+        LLM_BASE_URL=https://api.deepseek.com
+        OPENAI_API_KEY=sk-xxxx
+        LLM_MODEL=deepseek-chat
+    """
+
     api_key: str = field(default_factory=lambda: os.environ.get("OPENAI_API_KEY", ""), repr=False)
-    model: str = "gpt-4o-mini"
+    model: str = field(default_factory=lambda: os.environ.get("LLM_MODEL", "gpt-4o-mini"))
+    # OpenAI 互換エンドポイント。None = OpenAI デフォルト (FR-LLM-BACKEND-01)
+    base_url: str | None = field(default_factory=lambda: os.environ.get("LLM_BASE_URL") or None)
     max_retries: int = 2
     timeout_sec: float = 10.0
     cost_hard_limit_yen_per_hour: float = 300.0
