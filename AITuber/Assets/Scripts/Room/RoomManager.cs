@@ -5,7 +5,7 @@
 // 設置方法:
 //   1. SampleScene に空の GameObject "RoomManager" を作り Attach。
 //   2. Inspector で Rooms[] に RoomDefinition ScriptableObject をアサイン。
-//   3. AvatarRoot に VRM の root Transform をアサイン。
+//   3. AvatarRoot にアバター(U.fbx)の root Transform をアサイン。
 //   4. Main Camera をアサイン。
 //
 // Orchestrator 連携:

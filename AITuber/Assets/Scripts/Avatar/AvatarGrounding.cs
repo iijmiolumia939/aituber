@@ -1,6 +1,6 @@
 // AvatarGrounding.cs
 // StarterAssets ThirdPersonController の重力・着地実装。
-// VRM 1.0 の pivot は足裏にある前提 → 計算・補正なし。
+// QuQu(U.fbx) は Humanoid FBX。root origin がヒップ位置のため起動時に pivot を足裏へ補正する。
 
 using System.Collections;
 using UnityEngine;
@@ -40,7 +40,7 @@ namespace AITuber.Avatar
         private CharacterController _cc;
         private Animator            _anim;
         private float               _verticalVelocity;
-        private bool                _pivotFixed;    // VRM 子 localY 補正済みフラグ
+        private bool                _pivotFixed;    // アバター子 localY 補正済みフラグ
         private const float         _terminalVelocity = 53.0f;
 
         // StarterAssets デフォルト固定値（pivot = 足裏 が前提）
@@ -116,9 +116,9 @@ namespace AITuber.Avatar
             _cc.enabled       = false;
             _verticalVelocity = 0f;
 
-            // ── 初回のみ: VRM の pivot を足裏に合わせる ─────────────────
-            // VRoid Studio は VRM 1.0 でも root origin がヒップ位置にある。
-            // 足ボーンのワールド Y を実測して VRM 子 GO を上にずらし、
+            // ── 初回のみ: アバターの pivot を足裏に合わせる ─────────────────
+            // QuQu(U.fbx) は root origin がヒップ位置にある。
+            // 足ボーンのワールド Y を実測してアバター子 GO を上にずらし、
             // pivot = 足裏（AvatarRoot.y = 足裏の高さ）を成立させる。
             // これが済めば以後は StarterAssets の数値をそのまま使える。
             if (!_pivotFixed && _anim != null)
@@ -133,12 +133,12 @@ namespace AITuber.Avatar
                     // 足裏のローカル Y（= 足首Y − footHeight − AvatarRoot.y）
                     float ankleLocal = ((lf.position.y + rf.position.y) * 0.5f) - transform.position.y;
                     float soleLocal  = ankleLocal - _footHeight;
-                    // soleLocal を 0 にするには VRM 子を -soleLocal 分上にずらす
-                    var vrmTr     = _anim.transform;
-                    var lp        = vrmTr.localPosition;
+                    // soleLocal を 0 にするにはアバター子を -soleLocal 分上にずらす
+                    var avatarTr  = _anim.transform;
+                    var lp        = avatarTr.localPosition;
                     lp.y         -= soleLocal;
-                    vrmTr.localPosition = lp;
-                    Debug.Log($"[AvatarGrounding] Pivot fixed: VRM localY += {-soleLocal:F4}m (soleLocal was {soleLocal:F4}m)");
+                    avatarTr.localPosition = lp;
+                    Debug.Log($"[AvatarGrounding] Pivot fixed: Avatar localY += {-soleLocal:F4}m (soleLocal was {soleLocal:F4}m)");
                 }
                 _pivotFixed = true;
             }

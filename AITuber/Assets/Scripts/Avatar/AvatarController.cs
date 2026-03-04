@@ -1,6 +1,6 @@
 // AvatarController.cs
 // Thin renderer: applies avatar_update / avatar_event / avatar_viseme
-// commands received via WebSocket to the VRM/Live2D avatar.
+// commands received via WebSocket to the FBX (Humanoid) avatar.
 //
 // SRS refs: FR-A7-01, FR-LIPSYNC-01, FR-LIPSYNC-02
 // Hard rules: No business logic. No allocations in hot path.
@@ -54,7 +54,7 @@ namespace AITuber.Avatar
         [SerializeField] private float _blinkIntervalMin = 2.5f;
         [SerializeField] private float _blinkIntervalMax = 6.0f;
         [SerializeField] private float _blinkDuration = 0.12f;
-        [Header("VRM Viseme Indices (jp_basic_8)")]
+        [Header("Viseme BlendShape Indices (jp_basic_8)")]
         [Tooltip("BlendShape index for vowel A (Fcl_MTH_A)")]
         [SerializeField] private int _visemeAIndex = -1;
         [Tooltip("BlendShape index for vowel I (Fcl_MTH_I)")]
@@ -584,7 +584,7 @@ namespace AITuber.Avatar
             _currentLookTarget = p.look_target ?? "camera";
             _targetMouthOpen = Mathf.Clamp01(p.mouth_open);
 
-            // Map emotion → VRM BlendShapePreset
+            // Map emotion → BlendShape index
             ApplyEmotion(_currentEmotion);
 
             // Map gesture → Animation trigger
@@ -829,7 +829,7 @@ namespace AITuber.Avatar
         }
 
         /// <summary>
-        /// Drive the five VRM vowel blend shapes directly from normalised weights (0..1).
+        /// Drive the five vowel blend shapes directly from normalised weights (0..1).
         /// Crossfade is applied via LerpVisemeWeight each frame.
         /// </summary>
         private void ApplyVisemeWeightsDirect(float a, float i, float u, float e, float o)
@@ -846,7 +846,7 @@ namespace AITuber.Avatar
         }
 
         /// <summary>
-        /// Drive individual VRM vowel blend shapes (A/I/U/E/O) with crossfade.
+        /// Drive individual vowel blend shapes (A/I/U/E/O) with crossfade.
         /// Legacy helper used by reset/silence paths — delegates to ApplyVisemeWeightsDirect.
         /// </summary>
         private void ApplyVisemeBlendShapes(string viseme, float strength)
@@ -993,7 +993,7 @@ namespace AITuber.Avatar
                 Mathf.Clamp(value * _mouthSensitivity * 100f, 0f, 100f));
         }
 
-        // ── Emotion → VRM BlendShape mapping ────────────────────────
+        // ── Emotion → BlendShape mapping ────────────────────────────
 
         private void ApplyEmotion(string emotion)
         {

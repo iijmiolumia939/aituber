@@ -202,7 +202,7 @@ WS Protocolに `avatar_intent` コマンドを追加し、ActionDispatcher層を
 | カテゴリ | 意味 | 解決手段 |
 |---|---|---|
 | `missing_motion` | モーション/アニメーションが存在しない | モーション追加 |
-| `missing_expression` | 表情ブレンドシェイプが不足 | VRMセットアップ更新 |
+| `missing_expression` | 表情ブレンドシェイプが不足 | BlendShapeインデックス更新 |
 | `missing_behavior` | 状態遷移ルールが未定義 | BehaviorPolicyを拡張 |
 | `missing_integration` | 外部サービス未連携（BGM等） | 新機能実装 |
 | `capability_limit` | LLMが意図を持てるが実行APIがない | WS protocol拡張 |

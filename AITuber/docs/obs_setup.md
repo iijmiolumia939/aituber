@@ -19,7 +19,7 @@ python tools/setup_obs.py --force --launch
 | ツール | バージョン | 用途 |
 |--------|-----------|------|
 | OBS Studio | 32.x 以上 | 配信ソフト |
-| AITuber Unity ビルド | `Build/AITuber.exe` | VRM アバター描画（グリーンバック） |
+| AITuber Unity ビルド | `Build/AITuber.exe` | アバター描画（グリーンバック） |
 | Python オーケストレーター | `orchestrator/` | LLM・TTS・WS 制御 |
 
 ## アーキテクチャ概要
@@ -154,7 +154,7 @@ OBS のソースリストで上にあるほど前面に描画されます。
 │          ┌──────────┐              │ msg1 ││
 │          │          │              │ msg2 ││
 │          │  Avatar  │              │ msg3 ││
-│          │  (VRM)   │              │ msg4 ││
+│          │  (FBX)   │              │ msg4 ││
 │          │          │              │      ││
 │          └──────────┘              └──────┘│
 │  ┌──────────────────────────────────────┐   │

@@ -1,11 +1,11 @@
 // AvatarIKProxy.cs
 // OnAnimatorIK は Animator と同じ GameObject 上のスクリプトにしか呼ばれない。
-// VRM のモデル root (Animator あり) から、親の AvatarRoot (AvatarGrounding あり) に
+// アバターモデル root (Animator あり) から、親の AvatarRoot (AvatarGrounding あり) に
 // OnAnimatorIK を転送するプロキシ。
 //
 // セットアップ:
 //   AvatarGrounding.Start() により AddComponent で自動アタッチされます。
-//   手動で VRM 子 GameObject（Animator が付いている方）に Attach することも可能。
+//   手動でアバター子 GameObject（Animator が付いている方）に Attach することも可能。
 
 using UnityEngine;
 

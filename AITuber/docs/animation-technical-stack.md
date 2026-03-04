@@ -1,7 +1,7 @@
 # AITuber アニメーション技術スタック
 
 > 作成日: 2026-03-02  
-> 対象Unity: 6000.3.0f1 / UniVRM: com.vrmc.vrm (VRM 1.0)
+> 対象Unity: 6000.3.0f1 / アバター: QuQu U.fbx (Humanoid FBX)
 
 ---
 
@@ -13,7 +13,7 @@ AvatarRoot (GameObject)
 ├── AvatarController.cs      ← アニメーション制御の司令塔
 └── AvatarWSClient.cs        ← WebSocket受信 → main thread dispatch
     │
-    └── [子GameObject: VRMモデル]
+    └── [子GameObject: QuQuアバター(U.fbx)]
         ├── Animator          ← AvatarAnimatorController を使用（強制置換）
         └── AvatarIKProxy.cs ← OnAnimatorIK を親へ転送
 ```
@@ -158,7 +158,7 @@ _animator.SetLookAtWeight(_lookAtWeight, 0f, headW, 1f, 0.7f);
 ### 2-6. OnAnimatorIK のコールバック転送
 
 **問題**: `OnAnimatorIK` は Animator と**同じ GameObject**上のスクリプトにしか呼ばれない。  
-`AvatarController` は親の `AvatarRoot` にあり、Animator は子 VRM モデルにある。
+`AvatarController` は親の `AvatarRoot` にあり、Animator は子アバターモデル(U.fbx)にある。
 
 **解決策**: `AvatarIKProxy.cs` を子 GameObject に `AddComponent` して、
 `OnAnimatorIK` を親へ転送するプロキシパターンを使用。
