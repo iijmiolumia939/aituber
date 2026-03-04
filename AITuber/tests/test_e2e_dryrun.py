@@ -61,8 +61,8 @@ async def test_voicevox_speakers_endpoint():
     """TC-E2E-01: VOICEVOX /speakers が 200 を返す。"""
     import aiohttp
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{VOICEVOX_URL}/speakers", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+    async with aiohttp.ClientSession() as session:  # noqa: SIM117
+        async with session.get(f"{VOICEVOX_URL}/speakers", timeout=aiohttp.ClientTimeout(total=5)) as resp:  # noqa: E501
             assert resp.status == 200, f"/speakers returned {resp.status}"
             speakers = await resp.json()
             assert isinstance(speakers, list) and len(speakers) > 0, "Empty speakers list"
@@ -78,8 +78,8 @@ async def test_voicevox_speaker_47_exists():
     """TC-E2E-02: speaker_id=47 (ナースロボ＿タイプＴ) が /speakers に含まれる。"""
     import aiohttp
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{VOICEVOX_URL}/speakers", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+    async with aiohttp.ClientSession() as session:  # noqa: SIM117
+        async with session.get(f"{VOICEVOX_URL}/speakers", timeout=aiohttp.ClientTimeout(total=5)) as resp:  # noqa: E501
             speakers = await resp.json()
 
     # Flatten all style ids
@@ -88,8 +88,9 @@ async def test_voicevox_speaker_47_exists():
         for speaker in speakers
         for style in speaker.get("styles", [])
     }
+    sample = sorted(all_ids)[:20]
     assert 47 in all_ids, (
-        f"speaker_id=47 not found in VOICEVOX. available style ids (sample): {sorted(all_ids)[:20]}"
+        f"speaker_id=47 not found in VOICEVOX. available style ids (sample): {sample}"
     )
 
 
@@ -117,8 +118,8 @@ async def test_overlay_chat_event():
 @pytest.mark.e2e
 def test_yuia_character_config():
     """TC-E2E-04: yuia.yml から speaker_id=47 と名前 YUI.A が読み込める。"""
-    import sys
     import os
+    import sys
 
     # Ensure orchestrator package is importable
     orchestrator_root = os.path.join(os.path.dirname(__file__), "..")
@@ -128,7 +129,8 @@ def test_yuia_character_config():
     from orchestrator.character import load_character
 
     char = load_character("yuia")
-    assert char.voice.speaker_id == 47, f"Expected voice.speaker_id=47, got {char.voice.speaker_id}"
+    sid = char.voice.speaker_id
+    assert sid == 47, f"Expected voice.speaker_id=47, got {sid}"
     assert "yui" in char.name.lower() or "YUI" in char.name, (
         f"Expected 'YUI' in character name, got '{char.name}'"
     )
@@ -177,7 +179,7 @@ async def test_unity_ws_avatar_update():
             data = json.loads(response)
             # If Unity sends back an error, test fails
             assert data.get("type") != "error", f"Unity returned error: {data}"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass  # No response in 2s is acceptable (thin client)
 
 

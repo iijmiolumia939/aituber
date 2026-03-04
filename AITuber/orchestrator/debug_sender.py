@@ -155,7 +155,8 @@ async def send_viseme_sequence(
 def print_header(connected: bool) -> None:
     cprint("\n" + "═" * 58, C_BOLD)
     cprint("  AITuber アバターデバッグ送信ツール", C_BOLD)
-    status = f"{C_GREEN}● CONNECTED ({1})" if connected else f"{C_RED}○ 未接続 (Unity Play Mode を起動してください)"
+    not_connected = f"{C_RED}○ 未接続 (Unity Play Mode を起動してください)"
+    status = f"{C_GREEN}● CONNECTED ({1})" if connected else not_connected
     cprint(f"  Unity: {status}{C_BOLD}", C_BOLD)
     cprint("═" * 58 + C_RESET, C_BOLD)
 
@@ -277,7 +278,7 @@ async def run_interactive(sender: AvatarWSSender) -> None:
 
         elif choice == "5":
             cprint("\n[クイック組み合わせ]", C_YELLOW)
-            for i, (label, g, e, lt) in enumerate(QUICK_COMBOS):
+            for i, (label, g, e, _lt) in enumerate(QUICK_COMBOS):
                 print(f"  {i}) {label:20s}  gesture={g}, emotion={e}")
             idx = input_choice("番号", len(QUICK_COMBOS))
             if idx is None:

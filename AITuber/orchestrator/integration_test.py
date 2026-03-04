@@ -1,4 +1,5 @@
-"""統合テスト: WS サーバー起動 → Unity 接続待機 → LLM → TTS → 
+# ruff: noqa: B023  # inner async defs are immediately gathered, not stored for reuse
+"""統合テスト: WS サーバー起動 → Unity 接続待機 → LLM → TTS →
 リップシンク + モーションを Unity に送信して動作確認する。
 
 Usage:
@@ -71,9 +72,7 @@ async def run() -> None:
     print("---- テスト会話開始 ----")
     print()
 
-    msg_count = 0
-    for comment in TEST_MESSAGES:
-        msg_count += 1
+    for msg_count, comment in enumerate(TEST_MESSAGES, 1):
         print(f"[{msg_count}/{len(TEST_MESSAGES)}] ユーザー: {comment}")
 
         msg = ChatMessage(
@@ -140,7 +139,8 @@ async def run() -> None:
                         utterance_id=msg.message_id,
                         events=tts_result.viseme_events,
                     )
-                    print(f"     [VISEME] {len(tts_result.viseme_events)} イベント送信 (offset +{offset_ms}ms)")
+                    n_ev = len(tts_result.viseme_events)
+                    print(f"     [VISEME] {n_ev} イベント送信 (offset +{offset_ms}ms)")
                 await avatar.run_lip_sync_loop(lip_q)
 
             await asyncio.gather(
