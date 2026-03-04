@@ -23,13 +23,13 @@ logger = logging.getLogger(__name__)
 # Lower weight = easier to implement = higher opportunity score.
 # Values are relative implementation-cost estimates.
 COST_WEIGHTS: dict[str, float] = {
-    "missing_motion": 1.0,       # YAML 5 lines
-    "missing_expression": 1.0,   # YAML 5 lines
-    "missing_behavior": 1.5,     # WS protocol 10 lines
+    "missing_motion": 1.0,  # YAML 5 lines
+    "missing_expression": 1.0,  # YAML 5 lines
+    "missing_behavior": 1.5,  # WS protocol 10 lines
     "missing_integration": 3.0,  # new feature 50 lines
-    "capability_limit": 5.0,     # C# + WS extension 100 lines
-    "environment_limit": 4.0,    # Asset addition
-    "unknown": 2.0,              # default
+    "capability_limit": 5.0,  # C# + WS extension 100 lines
+    "environment_limit": 4.0,  # Asset addition
+    "unknown": 2.0,  # default
 }
 
 _DEFAULT_GAPS_DIR = "Logs/capability_gaps"
@@ -183,9 +183,7 @@ class GapDashboard:
             return []
 
         filtered = (
-            gaps
-            if category is None
-            else [g for g in gaps if g.get("gap_category") == category]
+            gaps if category is None else [g for g in gaps if g.get("gap_category") == category]
         )
         if not filtered:
             return []
@@ -333,9 +331,7 @@ def main(argv: list[str] | None = None) -> int:
     summary = dashboard.build_summary(gaps, top_n=args.top)
 
     if args.category:
-        summary["top_gaps"] = dashboard.get_top_gaps(
-            gaps, top_n=args.top, category=args.category
-        )
+        summary["top_gaps"] = dashboard.get_top_gaps(gaps, top_n=args.top, category=args.category)
 
     if args.json:
         print(json.dumps(summary, ensure_ascii=False, indent=2))

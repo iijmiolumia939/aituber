@@ -206,11 +206,15 @@ async def fetch_active_live_chat_id(
         else:
             service = _build_youtube_service(token_path)
 
-        resp = service.liveBroadcasts().list(  # type: ignore[attr-defined]
-            part="snippet",
-            broadcastStatus="active",
-            mine=True,
-        ).execute()
+        resp = (
+            service.liveBroadcasts()
+            .list(  # type: ignore[attr-defined]
+                part="snippet",
+                broadcastStatus="active",
+                mine=True,
+            )
+            .execute()
+        )
         items = resp.get("items", [])
         if items:
             return items[0]["snippet"]["liveChatId"]

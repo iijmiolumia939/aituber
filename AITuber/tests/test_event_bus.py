@@ -10,10 +10,19 @@ class TestEventType:
 
     def test_all_types_defined(self) -> None:
         expected = {
-            "COMMENT_RECEIVED", "COMMENT_FILTERED",
-            "LLM_REQUEST_START", "LLM_RESPONSE", "LLM_TEMPLATE_FALLBACK",
-            "TTS_START", "TTS_COMPLETE", "TTS_ERROR",
-            "IDLE_TALK", "SYSTEM_STATUS", "COST_UPDATE", "LATENCY_UPDATE", "LOG",
+            "COMMENT_RECEIVED",
+            "COMMENT_FILTERED",
+            "LLM_REQUEST_START",
+            "LLM_RESPONSE",
+            "LLM_TEMPLATE_FALLBACK",
+            "TTS_START",
+            "TTS_COMPLETE",
+            "TTS_ERROR",
+            "IDLE_TALK",
+            "SYSTEM_STATUS",
+            "COST_UPDATE",
+            "LATENCY_UPDATE",
+            "LOG",
         }
         actual = {e.name for e in EventType}
         assert expected.issubset(actual)

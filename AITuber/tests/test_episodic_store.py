@@ -14,6 +14,7 @@ from orchestrator.episodic_store import EpisodeEntry, EpisodicStore
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
+
 @pytest.fixture()
 def store(tmp_path: Path) -> EpisodicStore:
     return EpisodicStore(path=tmp_path / "ep.jsonl", capacity=50)
@@ -24,6 +25,7 @@ def _add(s: EpisodicStore, author: str = "A", user: str = "hello", ai: str = "hi
 
 
 # ── TC-MEM-01 ──────────────────────────────────────────────────────────
+
 
 class TestEpisodicStoreBasic:
     def test_empty_store_count_zero(self, store: EpisodicStore) -> None:
@@ -66,6 +68,7 @@ class TestEpisodicStoreBasic:
 
 # ── TC-MEM-05: Persistence ─────────────────────────────────────────────
 
+
 class TestEpisodicStorePersistence:
     def test_persists_and_reloads(self, tmp_path: Path) -> None:
         """TC-MEM-05: episodes survive reload from JSONL file."""
@@ -95,12 +98,13 @@ class TestEpisodicStorePersistence:
         """TC-MEM-07: malformed JSONL lines are silently skipped."""
         path = tmp_path / "ep.jsonl"
         # Both lines are invalid JSON — neither parses
-        path.write_text('not_json_at_all\n{invalid json: true\n', encoding="utf-8")
+        path.write_text("not_json_at_all\n{invalid json: true\n", encoding="utf-8")
         s = EpisodicStore(path=path)
         assert s.count == 0  # nothing loadable
 
 
 # ── TC-MEM-08: Retrieval ───────────────────────────────────────────────
+
 
 class TestEpisodicStoreRetrieval:
     def test_get_by_author(self, store: EpisodicStore) -> None:

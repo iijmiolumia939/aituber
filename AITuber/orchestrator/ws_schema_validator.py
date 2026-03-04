@@ -21,18 +21,35 @@ _EMOTIONS: frozenset[str] = frozenset(
 
 _GESTURES: frozenset[str] = frozenset(
     [
-        "none", "nod", "shake", "wave", "cheer", "shrug", "facepalm",
+        "none",
+        "nod",
+        "shake",
+        "wave",
+        "cheer",
+        "shrug",
+        "facepalm",
         # Mixamo extended gestures (Gesture enum)
-        "shy", "laugh", "surprised", "rejected", "sigh", "thankful",
-        "sad_idle", "sad_kick", "thinking", "idle_alt",
-        "sit_down", "sit_idle", "sit_laugh", "sit_clap",
-        "sit_point", "sit_disbelief", "sit_kick",
+        "shy",
+        "laugh",
+        "surprised",
+        "rejected",
+        "sigh",
+        "thankful",
+        "sad_idle",
+        "sad_kick",
+        "thinking",
+        "idle_alt",
+        "sit_down",
+        "sit_idle",
+        "sit_laugh",
+        "sit_clap",
+        "sit_point",
+        "sit_disbelief",
+        "sit_kick",
     ]
 )
 
-_LOOK_TARGETS: frozenset[str] = frozenset(
-    ["center", "chat", "camera", "down", "random"]
-)
+_LOOK_TARGETS: frozenset[str] = frozenset(["center", "chat", "camera", "down", "random"])
 
 _AVATAR_EVENTS: frozenset[str] = frozenset(
     ["comment_read_start", "comment_read_end", "topic_switch", "break_start", "break_end"]
@@ -166,9 +183,7 @@ def _validate_avatar_config(params: dict) -> WsValidationResult:
     if val is None:
         return WsValidationResult.error("MISSING_PARAM", "'blink_enabled' is required")
     if not isinstance(val, bool):
-        return WsValidationResult.error(
-            "INVALID_PARAM_VALUE", "'blink_enabled' must be bool"
-        )
+        return WsValidationResult.error("INVALID_PARAM_VALUE", "'blink_enabled' must be bool")
     return WsValidationResult.valid()
 
 
@@ -192,13 +207,9 @@ def _validate_avatar_viseme(params: dict) -> WsValidationResult:
 
     for i, evt in enumerate(events):
         if not isinstance(evt, dict):
-            return WsValidationResult.error(
-                "INVALID_PARAM_VALUE", f"events[{i}] must be a dict"
-            )
+            return WsValidationResult.error("INVALID_PARAM_VALUE", f"events[{i}] must be a dict")
         if "t_ms" not in evt or not isinstance(evt["t_ms"], int) or isinstance(evt["t_ms"], bool):
-            return WsValidationResult.error(
-                "INVALID_PARAM_VALUE", f"events[{i}].t_ms must be int"
-            )
+            return WsValidationResult.error("INVALID_PARAM_VALUE", f"events[{i}].t_ms must be int")
         if "v" not in evt or evt["v"] not in _JP_BASIC_8:
             return WsValidationResult.error(
                 "INVALID_PARAM_VALUE",
@@ -269,18 +280,14 @@ class WsSchemaValidator:
 
         cmd = msg.get("cmd")
         if cmd is None:
-            return WsValidationResult.error(
-                "MISSING_CMD", "Message missing required 'cmd' field"
-            )
+            return WsValidationResult.error("MISSING_CMD", "Message missing required 'cmd' field")
 
         if cmd not in KNOWN_CMDS:
             return WsValidationResult.error("UNKNOWN_CMD", f"Unknown cmd '{cmd}'")
 
         params = msg.get("params", {})
         if not isinstance(params, dict):
-            return WsValidationResult.error(
-                "INVALID_PARAM_VALUE", "'params' must be a dict"
-            )
+            return WsValidationResult.error("INVALID_PARAM_VALUE", "'params' must be a dict")
 
         return _CMD_VALIDATORS[cmd](params)
 

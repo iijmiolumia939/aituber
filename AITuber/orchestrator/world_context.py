@@ -116,9 +116,7 @@ class WorldContext:
         lines.append(f"現在の場所: {location}")
 
         if self._state.time_of_day:
-            tod_jp = self._TIME_OF_DAY_JP.get(
-                self._state.time_of_day, self._state.time_of_day
-            )
+            tod_jp = self._TIME_OF_DAY_JP.get(self._state.time_of_day, self._state.time_of_day)
             lines.append(f"時刻帯: {tod_jp}")
 
         if self._state.objects_nearby:

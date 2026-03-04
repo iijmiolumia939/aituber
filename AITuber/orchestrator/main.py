@@ -171,9 +171,7 @@ class Orchestrator:
             if chat_id:
                 logger.info("Active broadcast detected — live_chat_id: %s", chat_id)
                 # Rebuild frozen config with the resolved chat_id
-                new_youtube_cfg = dataclasses.replace(
-                    self._cfg.youtube, live_chat_id=chat_id
-                )
+                new_youtube_cfg = dataclasses.replace(self._cfg.youtube, live_chat_id=chat_id)
                 self._cfg = dataclasses.replace(self._cfg, youtube=new_youtube_cfg)
                 # Recreate the poller so it uses the new config
                 self._poller = YouTubeChatPoller(self._cfg.youtube, self._cfg.seen_set)
@@ -478,7 +476,8 @@ class Orchestrator:
 
         if result.is_template:
             self._event_bus.emit_simple(
-                EventType.LLM_TEMPLATE_FALLBACK, text=result.text,
+                EventType.LLM_TEMPLATE_FALLBACK,
+                text=result.text,
             )
         else:
             self._event_bus.emit_simple(
@@ -717,7 +716,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="AITuber Orchestrator")
     parser.add_argument(
-        "--character", "-c",
+        "--character",
+        "-c",
         type=str,
         default=None,
         help="キャラクター名 (config/characters/<name>.yml) または YAML パス",

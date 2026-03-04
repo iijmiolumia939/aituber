@@ -37,7 +37,7 @@ class BroadcastSession:
 
     phase: BroadcastPhase = BroadcastPhase.IDLE
     title: str = ""
-    started_at: float = 0.0   # time.time() when stream started
+    started_at: float = 0.0  # time.time() when stream started
     ended_at: float = 0.0
     desire_score: float = 0.0
     approved: bool = False

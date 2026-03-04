@@ -111,22 +111,26 @@ class OverlayServer:
 
     async def send_chat(self, *, author: str, text: str, badge: str = "") -> None:
         """Broadcast a chat message to overlay clients."""
-        await self._broadcast({
-            "type": "chat",
-            "id": uuid.uuid4().hex[:8],
-            "ts": time.time(),
-            "author": author,
-            "text": text,
-            "badge": badge,
-        })
+        await self._broadcast(
+            {
+                "type": "chat",
+                "id": uuid.uuid4().hex[:8],
+                "ts": time.time(),
+                "author": author,
+                "text": text,
+                "badge": badge,
+            }
+        )
 
     async def send_subtitle(self, text: str, *, duration_sec: float = 10.0) -> None:
         """Broadcast subtitle (current speech) to overlay clients."""
-        await self._broadcast({
-            "type": "subtitle",
-            "text": text,
-            "duration_sec": duration_sec,
-        })
+        await self._broadcast(
+            {
+                "type": "subtitle",
+                "text": text,
+                "duration_sec": duration_sec,
+            }
+        )
 
     async def send_config(
         self,
@@ -135,11 +139,13 @@ class OverlayServer:
         character_subtitle: str = "",
     ) -> None:
         """Broadcast config (character info) to overlay clients."""
-        await self._broadcast({
-            "type": "config",
-            "character_name": character_name,
-            "character_subtitle": character_subtitle,
-        })
+        await self._broadcast(
+            {
+                "type": "config",
+                "character_name": character_name,
+                "character_subtitle": character_subtitle,
+            }
+        )
 
     async def clear_subtitle(self) -> None:
         """Clear the subtitle display."""

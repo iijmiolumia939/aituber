@@ -12,17 +12,20 @@ from orchestrator.world_context import WorldContext
 
 # ── TC-WORLD-01: update() parses perception_update correctly ──────────
 
+
 class TestWorldContextUpdate:
     def test_basic_fields_parsed(self):
         """TC-WORLD-01: update() extracts scene_name, room, time, objects."""
         ctx = WorldContext()
-        ctx.update({
-            "type": "perception_update",
-            "scene_name": "yuia_home",
-            "room_name": "living_room",
-            "time_of_day": "evening",
-            "objects_nearby": ["desk", "window"],
-        })
+        ctx.update(
+            {
+                "type": "perception_update",
+                "scene_name": "yuia_home",
+                "room_name": "living_room",
+                "time_of_day": "evening",
+                "objects_nearby": ["desk", "window"],
+            }
+        )
         s = ctx.state
         assert s.scene_name == "yuia_home"
         assert s.room_name == "living_room"
@@ -78,6 +81,7 @@ class TestWorldContextUpdate:
 
 # ── TC-WORLD-07: to_prompt_fragment() ────────────────────────────────
 
+
 class TestToPromptFragment:
     def test_empty_scene_returns_empty_string(self):
         """TC-WORLD-07a: No scene → empty fragment."""
@@ -116,10 +120,12 @@ class TestToPromptFragment:
     def test_objects_nearby_listed(self):
         """TC-WORLD-08: objects_nearby appear in the fragment."""
         ctx = WorldContext()
-        ctx.update({
-            "scene_name": "yuia_home",
-            "objects_nearby": ["desk", "window", "bookshelf"],
-        })
+        ctx.update(
+            {
+                "scene_name": "yuia_home",
+                "objects_nearby": ["desk", "window", "bookshelf"],
+            }
+        )
         frag = ctx.to_prompt_fragment()
         assert "desk" in frag
         assert "window" in frag
@@ -135,13 +141,15 @@ class TestToPromptFragment:
     def test_full_fragment_structure(self):
         """TC-WORLD-08c: Full fragment has expected structure."""
         ctx = WorldContext()
-        ctx.update({
-            "scene_name": "yuia_home",
-            "room_name": "living_room",
-            "time_of_day": "morning",
-            "objects_nearby": ["desk"],
-            "avatar_appearance": "school_uniform",
-        })
+        ctx.update(
+            {
+                "scene_name": "yuia_home",
+                "room_name": "living_room",
+                "time_of_day": "morning",
+                "objects_nearby": ["desk"],
+                "avatar_appearance": "school_uniform",
+            }
+        )
         frag = ctx.to_prompt_fragment()
         lines = frag.splitlines()
         assert lines[0] == "[WORLD]"

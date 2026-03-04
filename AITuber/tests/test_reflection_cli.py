@@ -43,9 +43,7 @@ def _make_gap(intent: str, category: str = "missing_motion") -> dict:
 
 
 def _write_gaps(path: Path, gaps: list[dict]) -> None:
-    path.write_text(
-        "\n".join(json.dumps(g, ensure_ascii=False) for g in gaps), encoding="utf-8"
-    )
+    path.write_text("\n".join(json.dumps(g, ensure_ascii=False) for g in gaps), encoding="utf-8")
 
 
 _VALID_YAML_RESPONSE = """\
@@ -134,9 +132,7 @@ class TestWithMockBackend:
         # backend.chat must have been called at least once
         mock_backend.chat.assert_called_once()
 
-    def test_invalid_yaml_response_zero_proposals(
-        self, gaps_dir: Path, policy_path: Path
-    ) -> None:
+    def test_invalid_yaml_response_zero_proposals(self, gaps_dir: Path, policy_path: Path) -> None:
         """TC-M5-04: mock backend が invalid YAML → proposals=0件、exit 0。"""
         mock_backend = MagicMock()
         mock_backend.chat = AsyncMock(return_value=(_INVALID_YAML_RESPONSE, 0.01))
@@ -151,9 +147,7 @@ class TestWithMockBackend:
         result = asyncio.run(cli.run())
         assert result == 0
 
-    def test_backend_exception_returns_zero_exit(
-        self, gaps_dir: Path, policy_path: Path
-    ) -> None:
+    def test_backend_exception_returns_zero_exit(self, gaps_dir: Path, policy_path: Path) -> None:
         """TC-M5-07: backend が例外送出 → proposals=0件、CLI は 0 で終了。"""
         mock_backend = MagicMock()
         mock_backend.chat = AsyncMock(side_effect=RuntimeError("API error"))

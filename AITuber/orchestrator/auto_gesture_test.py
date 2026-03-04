@@ -1,6 +1,7 @@
 """ジェスチャー自動テスト — 対話なしで全ジェスチャーを順番送信する。
 Usage: python -m orchestrator.auto_gesture_test
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,10 +21,10 @@ async def send_gesture(sender: AvatarWSSender, gesture: str) -> None:
     msg = AvatarMessage(
         cmd="avatar_update",
         params={
-            "gesture":     gesture,
-            "emotion":     "happy",
+            "gesture": gesture,
+            "emotion": "happy",
             "look_target": "camera",
-            "mouth_open":  0.0,
+            "mouth_open": 0.0,
         },
     )
     await sender._send(msg)
@@ -54,7 +55,7 @@ async def main() -> None:
 
     for g in GESTURES:
         await send_gesture(sender, g)
-        await asyncio.sleep(3.0)   # アニメーション完了待ち
+        await asyncio.sleep(3.0)  # アニメーション完了待ち
         await send_gesture(sender, "none")  # リセット
         await asyncio.sleep(0.5)
 

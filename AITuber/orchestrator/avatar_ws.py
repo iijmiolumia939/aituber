@@ -49,36 +49,36 @@ class Gesture(StrEnum):
     SHRUG = "shrug"
     FACEPALM = "facepalm"
     # ── Mixamo 追加ジェスチャー ──
-    SHY         = "shy"
-    LAUGH       = "laugh"
-    SURPRISED   = "surprised"
-    REJECTED    = "rejected"
-    SIGH        = "sigh"
-    THANKFUL    = "thankful"
-    SAD_IDLE    = "sad_idle"
-    SAD_KICK    = "sad_kick"
-    THINKING    = "thinking"
-    IDLE_ALT    = "idle_alt"
-    SIT_DOWN    = "sit_down"
-    SIT_IDLE    = "sit_idle"
-    SIT_LAUGH   = "sit_laugh"
-    SIT_CLAP    = "sit_clap"
-    SIT_POINT   = "sit_point"
+    SHY = "shy"
+    LAUGH = "laugh"
+    SURPRISED = "surprised"
+    REJECTED = "rejected"
+    SIGH = "sigh"
+    THANKFUL = "thankful"
+    SAD_IDLE = "sad_idle"
+    SAD_KICK = "sad_kick"
+    THINKING = "thinking"
+    IDLE_ALT = "idle_alt"
+    SIT_DOWN = "sit_down"
+    SIT_IDLE = "sit_idle"
+    SIT_LAUGH = "sit_laugh"
+    SIT_CLAP = "sit_clap"
+    SIT_POINT = "sit_point"
     SIT_DISBELIEF = "sit_disbelief"
-    SIT_KICK    = "sit_kick"
+    SIT_KICK = "sit_kick"
     # ── M4: stand-up gestures (behavior_policy M4) ──
-    BOW          = "bow"
-    CLAP         = "clap"
-    THUMBS_UP    = "thumbs_up"
+    BOW = "bow"
+    CLAP = "clap"
+    THUMBS_UP = "thumbs_up"
     POINT_FORWARD = "point_forward"
-    SPIN         = "spin"
+    SPIN = "spin"
     # ── M19: daily life Sims-like gestures (FR-LIFE-01) ──
-    WALK         = "walk"
-    SIT_READ     = "sit_read"
-    SIT_EAT      = "sit_eat"
-    SIT_WRITE    = "sit_write"
-    SLEEP_IDLE   = "sleep_idle"
-    STRETCH      = "stretch"
+    WALK = "walk"
+    SIT_READ = "sit_read"
+    SIT_EAT = "sit_eat"
+    SIT_WRITE = "sit_write"
+    SLEEP_IDLE = "sleep_idle"
+    STRETCH = "stretch"
 
 
 class LookTarget(StrEnum):
@@ -158,7 +158,6 @@ class AvatarWSSender:
         self._schema_validator = WsSchemaValidator()
         # FR-E4-01: incoming message handlers keyed by message type
         self._incoming_handlers: dict[str, Callable[[dict], None]] = {}
-
 
     # ── Incoming message dispatch (FR-E4-01) ──────────────────────
 
@@ -439,5 +438,3 @@ class AvatarWSSender:
             mouth = compute_rms_mouth_open(chunk, sensitivity=sensitivity)
             await self.send_update(mouth_open=mouth)
             await asyncio.sleep(interval)
-
-

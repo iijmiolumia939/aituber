@@ -38,6 +38,7 @@ def _empty_response() -> dict:
 
 def _service_factory_returning(chat_id: str | None):
     """OAuth サービスをモックする factory を返す。"""
+
     class _MockRequest:
         def execute(self) -> dict:
             if chat_id:
@@ -60,6 +61,7 @@ def _service_factory_returning(chat_id: str | None):
 
 def _service_factory_raising(exc: Exception):
     """OAuth サービスが例外を raise するモック。"""
+
     def factory():
         raise exc
 
@@ -147,8 +149,10 @@ async def test_fetch_active_live_chat_id_apikey_path_no_oauth():
     mock_response.json.return_value = _make_broadcast_response(expected_id)
     mock_response.raise_for_status = MagicMock()
 
-    with patch("os.path.exists", return_value=False), \
-         patch("httpx.AsyncClient") as mock_client_cls:
+    with (
+        patch("os.path.exists", return_value=False),
+        patch("httpx.AsyncClient") as mock_client_cls,
+    ):
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
         mock_client_cls.return_value.__aenter__.return_value = mock_client

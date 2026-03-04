@@ -123,9 +123,7 @@ def load_character(name_or_path: str | None = None) -> CharacterConfig:
 
     # 環境変数チェック
     if name_or_path is None:
-        name_or_path = os.environ.get("CHARACTER_NAME") or os.environ.get(
-            "CHARACTER_CONFIG_PATH"
-        )
+        name_or_path = os.environ.get("CHARACTER_NAME") or os.environ.get("CHARACTER_CONFIG_PATH")
 
     resolved: Path | None = None
 
@@ -144,7 +142,8 @@ def load_character(name_or_path: str | None = None) -> CharacterConfig:
         legacy = project_root / _LEGACY_CHARACTER_PATH
         if resolved is not None and not resolved.exists():
             logger.warning(
-                "Character not found: %s; trying legacy path", resolved,
+                "Character not found: %s; trying legacy path",
+                resolved,
             )
         if legacy.exists():
             resolved = legacy
@@ -177,8 +176,13 @@ def _load_from_file(resolved: Path) -> CharacterConfig:
             idle_topics=idle_topics if idle_topics else _default_idle_topics(),
             voice=voice,
         )
-        logger.info("Character loaded: %s from %s (voice: %s/%d)",
-                     config.name, resolved, voice.tts_backend, voice.speaker_id)
+        logger.info(
+            "Character loaded: %s from %s (voice: %s/%d)",
+            config.name,
+            resolved,
+            voice.tts_backend,
+            voice.speaker_id,
+        )
         return config
     except Exception:
         logger.warning(

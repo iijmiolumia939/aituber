@@ -2,6 +2,7 @@
 
 SRS refs: FR-SCOPE-02.
 """
+
 from __future__ import annotations
 
 from orchestrator.llm_modulo_validator import LLMModuloReport, LLMModuloValidator

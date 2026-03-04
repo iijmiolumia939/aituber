@@ -17,12 +17,8 @@ from orchestrator.character import load_character
 
 # ── Paths ─────────────────────────────────────────────────────────────────
 
-_POLICY_YML = (
-    Path(__file__).parent.parent / "Assets" / "StreamingAssets" / "behavior_policy.yml"
-)
-_YUIA_YML = (
-    Path(__file__).parent.parent / "config" / "characters" / "yuia.yml"
-)
+_POLICY_YML = Path(__file__).parent.parent / "Assets" / "StreamingAssets" / "behavior_policy.yml"
+_YUIA_YML = Path(__file__).parent.parent / "config" / "characters" / "yuia.yml"
 
 # ── YUI.A 専用 intent 一覧 (TC-YUIA-INT-01〜06) ─────────────────────────
 
@@ -62,9 +58,9 @@ def test_yuia_intent_exists_in_policy(
     intent_name: str, policy_intent_map: dict[str, dict]
 ) -> None:
     """TC-YUIA-INT-01〜06: 各 YUI.A 専用 intent が behavior_policy.yml に存在する。"""
-    assert intent_name in policy_intent_map, (
-        f"YUI.A intent '{intent_name}' が behavior_policy.yml に存在しない。"
-    )
+    assert (
+        intent_name in policy_intent_map
+    ), f"YUI.A intent '{intent_name}' が behavior_policy.yml に存在しない。"
 
 
 # ── TC-YUIA-INT-07: 各 intent に必須フィールドが含まれる ─────────────────
@@ -80,17 +76,13 @@ def test_yuia_intent_has_required_fields(
     # gesture / emotion / look_target / event のいずれか1つ以上が必要
     action_fields = {"gesture", "emotion", "look_target", "event"}
     has_action = any(f in entry for f in action_fields)
-    assert has_action, (
-        f"'{intent_name}' に gesture/emotion/look_target/event のいずれも存在しない"
-    )
+    assert has_action, f"'{intent_name}' に gesture/emotion/look_target/event のいずれも存在しない"
 
 
 # ── TC-YUIA-INT-08: record_observation は nod + thinking を持つ ──────────
 
 
-def test_record_observation_has_nod_and_thinking(
-    policy_intent_map: dict[str, dict]
-) -> None:
+def test_record_observation_has_nod_and_thinking(policy_intent_map: dict[str, dict]) -> None:
     """TC-YUIA-INT-08: record_observation は gesture=nod かつ emotion=thinking。"""
     entry = policy_intent_map["record_observation"]
     assert entry.get("gesture") == "nod"
@@ -100,9 +92,7 @@ def test_record_observation_has_nod_and_thinking(
 # ── TC-YUIA-INT-09: acknowledge_anomaly は surprised を持つ ──────────────
 
 
-def test_acknowledge_anomaly_has_surprised(
-    policy_intent_map: dict[str, dict]
-) -> None:
+def test_acknowledge_anomaly_has_surprised(policy_intent_map: dict[str, dict]) -> None:
     """TC-YUIA-INT-09: acknowledge_anomaly は emotion=surprised を持つ。"""
     entry = policy_intent_map["acknowledge_anomaly"]
     assert entry.get("emotion") == "surprised"
@@ -156,9 +146,9 @@ def test_yuia_system_prompt_first_person() -> None:
 def test_yuia_idle_topics_not_empty() -> None:
     """TC-YUIA-CHAR-05: yuia.yml の idle_topics が最低5件存在する。"""
     char = load_character("yuia")
-    assert len(char.idle_topics) >= 5, (
-        f"idle_topics が {len(char.idle_topics)} 件しかない (5件以上必要)"
-    )
+    assert (
+        len(char.idle_topics) >= 5
+    ), f"idle_topics が {len(char.idle_topics)} 件しかない (5件以上必要)"
 
 
 # ── TC-YUIA-CHAR-06: template_responses が存在する ───────────────────────
@@ -176,6 +166,4 @@ def test_yuia_template_responses() -> None:
 def test_yuia_voice_speaker_id() -> None:
     """TC-YUIA-CHAR-07: yuia.yml の voice.speaker_id は 47 (ナースロボ＿タイプＴ)。"""
     char = load_character("yuia")
-    assert char.voice.speaker_id == 47, (
-        f"期待 speaker_id=47, 実際={char.voice.speaker_id}"
-    )
+    assert char.voice.speaker_id == 47, f"期待 speaker_id=47, 実際={char.voice.speaker_id}"

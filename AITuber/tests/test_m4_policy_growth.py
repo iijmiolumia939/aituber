@@ -23,13 +23,15 @@ from orchestrator.proposal_validator import ProposalValidator, ValidationStatus
 # ── Paths ──────────────────────────────────────────────────────────────────
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "sample_gaps"
-_POLICY_YML = (
-    Path(__file__).parent.parent / "Assets" / "StreamingAssets" / "behavior_policy.yml"
-)
+_POLICY_YML = Path(__file__).parent.parent / "Assets" / "StreamingAssets" / "behavior_policy.yml"
 
 # Intents expected to be surfaced by GapDashboard from the fixture
 _EXPECTED_TOP5 = {
-    "clap_hands", "thumbs_up", "express_embarrassed", "laugh_out_loud", "point_at_camera"
+    "clap_hands",
+    "thumbs_up",
+    "express_embarrassed",
+    "laugh_out_loud",
+    "point_at_camera",
 }
 _NEW_INTENTS = [
     "clap_hands",
@@ -112,9 +114,9 @@ class TestFixtureTopGap:
         """TC-M4-04: top-5 に期待する 5 intents がすべて含まれる。"""
         top5 = dashboard.get_top_gaps(fixture_gaps, top_n=5)
         surfaced = {g["intended_action"]["name"] for g in top5}
-        assert surfaced == _EXPECTED_TOP5, (
-            f"Top-5 mismatch.\n  expected: {_EXPECTED_TOP5}\n  got: {surfaced}"
-        )
+        assert (
+            surfaced == _EXPECTED_TOP5
+        ), f"Top-5 mismatch.\n  expected: {_EXPECTED_TOP5}\n  got: {surfaced}"
 
 
 # ── TC-M4-05: total_gaps count ─────────────────────────────────────────────
@@ -214,9 +216,9 @@ class TestNewEntriesValidation:
     def test_proposal_valid(self, proposal: dict, validator: ProposalValidator) -> None:
         """TC-M4-07: 各 proposal が VALID ステータスを返す。"""
         result = validator.validate(proposal)
-        assert result.status == ValidationStatus.VALID, (
-            f"Proposal for {proposal['intent']!r} failed validation: {result.reason}"
-        )
+        assert (
+            result.status == ValidationStatus.VALID
+        ), f"Proposal for {proposal['intent']!r} failed validation: {result.reason}"
 
 
 # ── TC-M4-08: PolicyUpdater.load_policy ───────────────────────────────────

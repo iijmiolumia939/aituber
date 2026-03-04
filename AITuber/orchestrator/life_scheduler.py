@@ -50,10 +50,10 @@ class LifeState:
 # 24hの時刻ブロックで優先活動を定義。エネルギーが十分あれば従う。
 
 _HOUR_SCHEDULE: list[tuple[int, int, ActivityType]] = [
-    (0,  6,  ActivityType.SLEEP),
-    (6,  7,  ActivityType.WAKE),
-    (7,  8,  ActivityType.EAT),
-    (8,  12, ActivityType.READ),
+    (0, 6, ActivityType.SLEEP),
+    (6, 7, ActivityType.WAKE),
+    (7, 8, ActivityType.EAT),
+    (8, 12, ActivityType.READ),
     (12, 13, ActivityType.EAT),
     (13, 15, ActivityType.TINKER),
     (15, 16, ActivityType.WALK),
@@ -69,15 +69,15 @@ _HOUR_SCHEDULE: list[tuple[int, int, ActivityType]] = [
 # Positive = recovery (energy increases), negative = consumption (energy decreases).
 # Rename from "drain" to "rate" for clarity.
 _ENERGY_DRAIN: dict[ActivityType, float] = {
-    ActivityType.SLEEP:   +0.00005,   # 回復: 1h=+0.18
-    ActivityType.WAKE:     0.0,
-    ActivityType.EAT:     +0.00003,   # 微回復: 食事で補充
-    ActivityType.READ:    -0.00004,   # 消費: 集中力使用
-    ActivityType.TINKER:  -0.00005,   # 消費: 高集中作業
-    ActivityType.WALK:    -0.00002,   # 軽微消費
-    ActivityType.PONDER:  -0.00003,   # 消費: 深い思索
-    ActivityType.STRETCH: +0.00001,   # 微回復
-    ActivityType.IDLE:    -0.00001,   # ほぼ消費なし
+    ActivityType.SLEEP: +0.00005,  # 回復: 1h=+0.18
+    ActivityType.WAKE: 0.0,
+    ActivityType.EAT: +0.00003,  # 微回復: 食事で補充
+    ActivityType.READ: -0.00004,  # 消費: 集中力使用
+    ActivityType.TINKER: -0.00005,  # 消費: 高集中作業
+    ActivityType.WALK: -0.00002,  # 軽微消費
+    ActivityType.PONDER: -0.00003,  # 消費: 深い思索
+    ActivityType.STRETCH: +0.00001,  # 微回復
+    ActivityType.IDLE: -0.00001,  # ほぼ消費なし
 }
 
 # Force sleep below this energy threshold (overrides schedule)

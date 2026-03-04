@@ -37,15 +37,14 @@ def _init_file_logger() -> logging.Logger:
     file_logger = logging.getLogger("aituber.file")
     file_logger.setLevel(logging.DEBUG)
     handler = logging.FileHandler(log_path, encoding="utf-8")
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
     file_logger.addHandler(handler)
     logger.info("Log file: %s", log_path)
     return file_logger
 
 
 # ── Stat tracker ─────────────────────────────────────────────────
+
 
 class _Stats:
     """ダッシュボード統計。"""
@@ -70,6 +69,7 @@ class _Stats:
 
 
 # ── Textual Widgets ──────────────────────────────────────────────
+
 
 class StatusBar(Static):
     """ステータスバー: キャラ名、稼働時間、コスト等。"""
@@ -146,6 +146,7 @@ class SystemLog(RichLog):
 
 
 # ── Textual App ──────────────────────────────────────────────────
+
 
 class DashboardApp(App):
     """AITuber ライブダッシュボード。"""

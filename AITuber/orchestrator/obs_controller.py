@@ -129,6 +129,7 @@ class OBSController:
         if self._client is None:
             try:
                 import obsws_python as obs  # type: ignore[import]
+
                 self._client = obs.ReqClient(
                     host=self._ws_host,
                     port=self._ws_port,
@@ -170,6 +171,7 @@ class OBSController:
             return False
         try:
             import obsws_python as obs  # type: ignore[import]
+
             self._client.call(obs.requests.StartStream())
             logger.info("[OBS] StartStream sent")
             return True
@@ -187,6 +189,7 @@ class OBSController:
             return False
         try:
             import obsws_python as obs  # type: ignore[import]
+
             self._client.call(obs.requests.StopStream())
             logger.info("[OBS] StopStream sent")
             return True
@@ -203,6 +206,7 @@ class OBSController:
             return StreamStatus(is_active=False)
         try:
             import obsws_python as obs  # type: ignore[import]
+
             resp = self._client.call(obs.requests.GetStreamStatus())
             return StreamStatus(
                 is_active=getattr(resp, "output_active", False),

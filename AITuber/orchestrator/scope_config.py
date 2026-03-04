@@ -32,11 +32,11 @@ class GrowthScope(Enum):
     FR-SCOPE-01
     """
 
-    YAML_ONLY = 1           # Phase 2a: behavior_policy.yml entries only
-    WS_PROTOCOL = 2         # Phase 2b: avatar_intent WS command definitions
-    ANIMATOR = 3            # Phase 2c: AnimatorController parameter additions
-    ACTION_DISPATCHER = 4   # Phase 2d: ActionDispatcher.cs new intent handlers
-    FULL_CS = 5             # Phase 2e: arbitrary new C# files
+    YAML_ONLY = 1  # Phase 2a: behavior_policy.yml entries only
+    WS_PROTOCOL = 2  # Phase 2b: avatar_intent WS command definitions
+    ANIMATOR = 3  # Phase 2c: AnimatorController parameter additions
+    ACTION_DISPATCHER = 4  # Phase 2d: ActionDispatcher.cs new intent handlers
+    FULL_CS = 5  # Phase 2e: arbitrary new C# files
 
 
 # ── Proposal-type → minimum required scope ────────────────────────────────
@@ -123,9 +123,7 @@ class ScopeConfig:
                 else GrowthScope(scope_str)
             )
         except (KeyError, ValueError):
-            logger.warning(
-                "ScopeConfig: unknown scope '%s', defaulting to yaml_only.", scope_str
-            )
+            logger.warning("ScopeConfig: unknown scope '%s', defaulting to yaml_only.", scope_str)
             scope = GrowthScope.YAML_ONLY
         return cls(
             scope=scope,

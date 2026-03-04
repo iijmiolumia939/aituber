@@ -108,9 +108,7 @@ class TestLoadGaps:
         gaps_file = tmp_path / "mixed.jsonl"
         valid_gap = _make_gap(intended_name="spin")
         gaps_file.write_text(
-            "NOT_JSON\n"
-            + json.dumps(valid_gap, ensure_ascii=False)
-            + "\n{incomplete",
+            "NOT_JSON\n" + json.dumps(valid_gap, ensure_ascii=False) + "\n{incomplete",
             encoding="utf-8",
         )
 
@@ -237,12 +235,14 @@ class TestBuildPrompt:
 class TestGenerateProposals:
     """TC-REFL-04〜05: LLM 呼び出し → Proposal 生成 (FR-REFL-02)."""
 
-    _VALID_YAML = textwrap.dedent("""\
+    _VALID_YAML = textwrap.dedent(
+        """\
         - intent: point_at_screen
           cmd: avatar_update
           gesture: point
           notes: Point gesture added by ReflectionRunner
-    """)
+    """
+    )
 
     @pytest.mark.asyncio
     async def test_generate_from_valid_llm_response(self):
@@ -294,12 +294,14 @@ class TestGenerateProposals:
     @pytest.mark.asyncio
     async def test_generate_with_invalid_yaml_skips_bad_entries(self):
         """TC-REFL-04b: LLM が一部不正 YAML を返した場合、不正エントリをスキップする。"""
-        partial_yaml = textwrap.dedent("""\
+        partial_yaml = textwrap.dedent(
+            """\
             - intent: valid_action
               cmd: avatar_update
               gesture: nod
             - this is not valid yaml: [unclosed
-        """)
+        """
+        )
         backend = _SuccessBackend(partial_yaml)
         runner = ReflectionRunner(backend=backend)
         gaps = [_make_gap()]

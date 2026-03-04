@@ -21,15 +21,15 @@ class ActivityType(StrEnum):
     FR-LIFE-01.
     """
 
-    SLEEP = "sleep"      # 睡眠（深夜〜早朝）
-    WAKE = "wake"        # 起床・朝の準備
-    EAT = "eat"          # 食事（エネルギー補給）
-    READ = "read"        # 読書・文献調査
-    TINKER = "tinker"    # 作業・データ整理・研究
-    WALK = "walk"        # 室内を歩き回る
-    PONDER = "ponder"    # 深い思索・哲学
+    SLEEP = "sleep"  # 睡眠（深夜〜早朝）
+    WAKE = "wake"  # 起床・朝の準備
+    EAT = "eat"  # 食事（エネルギー補給）
+    READ = "read"  # 読書・文献調査
+    TINKER = "tinker"  # 作業・データ整理・研究
+    WALK = "walk"  # 室内を歩き回る
+    PONDER = "ponder"  # 深い思索・哲学
     STRETCH = "stretch"  # ストレッチ・メンテナンス
-    IDLE = "idle"        # 特に何もしない
+    IDLE = "idle"  # 特に何もしない
 
 
 # ── Individual activity specification ────────────────────────────────

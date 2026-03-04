@@ -64,9 +64,9 @@ class TomEstimate:
         knowledge_assumed: what the viewer likely already knows about YUI.A
     """
 
-    intent: str        # "question" | "praise" | "tease" | "concern" | "neutral"
-    sentiment: str     # "positive" | "negative" | "neutral"
-    familiarity: str   # "newcomer" | "regular" | "superchatter"
+    intent: str  # "question" | "praise" | "tease" | "concern" | "neutral"
+    sentiment: str  # "positive" | "negative" | "neutral"
+    familiarity: str  # "newcomer" | "regular" | "superchatter"
     knowledge_assumed: str  # short description of assumed knowledge
 
 

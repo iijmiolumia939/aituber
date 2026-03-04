@@ -109,9 +109,7 @@ class LLMModuloValidator:
 
     # ── Public API ─────────────────────────────────────────────────────────
 
-    def validate(
-        self, proposals: list[dict]
-    ) -> tuple[list[dict], LLMModuloReport]:
+    def validate(self, proposals: list[dict]) -> tuple[list[dict], LLMModuloReport]:
         """Validate *proposals* through all gates.
 
         Parameters
@@ -145,9 +143,7 @@ class LLMModuloValidator:
                 all_gate_results.append(failed_result)
             else:
                 passed.append(proposal)
-                cumulative_diff += _LINES_PER_PROPOSAL_TYPE.get(
-                    ptype, _DEFAULT_LINES_PER_PROPOSAL
-                )
+                cumulative_diff += _LINES_PER_PROPOSAL_TYPE.get(ptype, _DEFAULT_LINES_PER_PROPOSAL)
 
         n_failed = len(proposals) - len(passed)
         return passed, LLMModuloReport(

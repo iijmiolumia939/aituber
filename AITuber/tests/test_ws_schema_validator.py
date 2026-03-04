@@ -290,9 +290,7 @@ class TestRoomChange:
 
     def test_valid(self, validator: WsSchemaValidator) -> None:
         """TC-M9-11: room_change 正常系"""
-        result = validator.validate(
-            {"cmd": "room_change", "params": {"room_id": "alchemist"}}
-        )
+        result = validator.validate({"cmd": "room_change", "params": {"room_id": "alchemist"}})
         assert result.ok
 
     def test_missing_room_id(self, validator: WsSchemaValidator) -> None:

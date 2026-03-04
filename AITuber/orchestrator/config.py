@@ -47,8 +47,7 @@ class LLMConfig:
     # LLM_API_KEY が優先。未設定なら OPENAI_API_KEY にフォールバック (FR-LLM-BACKEND-01)
     api_key: str = field(
         default_factory=lambda: (
-            os.environ.get("LLM_API_KEY")
-            or os.environ.get("OPENAI_API_KEY", "")
+            os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
         ),
         repr=False,
     )
@@ -70,25 +69,15 @@ class TTSConfig:
       - "style_bert_vits2":   Style-BERT-VITS2
     """
 
-    backend: str = field(
-        default_factory=lambda: os.environ.get("TTS_BACKEND", "voicevox")
-    )
+    backend: str = field(default_factory=lambda: os.environ.get("TTS_BACKEND", "voicevox"))
     host: str = "127.0.0.1"
-    port: int = field(
-        default_factory=lambda: int(os.environ.get("TTS_PORT", "50021"))
-    )
-    speaker_id: int = field(
-        default_factory=lambda: int(os.environ.get("TTS_SPEAKER_ID", "1"))
-    )
+    port: int = field(default_factory=lambda: int(os.environ.get("TTS_PORT", "50021")))
+    speaker_id: int = field(default_factory=lambda: int(os.environ.get("TTS_SPEAKER_ID", "1")))
     timeout_sec: float = 30.0
     chunk_samples: int = 1600  # 48000 / 30
     # Style-BERT-VITS2 固有設定
-    sbv2_model_id: int = field(
-        default_factory=lambda: int(os.environ.get("SBV2_MODEL_ID", "0"))
-    )
-    sbv2_style: str = field(
-        default_factory=lambda: os.environ.get("SBV2_STYLE", "Neutral")
-    )
+    sbv2_model_id: int = field(default_factory=lambda: int(os.environ.get("SBV2_MODEL_ID", "0")))
+    sbv2_style: str = field(default_factory=lambda: os.environ.get("SBV2_STYLE", "Neutral"))
 
 
 @dataclass(frozen=True)
@@ -140,8 +129,8 @@ class BanditConfig:
     n: float = 0.10
     s: float = 5.0
     # ε自動調整パラメータ (FR-BANDIT-EPS-01)
-    epsilon_min: float = 0.05   # 視聴者数多い → 活用重視
-    epsilon_max: float = 0.30   # 視聴者数少ない → 探索重視
+    epsilon_min: float = 0.05  # 視聴者数多い → 活用重視
+    epsilon_max: float = 0.30  # 視聴者数少ない → 探索重視
     viewer_rate_threshold: int = 20  # chat_rate_15s がこの値以上で epsilon_min に到達
 
 

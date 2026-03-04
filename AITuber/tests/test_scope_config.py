@@ -2,6 +2,7 @@
 
 SRS refs: FR-SCOPE-01.
 """
+
 from __future__ import annotations
 
 from orchestrator.scope_config import GrowthScope, ScopeConfig

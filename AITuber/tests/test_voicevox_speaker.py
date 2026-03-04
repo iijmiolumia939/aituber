@@ -44,11 +44,7 @@ def test_speaker_47_exists_in_voicevox() -> None:
     assert resp.status_code == 200, f"VOICEVOX /speakers 失敗: {resp.status_code}"
 
     speakers = resp.json()
-    all_style_ids: list[int] = [
-        style["id"]
-        for sp in speakers
-        for style in sp.get("styles", [])
-    ]
+    all_style_ids: list[int] = [style["id"] for sp in speakers for style in sp.get("styles", [])]
     assert YUIA_SPEAKER_ID in all_style_ids, (
         f"speaker_id={YUIA_SPEAKER_ID} が VOICEVOX に存在しません。"
         f"利用可能な ID: {sorted(all_style_ids)}"
@@ -83,9 +79,9 @@ def test_speaker_47_audio_query_succeeds() -> None:
         params={"text": "テスト", "speaker": YUIA_SPEAKER_ID},
         timeout=15.0,
     )
-    assert resp.status_code == 200, (
-        f"audio_query 失敗 speaker_id={YUIA_SPEAKER_ID}: {resp.status_code} {resp.text[:200]}"
-    )
+    assert (
+        resp.status_code == 200
+    ), f"audio_query 失敗 speaker_id={YUIA_SPEAKER_ID}: {resp.status_code} {resp.text[:200]}"
     query_data = resp.json()
     assert "accent_phrases" in query_data, "audio_query レスポンスに accent_phrases が無い"
 
@@ -104,11 +100,7 @@ def test_yuia_yml_speaker_id_matches_voicevox() -> None:
     yml_speaker_id = char["voice"]["speaker_id"]
 
     resp = httpx.get(f"{VOICEVOX_URL}/speakers", timeout=10.0)
-    all_style_ids = [
-        style["id"]
-        for sp in resp.json()
-        for style in sp.get("styles", [])
-    ]
-    assert yml_speaker_id in all_style_ids, (
-        f"yuia.yml の speaker_id={yml_speaker_id} が VOICEVOX に存在しません"
-    )
+    all_style_ids = [style["id"] for sp in resp.json() for style in sp.get("styles", [])]
+    assert (
+        yml_speaker_id in all_style_ids
+    ), f"yuia.yml の speaker_id={yml_speaker_id} が VOICEVOX に存在しません"

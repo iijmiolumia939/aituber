@@ -120,7 +120,8 @@ class TestLoadCharacter:
     def test_load_from_yaml(self, tmp_path: Path) -> None:
         yml = tmp_path / "character.yml"
         yml.write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 name: "テスト太郎"
                 personality:
                   traits:
@@ -134,7 +135,8 @@ class TestLoadCharacter:
                   - "テンプレ3"
                 idle_topics:
                   - "何か話そう"
-            """),
+            """
+            ),
             encoding="utf-8",
         )
         char = load_character(str(yml))
@@ -167,11 +169,13 @@ class TestLoadCharacter:
     def test_empty_templates_uses_defaults(self, tmp_path: Path) -> None:
         yml = tmp_path / "no_tpl.yml"
         yml.write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 name: "ノーテンプレ"
                 template_responses: []
                 idle_topics: []
-            """),
+            """
+            ),
             encoding="utf-8",
         )
         char = load_character(str(yml))

@@ -36,9 +36,9 @@ class CameraScene:
     FR-CAM-01.
     """
 
-    name: str           # e.g. "A", "B", "C"
-    scene_name: str     # OBS scene name (SetCurrentProgramScene)
-    source_name: str    # OBS source name within scene (for screenshot / visibility toggle)
+    name: str  # e.g. "A", "B", "C"
+    scene_name: str  # OBS scene name (SetCurrentProgramScene)
+    source_name: str  # OBS source name within scene (for screenshot / visibility toggle)
 
 
 @dataclass
@@ -49,7 +49,7 @@ class ScreenshotResult:
     """
 
     camera_name: str
-    image_b64: str      # base64-encoded PNG
+    image_b64: str  # base64-encoded PNG
     width: int
     height: int
     success: bool
@@ -77,11 +77,11 @@ class OBSCameraController:
     ) -> None:
         # Default 3-camera setup
         self._cameras: dict[str, CameraScene] = {}
-        for cam in (cameras or [
+        for cam in cameras or [
             CameraScene("A", "CamA_正面", "UnityCapture_A"),
             CameraScene("B", "CamB_斜め", "UnityCapture_B"),
             CameraScene("C", "CamC_引き", "UnityCapture_C"),
-        ]):
+        ]:
             self._cameras[cam.name] = cam
 
         self._client = client
@@ -115,6 +115,7 @@ class OBSCameraController:
             return True
         try:
             import obsws_python as obs  # type: ignore[import]
+
             self._client.call(obs.requests.SetCurrentProgramScene(scene_name=cam.scene_name))
             self._active_camera = name
             logger.info("[OBSCam] Switched to camera %s (scene=%s)", name, cam.scene_name)
@@ -155,6 +156,7 @@ class OBSCameraController:
 
         try:
             import obsws_python as obs  # type: ignore[import]
+
             resp = self._client.call(
                 obs.requests.GetSourceScreenshot(
                     source_name=source,

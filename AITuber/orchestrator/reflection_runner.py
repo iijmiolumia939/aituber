@@ -32,7 +32,8 @@ class LLMBackend(Protocol):
 
 # ── System prompt ──────────────────────────────────────────────────────────
 
-_SYSTEM_PROMPT = textwrap.dedent("""\
+_SYSTEM_PROMPT = textwrap.dedent(
+    """\
     あなたは AITuber の行動ポリシー設計者です。
     avatar が実行できなかった Intent（Capability Gap）のリストが与えられます。
     各 Gap に対して、behavior_policy.yml に追加すべきエントリを YAML リスト形式で提案してください。
@@ -62,10 +63,12 @@ _SYSTEM_PROMPT = textwrap.dedent("""\
     4. 1 Gap に対して 1 エントリを提案する（既存の gap_category を参考にする）
     5. 危険・有害・不適切なコンテンツを含めない
     6. 出力は YAML コードブロックのみ（説明文・コメントアウト外のテキスト禁止）
-""")
+"""
+)
 
 # Few-shot example appended to user prompt
-_FEW_SHOT_EXAMPLE = textwrap.dedent("""\
+_FEW_SHOT_EXAMPLE = textwrap.dedent(
+    """\
     ## 例
 
     Gap:
@@ -84,7 +87,8 @@ _FEW_SHOT_EXAMPLE = textwrap.dedent("""\
       notes: 画面を指差すジェスチャー
 
     ---
-""")
+"""
+)
 
 
 # ── ReflectionRunner ───────────────────────────────────────────────────────
@@ -218,9 +222,7 @@ class ReflectionRunner:
         if text.startswith("```"):
             lines = text.splitlines()
             # Remove first and last fence lines
-            text = "\n".join(
-                line for line in lines if not line.strip().startswith("```")
-            )
+            text = "\n".join(line for line in lines if not line.strip().startswith("```"))
 
         try:
             parsed = yaml.safe_load(text)

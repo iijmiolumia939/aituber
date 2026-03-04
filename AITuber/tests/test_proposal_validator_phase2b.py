@@ -2,6 +2,7 @@
 
 SRS refs: FR-REFL-03, FR-SCOPE-02.
 """
+
 from __future__ import annotations
 
 from orchestrator.proposal_validator import ProposalValidator, ValidationStatus

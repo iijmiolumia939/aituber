@@ -20,7 +20,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _DEFAULT_LOG_PATH = Path(__file__).parent.parent / "config" / "narrative_log.jsonl"
-_DEFAULT_WINDOW = 20   # episodes to synthesise
+_DEFAULT_WINDOW = 20  # episodes to synthesise
 _DEFAULT_MAX_CHARS = 200
 
 
@@ -33,7 +33,7 @@ class NarrativeEntry:
 
     narrative_id: str
     timestamp: float
-    narrative: str   # 100–300 chars of self-reflection text
+    narrative: str  # 100–300 chars of self-reflection text
     episode_count: int
 
     def to_dict(self) -> dict:
@@ -112,6 +112,7 @@ class NarrativeBuilder:
                 narrative_text = self._fallback_narrative(recent)
 
         import uuid as _uuid
+
         entry = NarrativeEntry(
             narrative_id=_uuid.uuid4().hex[:12],
             timestamp=time.time(),

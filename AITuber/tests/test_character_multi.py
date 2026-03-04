@@ -77,7 +77,8 @@ class TestLoadCharacterWithVoice:
     def test_voice_from_yaml(self, tmp_path: Path) -> None:
         yml = tmp_path / "voiced.yml"
         yml.write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 name: "ボイスキャラ"
                 voice:
                   tts_backend: voicevox
@@ -89,7 +90,8 @@ class TestLoadCharacterWithVoice:
                   - "テスト応答"
                   - "テスト応答2"
                   - "テスト応答3"
-            """),
+            """
+            ),
             encoding="utf-8",
         )
         char = load_character(str(yml))
@@ -158,7 +160,8 @@ class TestLoadCharacterByName:
         chars_dir = tmp_path / "config" / "characters"
         chars_dir.mkdir(parents=True)
         (chars_dir / "testchar.yml").write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 name: "テストキャラ"
                 voice:
                   speaker_id: 99
@@ -166,7 +169,8 @@ class TestLoadCharacterByName:
                   - "a"
                   - "b"
                   - "c"
-            """),
+            """
+            ),
             encoding="utf-8",
         )
 
@@ -182,7 +186,9 @@ class TestLoadCharacterByName:
         assert char.voice.speaker_id == 99
 
     def test_name_not_found_falls_back(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         # config/characters に該当なし、legacy も無い → デフォルト
         chars_dir = tmp_path / "config" / "characters"
@@ -202,7 +208,8 @@ class TestLoadCharacterByName:
         chars_dir = tmp_path / "config" / "characters"
         chars_dir.mkdir(parents=True)
         (chars_dir / "envchar.yml").write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 name: "環境キャラ"
                 voice:
                   speaker_id: 55
@@ -210,7 +217,8 @@ class TestLoadCharacterByName:
                   - "x"
                   - "y"
                   - "z"
-            """),
+            """
+            ),
             encoding="utf-8",
         )
 

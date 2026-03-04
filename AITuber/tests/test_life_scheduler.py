@@ -17,6 +17,7 @@ from orchestrator.life_scheduler import (
 
 # ── Test helpers ──────────────────────────────────────────────────────
 
+
 def _make_scheduler(hour: int = 10, start_mono: float = 1000.0):
     """Create a LifeScheduler pinned to a deterministic clock.
 
@@ -36,6 +37,7 @@ def _make_scheduler(hour: int = 10, start_mono: float = 1000.0):
 
 
 # ── Tests ─────────────────────────────────────────────────────────────
+
 
 # TC-LIFE-06: tick returns None before minimum activity duration
 def test_tick_returns_none_before_min_duration():

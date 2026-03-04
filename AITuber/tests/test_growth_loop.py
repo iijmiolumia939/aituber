@@ -39,9 +39,7 @@ def _make_gap(intent: str) -> dict:
 
 
 def _write_gaps(path: Path, gaps: list[dict]) -> None:
-    path.write_text(
-        "\n".join(json.dumps(g, ensure_ascii=False) for g in gaps), encoding="utf-8"
-    )
+    path.write_text("\n".join(json.dumps(g, ensure_ascii=False) for g in gaps), encoding="utf-8")
 
 
 _VALID_YAML = """\

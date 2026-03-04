@@ -1,6 +1,5 @@
 """Tests for emotion_gesture_selector."""
 
-
 from orchestrator.avatar_ws import Emotion, Gesture
 from orchestrator.emotion_gesture_selector import (
     select_emotion_gesture,

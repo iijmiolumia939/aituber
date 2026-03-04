@@ -16,8 +16,15 @@ logger = logging.getLogger(__name__)
 
 # Keys written in this order for each entry (preserves readability)
 _KEY_ORDER = [
-    "intent", "cmd", "gesture", "emotion", "look_target",
-    "event", "intensity", "priority", "notes",
+    "intent",
+    "cmd",
+    "gesture",
+    "emotion",
+    "look_target",
+    "event",
+    "intensity",
+    "priority",
+    "notes",
 ]
 
 

@@ -106,6 +106,7 @@ class TestBroadcastLifecycleStream:
     def test_check_auto_stop_triggers_end(self) -> None:
         """TC-BCAST-15b: FR-BCAST-04 — auto-stop fires when max_duration exceeded."""
         import time
+
         mgr = _make_manager(max_duration=0.01)  # 10ms
         mgr.go_live()
         assert mgr.is_live is True

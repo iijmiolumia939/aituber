@@ -93,6 +93,7 @@ class TestOBSControllerStream:
         # Patch obsws_python so GetStreamStatus call works
         with patch.dict("sys.modules", {"obsws_python": MagicMock()}):
             import obsws_python as obs
+
             obs.requests = MagicMock()
             ctrl = OBSController(_client=mock_client)
             ctrl.connect()

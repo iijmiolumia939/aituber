@@ -158,11 +158,13 @@ class TestExtractVisemes:
     def test_timing_accumulation(self) -> None:
         """TC-M10-07: 複数 mora のタイミングが正しく累積される。"""
         q = _query(
-            _phrase([
-                _mora("a", 0.1),   # starts at 0ms, ends at 100ms
-                _mora("i", 0.1),   # starts at 100ms, ends at 200ms
-                _mora("u", 0.1),   # starts at 200ms, ends at 300ms
-            ])
+            _phrase(
+                [
+                    _mora("a", 0.1),  # starts at 0ms, ends at 100ms
+                    _mora("i", 0.1),  # starts at 100ms, ends at 200ms
+                    _mora("u", 0.1),  # starts at 200ms, ends at 300ms
+                ]
+            )
         )
         events = extract_visemes(q)
         assert events[0] == VisemeEvent(t_ms=0, v="a")

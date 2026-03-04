@@ -83,6 +83,7 @@ class TestOBSCameraControllerScreenshot:
         mock_client.call.return_value = resp
 
         import sys
+
         mock_obs = MagicMock()
         mock_obs.requests = MagicMock()
         sys.modules.setdefault("obsws_python", mock_obs)

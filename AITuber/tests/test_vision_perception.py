@@ -28,9 +28,11 @@ class TestVisionPerceptionDefault:
     def test_empty_image_returns_state(self) -> None:
         """TC-CAM-06b: Empty image_b64 returns SelfViewState without calling fn."""
         called = []
+
         def fn(img, prompt):
             called.append(img)
             return "{}"
+
         vp = VisionPerception(vision_fn=fn)
         result = vp.analyze_self("")
         assert isinstance(result, SelfViewState)
@@ -40,11 +42,13 @@ class TestVisionPerceptionDefault:
 class TestVisionPerceptionParsing:
     def test_valid_json_response_parsed(self) -> None:
         """TC-CAM-07: Valid JSON response is correctly parsed."""
-        resp = json.dumps({
-            "framing": "good",
-            "emotion_visible": True,
-            "suggestion": "問題ありません",
-        })
+        resp = json.dumps(
+            {
+                "framing": "good",
+                "emotion_visible": True,
+                "suggestion": "問題ありません",
+            }
+        )
         vp = _make_vp(response=resp)
         result = vp.analyze_self("img_b64_data")
         assert result.framing == "good"
@@ -91,10 +95,12 @@ class TestVisionPerceptionParsing:
     def test_vision_fn_called_with_image_and_prompt(self) -> None:
         """TC-CAM-10: vision_fn receives the image and a non-empty prompt."""
         received = {}
+
         def fn(img: str, prompt: str) -> str:
             received["img"] = img
             received["prompt"] = prompt
             return '{"framing":"good","emotion_visible":true,"suggestion":""}'
+
         vp = VisionPerception(vision_fn=fn)
         vp.analyze_self("myimage_b64")
         assert received["img"] == "myimage_b64"
@@ -102,8 +108,10 @@ class TestVisionPerceptionParsing:
 
     def test_vision_fn_exception_returns_unknown(self) -> None:
         """TC-CAM-10b: vision_fn raising exception → framing=unknown, no re-raise."""
+
         def fn(img, prompt):
             raise RuntimeError("API down")
+
         vp = VisionPerception(vision_fn=fn)
         result = vp.analyze_self("data")
         assert result.framing == "unknown"

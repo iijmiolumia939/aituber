@@ -29,13 +29,13 @@ logging.basicConfig(level=logging.WARNING)  # WS 以外のログを抑制
 logger = logging.getLogger(__name__)
 
 # ── カラー出力 ────────────────────────────────────────────────────────
-C_RESET  = "\033[0m"
-C_CYAN   = "\033[36m"
-C_GREEN  = "\033[32m"
+C_RESET = "\033[0m"
+C_CYAN = "\033[36m"
+C_GREEN = "\033[32m"
 C_YELLOW = "\033[33m"
-C_RED    = "\033[31m"
-C_GRAY   = "\033[90m"
-C_BOLD   = "\033[1m"
+C_RED = "\033[31m"
+C_GRAY = "\033[90m"
+C_BOLD = "\033[1m"
 
 
 def cprint(msg: str, color: str = C_RESET) -> None:
@@ -45,48 +45,49 @@ def cprint(msg: str, color: str = C_RESET) -> None:
 # ── ジェスチャー / 感情マスター ────────────────────────────────────────
 GESTURES: list[tuple[str, str]] = [
     # (コマンド名, 説明)
-    ("none",         "なし"),
-    ("nod",          "うなずく"),
-    ("shake",        "首を振る"),
-    ("wave",         "手を振る"),
-    ("cheer",        "両手挙げ"),
-    ("shrug",        "肩をすくめる"),
-    ("facepalm",     "顔を手で覆う"),
-    ("shy",          "恥ずかしい (Bashful)"),
-    ("laugh",        "笑い (Laughing)"),
-    ("surprised",    "驚き (Reacting)"),
-    ("rejected",     "拒否 (Rejected)"),
-    ("sigh",         "ため息 (Relieved Sigh)"),
-    ("thankful",     "感謝 (Thankful)"),
-    ("sad_idle",     "悲しみアイドル (Sad Idle) [ループ]"),
-    ("sad_kick",     "悲しみキック (Sad Idle kick)"),
-    ("thinking",     "考え中 (Thinking) [ループ]"),
-    ("idle_alt",     "代替アイドル (Idle) [ループ]"),
-    ("sit_down",     "座る (Sitting)"),
-    ("sit_idle",     "座りアイドル (Sitting Idle) [ループ]"),
-    ("sit_laugh",    "座り笑い (Sitting Laughing)"),
-    ("sit_clap",     "座り拍手 (Sitting Clap)"),
-    ("sit_point",    "座り指差し (Sitting And Pointing)"),
-    ("sit_disbelief","座り不信 (Sitting Disbelief)"),
-    ("sit_kick",     "座りキック (Sitting_kick)"),
+    ("none", "なし"),
+    ("nod", "うなずく"),
+    ("shake", "首を振る"),
+    ("wave", "手を振る"),
+    ("cheer", "両手挙げ"),
+    ("shrug", "肩をすくめる"),
+    ("facepalm", "顔を手で覆う"),
+    ("shy", "恥ずかしい (Bashful)"),
+    ("laugh", "笑い (Laughing)"),
+    ("surprised", "驚き (Reacting)"),
+    ("rejected", "拒否 (Rejected)"),
+    ("sigh", "ため息 (Relieved Sigh)"),
+    ("thankful", "感謝 (Thankful)"),
+    ("sad_idle", "悲しみアイドル (Sad Idle) [ループ]"),
+    ("sad_kick", "悲しみキック (Sad Idle kick)"),
+    ("thinking", "考え中 (Thinking) [ループ]"),
+    ("idle_alt", "代替アイドル (Idle) [ループ]"),
+    ("sit_down", "座る (Sitting)"),
+    ("sit_idle", "座りアイドル (Sitting Idle) [ループ]"),
+    ("sit_laugh", "座り笑い (Sitting Laughing)"),
+    ("sit_clap", "座り拍手 (Sitting Clap)"),
+    ("sit_point", "座り指差し (Sitting And Pointing)"),
+    ("sit_disbelief", "座り不信 (Sitting Disbelief)"),
+    ("sit_kick", "座りキック (Sitting_kick)"),
 ]
 
 EMOTIONS: list[tuple[str, str]] = [
-    ("neutral",   "ニュートラル"),
-    ("happy",     "ハッピー 😊"),
-    ("thinking",  "考え中 🤔"),
+    ("neutral", "ニュートラル"),
+    ("happy", "ハッピー 😊"),
+    ("thinking", "考え中 🤔"),
     ("surprised", "驚き 😮"),
-    ("sad",       "悲しみ 😢"),
-    ("angry",     "怒り 😠"),
-    ("panic",     "パニック 😱"),
+    ("sad", "悲しみ 😢"),
+    ("angry", "怒り 😠"),
+    ("panic", "パニック 😱"),
 ]
 
 LOOK_TARGETS: list[tuple[str, str]] = [
     ("camera", "カメラ（視聴者）"),
-    ("chat",   "チャット欄"),
-    ("down",   "下を向く"),
+    ("chat", "チャット欄"),
+    ("down", "下を向く"),
     ("random", "ランダム"),
 ]
+
 
 # ── リップシンクデモ (日本語音節列) ──────────────────────────────────
 class LipSyncDemo:
@@ -95,20 +96,41 @@ class LipSyncDemo:
     # (音素, オフセットms)
     SEQUENCES: dict[str, list[tuple[str, int]]] = {
         "あいうえお": [
-            ("a", 0), ("i", 250), ("u", 500), ("e", 750), ("o", 1000),
-            ("m", 1200), ("sil", 1400),
+            ("a", 0),
+            ("i", 250),
+            ("u", 500),
+            ("e", 750),
+            ("o", 1000),
+            ("m", 1200),
+            ("sil", 1400),
         ],
         "こんにちは": [
-            ("o", 0), ("m", 150), ("i", 300), ("a", 450),
-            ("a", 600), ("m", 750), ("sil", 900),
+            ("o", 0),
+            ("m", 150),
+            ("i", 300),
+            ("a", 450),
+            ("a", 600),
+            ("m", 750),
+            ("sil", 900),
         ],
         "ありがとうございます": [
-            ("a", 0), ("i", 150), ("a", 300), ("o", 450),
-            ("u", 600), ("o", 750), ("a", 900), ("i", 1000),
-            ("a", 1100), ("u", 1200), ("sil", 1400),
+            ("a", 0),
+            ("i", 150),
+            ("a", 300),
+            ("o", 450),
+            ("u", 600),
+            ("o", 750),
+            ("a", 900),
+            ("i", 1000),
+            ("a", 1100),
+            ("u", 1200),
+            ("sil", 1400),
         ],
         "やばい！": [
-            ("a", 0), ("a", 150), ("i", 300), ("sil", 450),
+            ("a", 0),
+            ("a", 150),
+            ("i", 300),
+            ("sil", 450),
         ],
     }
 
@@ -123,10 +145,10 @@ async def send_update(
     msg = AvatarMessage(
         cmd="avatar_update",
         params={
-            "gesture":      gesture,
-            "emotion":      emotion,
-            "look_target":  look_target,
-            "mouth_open":   0.0,
+            "gesture": gesture,
+            "emotion": emotion,
+            "look_target": look_target,
+            "mouth_open": 0.0,
         },
     )
     await sender._send(msg)
@@ -213,16 +235,16 @@ def input_choice(prompt: str, count: int) -> int | None:
 
 
 QUICK_COMBOS: list[tuple[str, str, str, str]] = [
-    ("こんにちは！",     "wave",     "happy",    "camera"),
-    ("なるほどですね",   "nod",      "happy",    "chat"),
-    ("えー！まじで？",   "surprised","surprised","camera"),
-    ("うーん難しいな…",  "thinking", "thinking", "down"),
-    ("わーいやったー！", "cheer",    "happy",    "camera"),
-    ("ちょっと悲しいな", "sad_idle", "sad",      "down"),
-    ("ふふ笑いたい",     "laugh",    "happy",    "camera"),
-    ("ため息…",          "sigh",     "sad",      "down"),
-    ("感謝！",           "thankful", "happy",    "camera"),
-    ("びっくりした！",   "surprised","surprised","camera"),
+    ("こんにちは！", "wave", "happy", "camera"),
+    ("なるほどですね", "nod", "happy", "chat"),
+    ("えー！まじで？", "surprised", "surprised", "camera"),
+    ("うーん難しいな…", "thinking", "thinking", "down"),
+    ("わーいやったー！", "cheer", "happy", "camera"),
+    ("ちょっと悲しいな", "sad_idle", "sad", "down"),
+    ("ふふ笑いたい", "laugh", "happy", "camera"),
+    ("ため息…", "sigh", "sad", "down"),
+    ("感謝！", "thankful", "happy", "camera"),
+    ("びっくりした！", "surprised", "surprised", "camera"),
 ]
 
 
@@ -315,8 +337,11 @@ async def main() -> None:
     if sender.connected:
         cprint("✅ Unity 接続完了！\n", C_GREEN)
     else:
-        cprint("⚠  15秒待っても未接続です。そのまま操作できますがコマンドは届きません。\n"
-               "  Unity の Console に [AvatarWS] のログが出ているか確認してください。\n", C_YELLOW)
+        cprint(
+            "⚠  15秒待っても未接続です。そのまま操作できますがコマンドは届きません。\n"
+            "  Unity の Console に [AvatarWS] のログが出ているか確認してください。\n",
+            C_YELLOW,
+        )
 
     try:
         await run_interactive(sender)

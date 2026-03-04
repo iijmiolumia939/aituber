@@ -154,9 +154,9 @@ class TestProposalValidatorBlockedWords:
         entry = _valid_entry(**{field: value})
         result = validator.validate(entry)
 
-        assert result.status == ValidationStatus.INVALID, (
-            f"Expected INVALID for {field}={value!r}, got {result}"
-        )
+        assert (
+            result.status == ValidationStatus.INVALID
+        ), f"Expected INVALID for {field}={value!r}, got {result}"
 
 
 # ── TC-REFL-14: duplicate intent ──────────────────────────────────────────
@@ -203,9 +203,9 @@ class TestProposalValidatorNaming:
         for bad in ["action;drop", "a&b", "x|y"]:
             entry = _valid_entry(intent=bad)
             result = validator.validate(entry)
-            assert result.status == ValidationStatus.INVALID, (
-                f"Expected INVALID for intent={bad!r}"
-            )
+            assert (
+                result.status == ValidationStatus.INVALID
+            ), f"Expected INVALID for intent={bad!r}"
 
     def test_valid_snake_case_intent_accepted(self):
         """TC-REFL-15c: snake_case の intent は VALID。"""
@@ -226,9 +226,7 @@ class TestPolicyUpdater:
         """TC-REFL-16: 既存の YAML を読んで dict リストを返す。"""
         yml = tmp_path / "policy.yml"
         yml.write_text(
-            "- intent: nod_agreement\n"
-            "  cmd: avatar_update\n"
-            "  gesture: nod\n",
+            "- intent: nod_agreement\n" "  cmd: avatar_update\n" "  gesture: nod\n",
             encoding="utf-8",
         )
         updater = PolicyUpdater()

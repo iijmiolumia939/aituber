@@ -261,9 +261,7 @@ class LLMClient:
         logger.error("LLM API exhausted retries; switching to template mode.")
         return LLMResult(text=_next_template(), is_template=True, retries_used=retries)
 
-    async def generate_idle_talk(
-        self, hints: list[str] | None = None
-    ) -> LLMResult:
+    async def generate_idle_talk(self, hints: list[str] | None = None) -> LLMResult:
         """LLMでアイドルトークを動的に生成する。
 
         hints からランダムに方向性を選び、

@@ -13,11 +13,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # Thresholds for desire components
-_HIGH_ENERGY_THRESHOLD = 0.7      # energy level that substantially boosts desire
-_MIN_CONTENT_FOR_DESIRE = 2       # number of new episode/narrative items before wanting to share
-_RECENCY_DECAY_HOURS = 24.0       # hours since last broadcast after which desire resets to max
-_HIGH_DESIRE_THRESHOLD = 0.8      # desire_score above which broadcast is considered
-_MIN_DESIRE_THRESHOLD = 0.3       # below this score, YUI.A definitely does not want to broadcast
+_HIGH_ENERGY_THRESHOLD = 0.7  # energy level that substantially boosts desire
+_MIN_CONTENT_FOR_DESIRE = 2  # number of new episode/narrative items before wanting to share
+_RECENCY_DECAY_HOURS = 24.0  # hours since last broadcast after which desire resets to max
+_HIGH_DESIRE_THRESHOLD = 0.8  # desire_score above which broadcast is considered
+_MIN_DESIRE_THRESHOLD = 0.3  # below this score, YUI.A definitely does not want to broadcast
 
 
 @dataclass
@@ -27,10 +27,10 @@ class DesireState:
     FR-BCAST-01.
     """
 
-    energy: float          # 0.0 (exhausted) – 1.0 (fully energised)
-    content_count: int     # new episodes / action-plan items ready to share
+    energy: float  # 0.0 (exhausted) – 1.0 (fully energised)
+    content_count: int  # new episodes / action-plan items ready to share
     hours_since_last: float  # hours since last broadcast (0 = just ended)
-    desire_score: float    # computed output
+    desire_score: float  # computed output
 
     @property
     def should_broadcast(self) -> bool:

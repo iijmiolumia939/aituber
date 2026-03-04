@@ -55,6 +55,7 @@ def _unity_ws_available() -> bool:
 # TC-E2E-01 : VOICEVOX HTTP /speakers 応答
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.e2e
 @pytest.mark.skipif(not _voicevox_available(), reason="VOICEVOX not running on :50021")
 async def test_voicevox_speakers_endpoint():
@@ -62,7 +63,9 @@ async def test_voicevox_speakers_endpoint():
     import aiohttp
 
     async with aiohttp.ClientSession() as session:  # noqa: SIM117
-        async with session.get(f"{VOICEVOX_URL}/speakers", timeout=aiohttp.ClientTimeout(total=5)) as resp:  # noqa: E501
+        async with session.get(
+            f"{VOICEVOX_URL}/speakers", timeout=aiohttp.ClientTimeout(total=5)
+        ) as resp:  # noqa: E501
             assert resp.status == 200, f"/speakers returned {resp.status}"
             speakers = await resp.json()
             assert isinstance(speakers, list) and len(speakers) > 0, "Empty speakers list"
@@ -72,6 +75,7 @@ async def test_voicevox_speakers_endpoint():
 # TC-E2E-02 : speaker_id=47 存在確認
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.e2e
 @pytest.mark.skipif(not _voicevox_available(), reason="VOICEVOX not running on :50021")
 async def test_voicevox_speaker_47_exists():
@@ -79,24 +83,23 @@ async def test_voicevox_speaker_47_exists():
     import aiohttp
 
     async with aiohttp.ClientSession() as session:  # noqa: SIM117
-        async with session.get(f"{VOICEVOX_URL}/speakers", timeout=aiohttp.ClientTimeout(total=5)) as resp:  # noqa: E501
+        async with session.get(
+            f"{VOICEVOX_URL}/speakers", timeout=aiohttp.ClientTimeout(total=5)
+        ) as resp:  # noqa: E501
             speakers = await resp.json()
 
     # Flatten all style ids
-    all_ids = {
-        style["id"]
-        for speaker in speakers
-        for style in speaker.get("styles", [])
-    }
+    all_ids = {style["id"] for speaker in speakers for style in speaker.get("styles", [])}
     sample = sorted(all_ids)[:20]
-    assert 47 in all_ids, (
-        f"speaker_id=47 not found in VOICEVOX. available style ids (sample): {sample}"
-    )
+    assert (
+        47 in all_ids
+    ), f"speaker_id=47 not found in VOICEVOX. available style ids (sample): {sample}"
 
 
 # ---------------------------------------------------------------------------
 # TC-E2E-03 : Overlay WS :31901 — chat イベント送信
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.e2e
 @pytest.mark.skipif(not _overlay_available(), reason="Overlay WS not running on :31901")
@@ -115,6 +118,7 @@ async def test_overlay_chat_event():
 # TC-E2E-04 : yuia 設定確認 (サービス不要 — always green)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.e2e
 def test_yuia_character_config():
     """TC-E2E-04: yuia.yml から speaker_id=47 と名前 YUI.A が読み込める。"""
@@ -131,9 +135,9 @@ def test_yuia_character_config():
     char = load_character("yuia")
     sid = char.voice.speaker_id
     assert sid == 47, f"Expected voice.speaker_id=47, got {sid}"
-    assert "yui" in char.name.lower() or "YUI" in char.name, (
-        f"Expected 'YUI' in character name, got '{char.name}'"
-    )
+    assert (
+        "yui" in char.name.lower() or "YUI" in char.name
+    ), f"Expected 'YUI' in character name, got '{char.name}'"
     assert len(char.idle_topics) >= 5, f"Expected >=5 idle_topics, got {len(char.idle_topics)}"
     assert char.system_prompt, "system_prompt must not be empty"
 
@@ -141,6 +145,7 @@ def test_yuia_character_config():
 # ---------------------------------------------------------------------------
 # TC-E2E-05 : Unity WS :31900 — 接続確認
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.e2e
 @pytest.mark.skipif(not _unity_ws_available(), reason="Unity WS not running on :31900")
@@ -156,6 +161,7 @@ async def test_unity_ws_connect():
 # TC-E2E-06 : Unity WS :31900 — avatar_update 往路送信
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.e2e
 @pytest.mark.skipif(not _unity_ws_available(), reason="Unity WS not running on :31900")
 async def test_unity_ws_avatar_update():
@@ -163,15 +169,17 @@ async def test_unity_ws_avatar_update():
     import websockets
 
     async with websockets.connect(UNITY_WS_URL, open_timeout=5) as ws:
-        payload = json.dumps({
-            "type": "avatar_update",
-            "payload": {
-                "emotion": "joy",
-                "gesture": "nod",
-                "mouth_open": 0.0,
-                "look_target": "camera",
-            },
-        })
+        payload = json.dumps(
+            {
+                "type": "avatar_update",
+                "payload": {
+                    "emotion": "joy",
+                    "gesture": "nod",
+                    "mouth_open": 0.0,
+                    "look_target": "camera",
+                },
+            }
+        )
         await ws.send(payload)
         # Wait briefly for any immediate error response
         try:
@@ -187,6 +195,7 @@ async def test_unity_ws_avatar_update():
 # TC-E2E-07 : Overlay WS :31901 — subtitle イベント送信
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.e2e
 @pytest.mark.skipif(not _overlay_available(), reason="Overlay WS not running on :31901")
 async def test_overlay_subtitle_event():
@@ -194,9 +203,11 @@ async def test_overlay_subtitle_event():
     import websockets
 
     async with websockets.connect(OVERLAY_WS_URL, open_timeout=3) as ws:
-        event = json.dumps({
-            "type": "subtitle",
-            "payload": {"text": "E2E ドライラン確認中…", "speaker": "YUI.A"},
-        })
+        event = json.dumps(
+            {
+                "type": "subtitle",
+                "payload": {"text": "E2E ドライラン確認中…", "speaker": "YUI.A"},
+            }
+        )
         await ws.send(event)
     # Clean close == pass
