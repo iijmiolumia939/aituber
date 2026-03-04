@@ -34,6 +34,7 @@ applyTo: 'AITuber/Assets/Tests/**/*.cs'
 | `TC-M4-xx` | PolicyGrowth / GapDashboardフィクスチャースイート (Python) |
 | `TC-M5-xx` | reflection_cli end-to-end Growth Loop pipeline (Python) |
 | `TC-M6-xx` | approve_cli 人間承認フロー + reflection_cli --output staging (Python) |
+| `TC-M7-xx` | GrowthLoop フル統合オーケストレーター: GrowthLoopResult dataclass + run() pipeline (Python) |
 
 ## 参考ドキュメント
 
