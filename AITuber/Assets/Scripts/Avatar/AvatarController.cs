@@ -504,6 +504,9 @@ namespace AITuber.Avatar
                 case "room_change":
                     HandleRoomChange(typedParams as RoomChangeParams);
                     break;
+                case "zone_change":
+                    HandleZoneChange(typedParams as ZoneChangeParams);
+                    break;
                 case "avatar_intent":
                     HandleIntent(typedParams as AvatarIntentParams);
                     break;
@@ -670,6 +673,17 @@ namespace AITuber.Avatar
                 RoomManager.Instance.SwitchRoom(p.room_id);
             else
                 Debug.LogWarning("[AvatarCtrl] room_change received but RoomManager not found.");
+        }
+
+        // ── zone_change (FR-ZONE-01) ──────────────────────────────────
+
+        private void HandleZoneChange(ZoneChangeParams p)
+        {
+            if (p == null || string.IsNullOrEmpty(p.zone_id)) return;
+            if (RoomManager.Instance != null)
+                RoomManager.Instance.MoveToZone(p.zone_id);
+            else
+                Debug.LogWarning("[AvatarCtrl] zone_change received but RoomManager not found.");
         }
 
         // ── avatar_reset ─────────────────────────────────────────────

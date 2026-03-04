@@ -68,6 +68,7 @@ KNOWN_CMDS: frozenset[str] = frozenset(
         "avatar_viseme",
         "capabilities",
         "room_change",
+        "zone_change",
     ]
 )
 
@@ -239,6 +240,11 @@ def _validate_room_change(params: dict) -> WsValidationResult:
     return check if check is not None else WsValidationResult.valid()
 
 
+def _validate_zone_change(params: dict) -> WsValidationResult:
+    check = _check_required_str(params, "zone_id")
+    return check if check is not None else WsValidationResult.valid()
+
+
 _CMD_VALIDATORS: dict[str, Any] = {
     "avatar_update": _validate_avatar_update,
     "avatar_event": _validate_avatar_event,
@@ -247,6 +253,7 @@ _CMD_VALIDATORS: dict[str, Any] = {
     "avatar_viseme": _validate_avatar_viseme,
     "capabilities": _validate_capabilities,
     "room_change": _validate_room_change,
+    "zone_change": _validate_zone_change,
 }
 
 

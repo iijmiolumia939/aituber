@@ -1,11 +1,17 @@
+// SpringBoneSetup.cs
+// QuQu アバター用 Dynamic Bone 一括セットアップ (FR-DB-01)
+// UniVRM 依存を排除し Dynamic Bone (Asset Store) API を直接使用する。
+//
+// AITuber メニュー → Setup SpringBone (QuQu) から実行。
+// 実行前にシーンに AvatarRoot GameObject が存在すること。
+
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using VRM;
 
 /// <summary>
-/// QuQu アバター用 VRM SpringBone 一括セットアップ
-/// AITuber メニュー → Setup SpringBone (QuQu) から実行
+/// QuQu アバター用 Dynamic Bone 一括セットアップ。
+/// AITuber メニュー → Setup SpringBone (QuQu) から実行。
 /// </summary>
 public static class SpringBoneSetup
 {
@@ -19,13 +25,12 @@ public static class SpringBoneSetup
             return;
         }
 
-        // ── Step 1: コライダーをキーボーンに追加 ───────────────────
+        // ── Step 1: DynamicBoneCollider をキーボーンに追加 ─────────
         // Head: 前髪にだけ使う。半径を小さくして過干渉を防ぐ
         SetCollider(avatarRoot, "Head",        new Vector3( 0,      0.03f, 0.0f),  0.055f);
         SetCollider(avatarRoot, "Neck",        new Vector3( 0,      0,     0),     0.045f);
         SetCollider(avatarRoot, "Chest",       new Vector3( 0,      0.05f, 0.02f), 0.10f);
-        // 肩: ツインテールが肩を貫通しないようにカバー
-        // Offset X で鎖骨〜肩峰ラインの中央に球を配置
+        // 肩: ツインテールが肩を貫通しないようカバー
         SetCollider(avatarRoot, "L_Shoulder",  new Vector3( 0.06f,  0,     0),     0.07f);
         SetCollider(avatarRoot, "R_Shoulder",  new Vector3(-0.06f,  0,     0),     0.07f);
         SetCollider(avatarRoot, "L_UpperArm",  new Vector3( 0.05f,  0,     0),     0.045f);
@@ -34,44 +39,44 @@ public static class SpringBoneSetup
         // ── Step 2: SpringBones ホスト作成 ─────────────────────────
         var sbHost = FindOrCreate(avatarRoot.transform, "SpringBones");
 
-        var headCG   = GetCollider(avatarRoot, "Head");
-        var neckCG   = GetCollider(avatarRoot, "Neck");
-        var chestCG  = GetCollider(avatarRoot, "Chest");
-        var lShldrCG = GetCollider(avatarRoot, "L_Shoulder");
-        var rShldrCG = GetCollider(avatarRoot, "R_Shoulder");
-        var lArmCG   = GetCollider(avatarRoot, "L_UpperArm");
-        var rArmCG   = GetCollider(avatarRoot, "R_UpperArm");
+        var headCol  = GetCollider(avatarRoot, "Head");
+        var neckCol  = GetCollider(avatarRoot, "Neck");
+        var chestCol = GetCollider(avatarRoot, "Chest");
+        var lShldr   = GetCollider(avatarRoot, "L_Shoulder");
+        var rShldr   = GetCollider(avatarRoot, "R_Shoulder");
+        var lArm     = GetCollider(avatarRoot, "L_UpperArm");
+        var rArm     = GetCollider(avatarRoot, "R_UpperArm");
 
         // 前髪: 頭+首だけ
-        var headNeckOnly  = FilterNotNull(headCG, neckCG);
-        // ツインテール: 首+両肩+上腕で「肩ライン」をカバー (Headは除外して跳ね防止)
-        var sidHairColliders = FilterNotNull(neckCG, lShldrCG, rShldrCG, lArmCG, rArmCG);
-        var allBody       = FilterNotNull(headCG, neckCG, chestCG, lShldrCG, rShldrCG, lArmCG, rArmCG);
+        var headNeck  = FilterNotNull(headCol, neckCol);
+        // ツインテール: 首+両肩+上腕で肩ラインをカバー
+        var sideHair  = FilterNotNull(neckCol, lShldr, rShldr, lArm, rArm);
+        var allBody   = FilterNotNull(headCol, neckCol, chestCol, lShldr, rShldr, lArm, rArm);
 
-        // ── Step 3: SpringBone グループ追加 ────────────────────────
+        // ── Step 3: DynamicBone グループ追加 ───────────────────────
 
         // 前髪: Head+Neck コライダーで頭への埋まり防止
-        AddSpringBone(sbHost, "SpringBone_HairFront",
+        AddDynamicBone(sbHost, "SpringBone_HairFront",
             new[] { "FrontA", "FrontB" },
-            stiffness: 0.03f, gravity: 0.60f, drag: 0.65f, hitRadius: 0.03f,
-            colliders: headNeckOnly, avatarRoot);
+            stiffness: 0.03f, elasticity: 0.05f, damping: 0.65f, gravity: 0.60f, radius: 0.03f,
+            colliders: headNeck, avatarRoot);
 
-        // サイド髪(ツインテール): 首+肩+上腕で肩貫通を防止
-        AddSpringBone(sbHost, "SpringBone_HairSide",
+        // サイド髪 (ツインテール): 首+肩+上腕で肩貫通を防止
+        AddDynamicBone(sbHost, "SpringBone_HairSide",
             new[] { "Side_L", "Side_R" },
-            stiffness: 0.02f, gravity: 0.70f, drag: 0.65f, hitRadius: 0.03f,
-            colliders: sidHairColliders, avatarRoot);
+            stiffness: 0.02f, elasticity: 0.05f, damping: 0.65f, gravity: 0.70f, radius: 0.03f,
+            colliders: sideHair, avatarRoot);
 
-        // リボン: Neck コライダーのみ (頭球に当たらないようHead除外)
-        AddSpringBone(sbHost, "SpringBone_Ribbon",
+        // リボン: Neck コライダーのみ (Head 球に当たらないよう Head 除外)
+        AddDynamicBone(sbHost, "SpringBone_Ribbon",
             new[] { "ribon", "ribon1_L", "ribon1_R" },
-            stiffness: 0.08f, gravity: 0.40f, drag: 0.55f, hitRadius: 0.02f,
-            colliders: FilterNotNull(neckCG), avatarRoot);
+            stiffness: 0.08f, elasticity: 0.05f, damping: 0.55f, gravity: 0.40f, radius: 0.02f,
+            colliders: FilterNotNull(neckCol), avatarRoot);
 
         // ボディ: 胸・お尻 (動きは控えめ)
-        AddSpringBone(sbHost, "SpringBone_Body",
+        AddDynamicBone(sbHost, "SpringBone_Body",
             new[] { "oppai_L", "oppai_R", "oshiri_L", "oshiri_R" },
-            stiffness: 0.15f, gravity: 0.05f, drag: 0.80f, hitRadius: 0.04f,
+            stiffness: 0.15f, elasticity: 0.05f, damping: 0.80f, gravity: 0.05f, radius: 0.04f,
             colliders: allBody, avatarRoot);
 
         EditorUtility.SetDirty(avatarRoot);
@@ -84,34 +89,33 @@ public static class SpringBoneSetup
                   "パラメータは Inspector で調整してください。");
     }
 
-    // ─────────────────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────
 
-    static void SetCollider(GameObject avatarRoot, string boneName, Vector3 offset, float radius)
+    static void SetCollider(GameObject avatarRoot, string boneName, Vector3 center, float radius)
     {
         var bone = FindBone(avatarRoot.transform, boneName);
         if (bone == null) { Debug.LogWarning($"[SpringBoneSetup] ボーン未発見: {boneName}"); return; }
 
-        var cg = bone.GetComponent<VRMSpringBoneColliderGroup>();
-        if (cg == null)
-            cg = bone.gameObject.AddComponent<VRMSpringBoneColliderGroup>();
+        // 既存コライダーを削除して作り直す
+        var existing = bone.GetComponent<DynamicBoneCollider>();
+        if (existing != null) Object.DestroyImmediate(existing);
 
-        cg.Colliders = new[]
-        {
-            new VRMSpringBoneColliderGroup.SphereCollider { Offset = offset, Radius = radius }
-        };
+        var col = bone.gameObject.AddComponent<DynamicBoneCollider>();
+        col.m_Center = center;
+        col.m_Radius = radius;
     }
 
-    static VRMSpringBoneColliderGroup GetCollider(GameObject avatarRoot, string boneName)
+    static DynamicBoneCollider GetCollider(GameObject avatarRoot, string boneName)
     {
         var bone = FindBone(avatarRoot.transform, boneName);
-        return bone == null ? null : bone.GetComponent<VRMSpringBoneColliderGroup>();
+        return bone == null ? null : bone.GetComponent<DynamicBoneCollider>();
     }
 
-    static VRMSpringBoneColliderGroup[] FilterNotNull(params VRMSpringBoneColliderGroup[] groups)
+    static DynamicBoneCollider[] FilterNotNull(params DynamicBoneCollider[] colliders)
     {
-        var list = new List<VRMSpringBoneColliderGroup>();
-        foreach (var g in groups)
-            if (g != null) list.Add(g);
+        var list = new List<DynamicBoneCollider>();
+        foreach (var c in colliders)
+            if (c != null) list.Add(c);
         return list.ToArray();
     }
 
@@ -124,15 +128,16 @@ public static class SpringBoneSetup
         return go.transform;
     }
 
-    static void AddSpringBone(
+    static void AddDynamicBone(
         Transform host,
         string goName,
         string[] rootBoneNames,
         float stiffness,
+        float elasticity,
+        float damping,
         float gravity,
-        float drag,
-        float hitRadius,
-        VRMSpringBoneColliderGroup[] colliders,
+        float radius,
+        DynamicBoneCollider[] colliders,
         GameObject avatarRoot)
     {
         // 既存を削除して作り直す
@@ -142,22 +147,23 @@ public static class SpringBoneSetup
         var go = new GameObject(goName);
         go.transform.SetParent(host, false);
 
-        var sb = go.AddComponent<VRMSpringBone>();
-        sb.m_comment        = goName;
-        sb.m_stiffnessForce = stiffness;
-        sb.m_gravityPower   = gravity;
-        sb.m_gravityDir     = new Vector3(0, -1f, 0);
-        sb.m_dragForce      = drag;
-        sb.m_hitRadius      = hitRadius;
-        sb.ColliderGroups   = colliders;
+        var db = go.AddComponent<DynamicBone>();
+        db.m_Stiffness  = stiffness;
+        db.m_Elasticity = elasticity;
+        db.m_Damping    = damping;
+        db.m_Gravity    = new Vector3(0, -gravity, 0);
+        db.m_Radius     = radius;
+        db.m_Colliders  = new List<DynamicBoneColliderBase>(colliders);
 
-        foreach (var name in rootBoneNames)
+        // 複数ルートボーン: 最初を m_Root、残りを m_Roots
+        db.m_Roots = new List<Transform>();
+        bool first = true;
+        foreach (var boneName in rootBoneNames)
         {
-            var bone = FindBone(avatarRoot.transform, name);
-            if (bone != null)
-                sb.RootBones.Add(bone);
-            else
-                Debug.LogWarning($"[SpringBoneSetup] ルートボーン未発見: {name}");
+            var bone = FindBone(avatarRoot.transform, boneName);
+            if (bone == null) { Debug.LogWarning($"[SpringBoneSetup] ルートボーン未発見: {boneName}"); continue; }
+            if (first) { db.m_Root = bone; first = false; }
+            else db.m_Roots.Add(bone);
         }
     }
 

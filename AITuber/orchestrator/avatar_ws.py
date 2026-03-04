@@ -388,6 +388,19 @@ class AvatarWSSender:
         )
         await self._send(msg)
 
+    async def send_zone_change(self, zone_id: str) -> None:
+        """Send zone_change command to Unity RoomManager.
+
+        FR-ZONE-01: Moves the avatar to a named zone within the current room
+        (e.g. pc_area, sleep_area, relax_area in Sci-Fi Living Room).
+        zone_id must match a RoomDefinition.zones[].zoneId value.
+        """
+        msg = AvatarMessage(
+            cmd="zone_change",
+            params={"zone_id": zone_id},
+        )
+        await self._send(msg)
+
     async def send_viseme(
         self,
         utterance_id: str,

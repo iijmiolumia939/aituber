@@ -138,10 +138,58 @@ namespace AITuber.Room
         public void NextRoom() => SwitchRoom((_currentIndex + 1) % _rooms.Length);
         public void PrevRoom() => SwitchRoom((_currentIndex - 1 + _rooms.Length) % _rooms.Length);
 
+        /// <summary>現在の部屋内のゾーンに移動。ゾーン ID は RoomDefinition.zones[].zoneId と一致させる。</summary>
+        public void MoveToZone(string zoneId)
+        {
+            if (string.IsNullOrEmpty(zoneId)) return;
+            if (_currentIndex < 0 || _rooms[_currentIndex] == null) return;
+
+            var def = _rooms[_currentIndex];
+            foreach (var zone in def.zones)
+            {
+                if (zone.zoneId == zoneId)
+                {
+                    StartCoroutine(DoZoneMove(zone));
+                    return;
+                }
+            }
+            Debug.LogWarning($"[RoomManager] Zone '{zoneId}' not found in room '{def.roomId}'.");
+        }
+
         /// <summary>現在の部屋 ID（UI表示などに）。</summary>
         public string CurrentRoomId => _currentIndex >= 0 && _rooms[_currentIndex] != null
             ? _rooms[_currentIndex].roomId
             : string.Empty;
+
+        // ── Zone Move Coroutine ───────────────────────────────────────
+
+        private IEnumerator DoZoneMove(AvatarZone zone)
+        {
+            // アバター移動
+            if (_avatarRoot != null)
+            {
+                _avatarRoot.position    = zone.avatarPosition;
+                _avatarRoot.eulerAngles = zone.avatarEuler;
+            }
+
+            // カメラ移動
+            if (_mainCamera != null)
+            {
+                _mainCamera.transform.position    = zone.cameraPosition;
+                _mainCamera.transform.eulerAngles = zone.cameraEuler;
+                _mainCamera.fieldOfView           = zone.cameraFov;
+            }
+
+            // 床スナップ
+            if (_avatarRoot != null)
+            {
+                var grounding = _avatarRoot.GetComponent<AITuber.Avatar.AvatarGrounding>();
+                if (grounding != null)
+                    yield return StartCoroutine(grounding.SnapCoroutine());
+            }
+
+            Debug.Log($"[RoomManager] Moved to zone '{zone.zoneId}'");
+        }
 
         // ── Switch Coroutine ─────────────────────────────────────────
 

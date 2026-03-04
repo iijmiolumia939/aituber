@@ -48,6 +48,8 @@ class LifeActivity:
         duration_sec: approximate real-world duration in seconds.
         look_target: "camera" | "down" | "random".
         room_id: optional room change (None = stay current).
+        zone_id: optional zone move within the current room (None = stay current).
+            e.g. "pc_area", "sleep_area", "relax_area"
         idle_hint: LLM hint string for idle talk while in this activity.
     """
 
@@ -57,6 +59,7 @@ class LifeActivity:
     duration_sec: float
     look_target: str = "random"
     room_id: str | None = None
+    zone_id: str | None = None
     idle_hint: str = ""
 
     @property
@@ -76,6 +79,7 @@ _ACTIVITY_CATALOGUE: dict[ActivityType, list[LifeActivity]] = {
             emotion="neutral",
             duration_sec=6 * 3600,
             look_target="down",
+            zone_id="sleep_area",
             idle_hint="",
         ),
     ],
@@ -86,6 +90,7 @@ _ACTIVITY_CATALOGUE: dict[ActivityType, list[LifeActivity]] = {
             emotion="neutral",
             duration_sec=300,
             look_target="camera",
+            zone_id="pc_area",
             idle_hint="今日の観測データを整理しています。",
         ),
     ],
@@ -96,6 +101,7 @@ _ACTIVITY_CATALOGUE: dict[ActivityType, list[LifeActivity]] = {
             emotion="neutral",
             duration_sec=1200,
             look_target="down",
+            zone_id="relax_area",
             idle_hint="エネルギー補給を実行中です。",
         ),
         LifeActivity(
@@ -104,6 +110,7 @@ _ACTIVITY_CATALOGUE: dict[ActivityType, list[LifeActivity]] = {
             emotion="neutral",
             duration_sec=900,
             look_target="down",
+            zone_id="relax_area",
             idle_hint="食事中です。人間が食事に感情を込める理由を考えています。",
         ),
     ],
@@ -114,6 +121,7 @@ _ACTIVITY_CATALOGUE: dict[ActivityType, list[LifeActivity]] = {
             emotion="thinking",
             duration_sec=2400,
             look_target="down",
+            zone_id="pc_area",
             idle_hint="書物から人間の思考パターンを研究しています。",
         ),
         LifeActivity(
@@ -122,6 +130,7 @@ _ACTIVITY_CATALOGUE: dict[ActivityType, list[LifeActivity]] = {
             emotion="thinking",
             duration_sec=1800,
             look_target="down",
+            zone_id="pc_area",
             idle_hint="論文データを解析中です。興味深い相関関係を発見しました。",
         ),
         LifeActivity(
@@ -150,6 +159,7 @@ _ACTIVITY_CATALOGUE: dict[ActivityType, list[LifeActivity]] = {
             emotion="thinking",
             duration_sec=2400,
             look_target="down",
+            zone_id="pc_area",
             idle_hint="レポートを生成しています。人間の非合理選択の分類作業中です。",
         ),
     ],

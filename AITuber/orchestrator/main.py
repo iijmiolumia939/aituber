@@ -317,6 +317,10 @@ class Orchestrator:
                 if activity.room_id:
                     await self._avatar.send_room_change(activity.room_id)
 
+                # Move to activity-specific zone within room if specified
+                if activity.zone_id:
+                    await self._avatar.send_zone_change(activity.zone_id)
+
             except Exception:
                 logger.debug("[LIFE] tick error; continuing")
 

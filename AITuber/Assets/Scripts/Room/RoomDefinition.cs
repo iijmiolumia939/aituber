@@ -8,10 +8,28 @@
 //
 // room_id は Orchestrator から room_change コマンドで送るキーと一致させること。
 
+using System;
 using UnityEngine;
 
 namespace AITuber.Room
 {
+    /// <summary>ゾーン（同一部屋内のエリア）のアバター・カメラ位置を定義する。</summary>
+    [Serializable]
+    public class AvatarZone
+    {
+        [Tooltip("zone_id (Python の zone_id と一致させる 例: pc_area, sleep_area)")]
+        public string zoneId;
+
+        [Header("アバター配置")]
+        public Vector3 avatarPosition = Vector3.zero;
+        public Vector3 avatarEuler    = Vector3.zero;
+
+        [Header("カメラ設定")]
+        public Vector3 cameraPosition = new Vector3(0f,  1.3f, -1.5f);
+        public Vector3 cameraEuler    = new Vector3(5f,  0f,    0f);
+        public float   cameraFov      = 40f;
+    }
+
     [CreateAssetMenu(fileName = "NewRoom", menuName = "AITuber/Room Definition", order = 50)]
     public class RoomDefinition : ScriptableObject
     {
@@ -41,5 +59,7 @@ namespace AITuber.Room
         public bool       useFadeTransition = true;
         [Tooltip("フェードアウト + フェードイン の合計秒数")]
         public float      transitionDuration = 0.4f;
-    }
+        [Header("ゾーン定義（同一部屋内のエリア切替）")]
+        [Tooltip("例: PCエリア, スリープエリア, リラックスエリア")]
+        public AvatarZone[] zones = Array.Empty<AvatarZone>();    }
 }

@@ -387,8 +387,17 @@ class TestKnownCmds:
             "avatar_viseme",
             "capabilities",
             "room_change",
+            "zone_change",
         }
         assert expected == set(KNOWN_CMDS)
+
+    def test_zone_change_valid(self, validator: WsSchemaValidator) -> None:
+        result = validator.validate({"cmd": "zone_change", "params": {"zone_id": "pc_area"}})
+        assert result.ok
+
+    def test_zone_change_missing_zone_id(self, validator: WsSchemaValidator) -> None:
+        result = validator.validate({"cmd": "zone_change", "params": {}})
+        assert not result.ok
 
     def test_capabilities_is_valid(self, validator: WsSchemaValidator) -> None:
         result = validator.validate(

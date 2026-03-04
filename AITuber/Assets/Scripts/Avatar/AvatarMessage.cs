@@ -85,6 +85,10 @@ namespace AITuber.Avatar
                         var room = JsonUtility.FromJson<RoomChangeEnvelope>(json);
                         typed = room?.@params;
                         break;
+                    case "zone_change":
+                        var zone = JsonUtility.FromJson<ZoneChangeEnvelope>(json);
+                        typed = zone?.@params;
+                        break;
                     case "avatar_intent":
                         var intent = JsonUtility.FromJson<AvatarIntentEnvelope>(json);
                         typed = intent?.@params;
