@@ -1,6 +1,6 @@
 # PLANS.md — AITuber 実装計画トラッカー
 
-> **最終更新**: 2026-03-04 (M11 完了)  
+> **最終更新**: 2026-03-04 (M12 完了)  
 > これは計画の索引です。詳細はリンク先の exec-plan を参照。  
 > 完了した計画は `exec-plans/completed/` に移動し、ここでは状態を「✅完了」に更新する。
 
@@ -18,8 +18,6 @@
 
 | 計画 | 優先度 | 依存 | 概要 |
 |---|---|---|---|
-
-| Room/Environment テスト強化 | 🟠 低 | なし | ScriptableObject シリアライズ、Prefab 読み込み検証 |
 | CI Unity ビルド自動化 | 🟠 低 | なし | GitHub Actions でヘッドレス Unity ビルド |
 | Overlay 自動テスト | 🟠 低 | なし | Chrome DevTools Protocol or Playwright |
 
@@ -40,6 +38,7 @@
 | M9: WebSocket スキーマバリデーション | 2026-03-04 | 41/41テスト グリーン, FR-WS-SCHEMA-01/02, 444 passed | [exec-plans/completed/m9-ws-schema.md](AITuber/docs/exec-plans/completed/m9-ws-schema.md) |
 | M10: TTS/AudioPlayer テスト強化 | 2026-03-04 | 23/23テスト グリーン, FR-LIPSYNC-01/02, 467 passed | [exec-plans/completed/m10-tts-tests.md](AITuber/docs/exec-plans/completed/m10-tts-tests.md) |
 | M11: Bandit ε自動調整 | 2026-03-04 | 14/14テスト グリーン, FR-BANDIT-EPS-01, 481 passed | exec-plans/completed/m11-bandit-epsilon.md |
+| M12: Room/Environment テスト強化 | 2026-03-04 | 18/18テスト グリーン (Unity EditMode), FR-ROOM-01/02, TC-ROOM-01〜18 | — |
 
 ---
 

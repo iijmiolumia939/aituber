@@ -47,6 +47,9 @@ namespace AITuber.Room
 
         public static RoomManager Instance { get; private set; }
 
+        /// <summary>テスト用: シングルトン参照をクリアする。本番コードからは呼ばない。</summary>
+        public static void ClearInstanceForTest() => Instance = null;
+
         // ── Unity ────────────────────────────────────────────────────
 
         private void Awake()
