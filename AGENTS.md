@@ -90,6 +90,7 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 | M13: CI Unity ビルド自動化 | ✅ 完了 (2026-03-04) | .github/workflows/ci.yml + unity-ci.yml (game-ci/unity-test-runner@v4) |
 | M14: Overlay 自動テスト | ✅ 完了 (2026-03-04) | 20/20テスト グリーン, TC-OVL-01〜20, overlay_server.py バグ修正 |
 | M15: LLM バックエンド切替 | ✅ 完了 (2026-03-04) | 6/6テスト グリーン, FR-LLM-BACKEND-01, LLM_BASE_URL/LLM_MODEL 環境変数 |
+| M16: LIVE_CHAT_ID 自動取得 | ✅ 完了 (2026-03-04) | 9/9テスト グリーン, FR-CHATID-AUTO-01, fetch_active_live_chat_id + Orchestrator._resolve_live_chat_id |
 
 ---
 

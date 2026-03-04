@@ -2,16 +2,21 @@
 
 SRS refs: FR-A3-01, FR-A3-02, FR-A3-03.
 TC refs:  TC-A3-01, TC-A3-02, TC-A3-03.
+
+FR-CHATID-AUTO-01: YOUTUBE_LIVE_CHAT_ID 自動取得 (fetch_active_live_chat_id).
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import time
 from collections import OrderedDict
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from orchestrator.config import SeenSetConfig, YouTubeConfig
 
@@ -140,6 +145,117 @@ class AuthorTracker:
     def _prune(self, now: float) -> None:
         cutoff = now - self._window
         self._records = [(t, c) for t, c in self._records if t >= cutoff]
+
+
+# ── Live Chat ID auto-detection (FR-CHATID-AUTO-01) ──────────────────
+
+# Default location of the OAuth token file.
+_DEFAULT_TOKEN_FILE = Path(__file__).parent.parent / "config" / "youtube_token.json"
+
+
+def _build_youtube_service(credentials_file: str | Path) -> object:
+    """Build a googleapiclient YouTube v3 service from an OAuth token file.
+
+    Raises FileNotFoundError if the token file is missing.
+    Raises google.auth.exceptions.TransportError on network issues.
+    """
+    import google.oauth2.credentials as google_creds
+    from googleapiclient.discovery import build as _build  # type: ignore[import-untyped]
+
+    with open(credentials_file) as fh:
+        token_data = json.load(fh)
+
+    creds = google_creds.Credentials(
+        token=token_data.get("token"),
+        refresh_token=token_data.get("refresh_token"),
+        token_uri=token_data.get("token_uri", "https://oauth2.googleapis.com/token"),
+        client_id=token_data.get("client_id"),
+        client_secret=token_data.get("client_secret"),
+        scopes=token_data.get("scopes"),
+    )
+    return _build("youtube", "v3", credentials=creds, cache_discovery=False)
+
+
+async def fetch_active_live_chat_id(
+    config: YouTubeConfig,
+    *,
+    credentials_file: str | Path | None = None,
+    _service_factory: Callable[..., object] | None = None,
+) -> str | None:
+    """Return the liveChatId of the authenticated channel's active broadcast.
+
+    Detection strategy (FR-CHATID-AUTO-01):
+    1. OAuth path (preferred): load ``youtube_token.json`` and call
+       ``liveBroadcasts.list?broadcastStatus=active&mine=true``.
+    2. API key + channel_id fallback: query with ``channelId`` parameter.
+       Requires ``YouTubeConfig.channel_id`` and ``YouTubeConfig.api_key``.
+
+    Returns ``None`` if no active broadcast is found or credentials are
+    unavailable.  Callers should retry until the broadcast goes live.
+
+    Args:
+        config: The current :class:`YouTubeConfig` (provides api_key / channel_id).
+        credentials_file: Override path to ``youtube_token.json``.
+        _service_factory: Inject a pre-built YouTube service (for unit tests).
+    """
+    token_path = credentials_file or _DEFAULT_TOKEN_FILE
+
+    def _call_oauth() -> str | None:
+        if _service_factory is not None:
+            service = _service_factory()
+        else:
+            service = _build_youtube_service(token_path)
+
+        resp = service.liveBroadcasts().list(  # type: ignore[attr-defined]
+            part="snippet",
+            broadcastStatus="active",
+            mine=True,
+        ).execute()
+        items = resp.get("items", [])
+        if items:
+            return items[0]["snippet"]["liveChatId"]
+        return None
+
+    async def _call_api_key() -> str | None:
+        """Fallback using API key + channelId (no OAuth required)."""
+        import httpx
+
+        params: dict[str, str] = {
+            "part": "snippet",
+            "broadcastStatus": "active",
+            "channelId": config.channel_id,
+            "key": config.api_key,
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                "https://www.googleapis.com/youtube/v3/liveBroadcasts",
+                params=params,
+            )
+            resp.raise_for_status()
+            items = resp.json().get("items", [])
+            if items:
+                return items[0]["snippet"]["liveChatId"]
+        return None
+
+    # ── Strategy 1: OAuth ────────────────────────────────────────────
+    if _service_factory is not None or os.path.exists(token_path):
+        loop = asyncio.get_running_loop()
+        try:
+            return await loop.run_in_executor(None, _call_oauth)
+        except FileNotFoundError:
+            logger.debug("OAuth token file not found; trying API key fallback.")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("OAuth live-broadcast lookup failed: %s", exc)
+
+    # ── Strategy 2: API key + channel_id ─────────────────────────────
+    if config.api_key and config.channel_id:
+        try:
+            return await _call_api_key()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("API key live-broadcast lookup failed: %s", exc)
+
+    logger.debug("fetch_active_live_chat_id: no credentials available.")
+    return None
 
 
 # ── Poller ────────────────────────────────────────────────────────────

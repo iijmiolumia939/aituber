@@ -7,6 +7,7 @@ Safety ordering: Safety → Bandit → LLM (FR-SAFE-01).
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import random
 import time
@@ -21,7 +22,7 @@ from orchestrator.avatar_ws import (
 )
 from orchestrator.bandit import BanditContext, ContextualBandit
 from orchestrator.character import load_character
-from orchestrator.chat_poller import ChatMessage, YouTubeChatPoller
+from orchestrator.chat_poller import ChatMessage, YouTubeChatPoller, fetch_active_live_chat_id
 from orchestrator.config import AppConfig, TTSConfig, load_config
 from orchestrator.emotion_gesture_selector import (
     select_emotion_gesture,
@@ -110,6 +111,10 @@ class Orchestrator:
         except Exception:
             logger.warning("Overlay WS server failed to start; continuing without overlay.")
 
+        # LIVE_CHAT_ID 自動取得 (FR-CHATID-AUTO-01)
+        if not self._cfg.youtube.live_chat_id:
+            await self._resolve_live_chat_id()
+
         # Run poller + processor + queue consumer + idle talk + memory monitor
         await asyncio.gather(
             self._poll_loop(),
@@ -117,6 +122,45 @@ class Orchestrator:
             self._idle_talk_loop(),
             self._memory_monitor(),
         )
+
+    # ── Live Chat ID resolver (FR-CHATID-AUTO-01) ──────────────────────
+
+    async def _resolve_live_chat_id(self) -> None:
+        """自動的にアクティブ配信の liveChatId を取得してポーラーを更新する。
+
+        YOUTUBE_LIVE_CHAT_ID が未設定の場合に呼び出される。
+        配信が見つかるまで ``broadcast_wait_interval_sec`` 間隔でリトライ。
+        FR-CHATID-AUTO-01.
+        """
+        interval = self._cfg.youtube.broadcast_wait_interval_sec
+        logger.info(
+            "YOUTUBE_LIVE_CHAT_ID not set — auto-detecting active broadcast "
+            "(retry every %.0fs).",
+            interval,
+        )
+        while self._running:
+            try:
+                chat_id = await fetch_active_live_chat_id(self._cfg.youtube)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("live_chat_id fetch error: %s", exc)
+                chat_id = None
+
+            if chat_id:
+                logger.info("Active broadcast detected — live_chat_id: %s", chat_id)
+                # Rebuild frozen config with the resolved chat_id
+                new_youtube_cfg = dataclasses.replace(
+                    self._cfg.youtube, live_chat_id=chat_id
+                )
+                self._cfg = dataclasses.replace(self._cfg, youtube=new_youtube_cfg)
+                # Recreate the poller so it uses the new config
+                self._poller = YouTubeChatPoller(self._cfg.youtube, self._cfg.seen_set)
+                return
+
+            logger.info(
+                "No active broadcast found. Waiting %.0fs for stream to start…",
+                interval,
+            )
+            await asyncio.sleep(interval)
 
     async def stop(self) -> None:
         self._running = False

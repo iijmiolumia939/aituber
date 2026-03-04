@@ -14,10 +14,14 @@ from dataclasses import dataclass, field
 class YouTubeConfig:
     api_key: str = field(default_factory=lambda: os.environ.get("YOUTUBE_API_KEY", ""), repr=False)
     live_chat_id: str = field(default_factory=lambda: os.environ.get("YOUTUBE_LIVE_CHAT_ID", ""))
+    # YOUTUBE_CHANNEL_ID: API キーを使った自動取得のフォールバック (FR-CHATID-AUTO-01)
+    channel_id: str = field(default_factory=lambda: os.environ.get("YOUTUBE_CHANNEL_ID", ""))
     polling_interval_clamp_min_ms: int = 3_000
     polling_interval_clamp_max_ms: int = 30_000
     max_retries: int = 3
     backoff_base_sec: float = 1.0
+    # 配信開始待ちリトライ間隔 (秒)。FR-CHATID-AUTO-01
+    broadcast_wait_interval_sec: float = 15.0
 
 
 @dataclass(frozen=True)
