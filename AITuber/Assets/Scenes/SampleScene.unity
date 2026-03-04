@@ -119,6 +119,118 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &13076535
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 13076536}
+  - component: {fileID: 13076537}
+  m_Layer: 0
+  m_Name: SpringBone_Body
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &13076536
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 13076535}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 368953296}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &13076537
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 13076535}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f9ac8d30c6a0d9642a11e5be4c440740, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBone
+  m_Root: {fileID: 1046138953}
+  m_Roots:
+  - {fileID: 298728103}
+  - {fileID: 1912178388}
+  - {fileID: 321208075}
+  m_UpdateRate: 60
+  m_UpdateMode: 3
+  m_Damping: 0.8
+  m_DampingDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Elasticity: 0.05
+  m_ElasticityDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Stiffness: 0.15
+  m_StiffnessDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Inert: 0
+  m_InertDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Friction: 0
+  m_FrictionDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Radius: 0.04
+  m_RadiusDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_EndLength: 0
+  m_EndOffset: {x: 0, y: 0, z: 0}
+  m_Gravity: {x: 0, y: -0.05, z: 0}
+  m_Force: {x: 0, y: 0, z: 0}
+  m_BlendWeight: 1
+  m_Colliders:
+  - {fileID: 1809685624}
+  - {fileID: 180238548}
+  - {fileID: 180255606}
+  - {fileID: 1008480045}
+  - {fileID: 1548628556}
+  - {fileID: 1937722823}
+  - {fileID: 1203924850}
+  m_Exclusions: []
+  m_FreezeAxis: 0
+  m_DistantDisable: 0
+  m_ReferenceObject: {fileID: 0}
+  m_DistanceToObject: 20
+  m_Multithread: 1
 --- !u!4 &21981255 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5417357307513599764, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
@@ -558,6 +670,24 @@ MonoBehaviour:
   - Offset: {x: 0, y: 0, z: 0}
     Radius: 0.045
   m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
+--- !u!114 &180238548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 180238545}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baedd976e12657241bf7ff2d1c685342, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBoneCollider
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
+  m_Bound: 0
+  m_Radius: 0.045
+  m_Height: 0
+  m_Radius2: 0
 --- !u!1 &180255603 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 5417357307513236096, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
@@ -579,6 +709,24 @@ MonoBehaviour:
   - Offset: {x: 0, y: 0.05, z: 0.02}
     Radius: 0.1
   m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
+--- !u!114 &180255606
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 180255603}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baedd976e12657241bf7ff2d1c685342, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBoneCollider
+  m_Direction: 1
+  m_Center: {x: 0, y: 0.05, z: 0.02}
+  m_Bound: 0
+  m_Radius: 0.1
+  m_Height: 0
+  m_Radius2: 0
 --- !u!4 &242150374 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5417357307513599658, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
@@ -781,12 +929,117 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1526458380}
-  - {fileID: 2139070026}
-  - {fileID: 499936164}
-  - {fileID: 1475022827}
+  - {fileID: 391672930}
+  - {fileID: 1812223960}
+  - {fileID: 1662713094}
+  - {fileID: 13076536}
   m_Father: {fileID: 100000005}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &391672929
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 391672930}
+  - component: {fileID: 391672931}
+  m_Layer: 0
+  m_Name: SpringBone_HairFront
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &391672930
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 391672929}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 368953296}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &391672931
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 391672929}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f9ac8d30c6a0d9642a11e5be4c440740, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBone
+  m_Root: {fileID: 1091600723}
+  m_Roots:
+  - {fileID: 242150374}
+  m_UpdateRate: 60
+  m_UpdateMode: 3
+  m_Damping: 0.65
+  m_DampingDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Elasticity: 0.05
+  m_ElasticityDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Stiffness: 0.03
+  m_StiffnessDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Inert: 0
+  m_InertDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Friction: 0
+  m_FrictionDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Radius: 0.03
+  m_RadiusDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_EndLength: 0
+  m_EndOffset: {x: 0, y: 0, z: 0}
+  m_Gravity: {x: 0, y: -0.6, z: 0}
+  m_Force: {x: 0, y: 0, z: 0}
+  m_BlendWeight: 1
+  m_Colliders:
+  - {fileID: 1809685624}
+  - {fileID: 180238548}
+  m_Exclusions: []
+  m_FreezeAxis: 0
+  m_DistantDisable: 0
+  m_ReferenceObject: {fileID: 0}
+  m_DistanceToObject: 20
+  m_Multithread: 1
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -914,65 +1167,6 @@ MonoBehaviour:
   m_ShadowLayerMask: 1
   m_RenderingLayers: 1
   m_ShadowRenderingLayers: 1
---- !u!1 &499936163
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 499936164}
-  - component: {fileID: 499936165}
-  m_Layer: 0
-  m_Name: SpringBone_Ribbon
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &499936164
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 499936163}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 368953296}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &499936165
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 499936163}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 00ea06e1753e16f4ca870c39c067c86b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: VRM::VRM.VRMSpringBone
-  m_comment: SpringBone_Ribbon
-  m_gizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  m_stiffnessForce: 0.08
-  m_gravityPower: 0.4
-  m_gravityDir: {x: 0, y: -1, z: 0}
-  m_dragForce: 0.55
-  m_center: {fileID: 0}
-  RootBones:
-  - {fileID: 81531630}
-  - {fileID: 21981255}
-  - {fileID: 1882700920}
-  m_hitRadius: 0.02
-  ColliderGroups:
-  - {fileID: 180238547}
-  m_updateType: 0
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -1074,6 +1268,24 @@ MonoBehaviour:
   - Offset: {x: 0.06, y: 0, z: 0}
     Radius: 0.07
   m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
+--- !u!114 &1008480045
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1008480042}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baedd976e12657241bf7ff2d1c685342, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBoneCollider
+  m_Direction: 1
+  m_Center: {x: 0.06, y: 0, z: 0}
+  m_Bound: 0
+  m_Radius: 0.07
+  m_Height: 0
+  m_Radius2: 0
 --- !u!4 &1046138953 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5417357307513599726, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
@@ -1105,136 +1317,29 @@ MonoBehaviour:
   - Offset: {x: -0.05, y: 0, z: 0}
     Radius: 0.045
   m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
+--- !u!114 &1203924850
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1203924847}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baedd976e12657241bf7ff2d1c685342, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBoneCollider
+  m_Direction: 1
+  m_Center: {x: -0.05, y: 0, z: 0}
+  m_Bound: 0
+  m_Radius: 0.045
+  m_Height: 0
+  m_Radius2: 0
 --- !u!4 &1382637956 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5417357307513599870, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
   m_PrefabInstance: {fileID: 1910933806}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &1475022826
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1475022827}
-  - component: {fileID: 1475022828}
-  m_Layer: 0
-  m_Name: SpringBone_Body
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1475022827
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1475022826}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 368953296}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1475022828
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1475022826}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 00ea06e1753e16f4ca870c39c067c86b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: VRM::VRM.VRMSpringBone
-  m_comment: SpringBone_Body
-  m_gizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  m_stiffnessForce: 0.15
-  m_gravityPower: 0.05
-  m_gravityDir: {x: 0, y: -1, z: 0}
-  m_dragForce: 0.8
-  m_center: {fileID: 0}
-  RootBones:
-  - {fileID: 1046138953}
-  - {fileID: 298728103}
-  - {fileID: 1912178388}
-  - {fileID: 321208075}
-  m_hitRadius: 0.04
-  ColliderGroups:
-  - {fileID: 1809685623}
-  - {fileID: 180238547}
-  - {fileID: 180255605}
-  - {fileID: 1008480044}
-  - {fileID: 1548628555}
-  - {fileID: 1937722822}
-  - {fileID: 1203924849}
-  m_updateType: 0
---- !u!1 &1526458379
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1526458380}
-  - component: {fileID: 1526458381}
-  m_Layer: 0
-  m_Name: SpringBone_HairFront
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1526458380
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1526458379}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 368953296}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1526458381
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1526458379}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 00ea06e1753e16f4ca870c39c067c86b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: VRM::VRM.VRMSpringBone
-  m_comment: SpringBone_HairFront
-  m_gizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  m_stiffnessForce: 0.03
-  m_gravityPower: 0.6
-  m_gravityDir: {x: 0, y: -1, z: 0}
-  m_dragForce: 0.65
-  m_center: {fileID: 0}
-  RootBones:
-  - {fileID: 1091600723}
-  - {fileID: 242150374}
-  m_hitRadius: 0.03
-  ColliderGroups:
-  - {fileID: 1809685623}
-  - {fileID: 180238547}
-  m_updateType: 0
 --- !u!1 &1548628553 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 5417357307513236272, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
@@ -1256,6 +1361,129 @@ MonoBehaviour:
   - Offset: {x: -0.06, y: 0, z: 0}
     Radius: 0.07
   m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
+--- !u!114 &1548628556
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1548628553}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baedd976e12657241bf7ff2d1c685342, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBoneCollider
+  m_Direction: 1
+  m_Center: {x: -0.06, y: 0, z: 0}
+  m_Bound: 0
+  m_Radius: 0.07
+  m_Height: 0
+  m_Radius2: 0
+--- !u!1 &1662713093
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1662713094}
+  - component: {fileID: 1662713095}
+  m_Layer: 0
+  m_Name: SpringBone_Ribbon
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1662713094
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1662713093}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 368953296}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1662713095
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1662713093}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f9ac8d30c6a0d9642a11e5be4c440740, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBone
+  m_Root: {fileID: 81531630}
+  m_Roots:
+  - {fileID: 21981255}
+  - {fileID: 1882700920}
+  m_UpdateRate: 60
+  m_UpdateMode: 3
+  m_Damping: 0.55
+  m_DampingDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Elasticity: 0.05
+  m_ElasticityDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Stiffness: 0.08
+  m_StiffnessDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Inert: 0
+  m_InertDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Friction: 0
+  m_FrictionDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Radius: 0.02
+  m_RadiusDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_EndLength: 0
+  m_EndOffset: {x: 0, y: 0, z: 0}
+  m_Gravity: {x: 0, y: -0.4, z: 0}
+  m_Force: {x: 0, y: 0, z: 0}
+  m_BlendWeight: 1
+  m_Colliders:
+  - {fileID: 180238548}
+  m_Exclusions: []
+  m_FreezeAxis: 0
+  m_DistantDisable: 0
+  m_ReferenceObject: {fileID: 0}
+  m_DistanceToObject: 20
+  m_Multithread: 1
 --- !u!1 &1809685621 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 5417357307513236118, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
@@ -1277,6 +1505,132 @@ MonoBehaviour:
   - Offset: {x: 0, y: 0.03, z: 0}
     Radius: 0.075
   m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
+--- !u!114 &1809685624
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1809685621}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baedd976e12657241bf7ff2d1c685342, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBoneCollider
+  m_Direction: 1
+  m_Center: {x: 0, y: 0.03, z: 0}
+  m_Bound: 0
+  m_Radius: 0.055
+  m_Height: 0
+  m_Radius2: 0
+--- !u!1 &1812223959
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1812223960}
+  - component: {fileID: 1812223961}
+  m_Layer: 0
+  m_Name: SpringBone_HairSide
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1812223960
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1812223959}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 368953296}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1812223961
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1812223959}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f9ac8d30c6a0d9642a11e5be4c440740, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBone
+  m_Root: {fileID: 1382637956}
+  m_Roots:
+  - {fileID: 2017376966}
+  m_UpdateRate: 60
+  m_UpdateMode: 3
+  m_Damping: 0.65
+  m_DampingDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Elasticity: 0.05
+  m_ElasticityDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Stiffness: 0.02
+  m_StiffnessDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Inert: 0
+  m_InertDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Friction: 0
+  m_FrictionDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_Radius: 0.03
+  m_RadiusDistrib:
+    serializedVersion: 2
+    m_Curve: []
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  m_EndLength: 0
+  m_EndOffset: {x: 0, y: 0, z: 0}
+  m_Gravity: {x: 0, y: -0.7, z: 0}
+  m_Force: {x: 0, y: 0, z: 0}
+  m_BlendWeight: 1
+  m_Colliders:
+  - {fileID: 180238548}
+  - {fileID: 1008480045}
+  - {fileID: 1548628556}
+  - {fileID: 1937722823}
+  - {fileID: 1203924850}
+  m_Exclusions: []
+  m_FreezeAxis: 0
+  m_DistantDisable: 0
+  m_ReferenceObject: {fileID: 0}
+  m_DistanceToObject: 20
+  m_Multithread: 1
 --- !u!4 &1882700920 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 5417357307513599766, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
@@ -1363,24 +1717,45 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 5417357307513236096, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 180255605}
+    - targetCorrespondingSourceObject: {fileID: 5417357307513236096, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 180255606}
     - targetCorrespondingSourceObject: {fileID: 5417357307513236210, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1008480044}
+    - targetCorrespondingSourceObject: {fileID: 5417357307513236210, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1008480045}
     - targetCorrespondingSourceObject: {fileID: 5417357307513236164, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1937722822}
+    - targetCorrespondingSourceObject: {fileID: 5417357307513236164, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1937722823}
     - targetCorrespondingSourceObject: {fileID: 5417357307513236162, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 180238547}
+    - targetCorrespondingSourceObject: {fileID: 5417357307513236162, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 180238548}
     - targetCorrespondingSourceObject: {fileID: 5417357307513236118, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1809685623}
+    - targetCorrespondingSourceObject: {fileID: 5417357307513236118, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1809685624}
     - targetCorrespondingSourceObject: {fileID: 5417357307513236272, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1548628555}
+    - targetCorrespondingSourceObject: {fileID: 5417357307513236272, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1548628556}
     - targetCorrespondingSourceObject: {fileID: 5417357307513236282, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1203924849}
+    - targetCorrespondingSourceObject: {fileID: 5417357307513236282, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1203924850}
   m_SourcePrefab: {fileID: 100100000, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
 --- !u!4 &1910933807 stripped
 Transform:
@@ -1423,6 +1798,24 @@ MonoBehaviour:
   - Offset: {x: 0.05, y: 0, z: 0}
     Radius: 0.045
   m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
+--- !u!114 &1937722823
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1937722820}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: baedd976e12657241bf7ff2d1c685342, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DynamicBoneCollider
+  m_Direction: 1
+  m_Center: {x: 0.05, y: 0, z: 0}
+  m_Bound: 0
+  m_Radius: 0.045
+  m_Height: 0
+  m_Radius2: 0
 --- !u!1 &1987918712
 GameObject:
   m_ObjectHideFlags: 0
@@ -1454,6 +1847,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AITuber.Room.RoomManager
   _rooms:
   - {fileID: 11400000, guid: e4224f515b316d9468fb661f8b2ea17f, type: 2}
+  - {fileID: 11400000, guid: 452b7c940400e044381b4b37aa03f308, type: 2}
   _avatarRoot: {fileID: 100000005}
   _mainCamera: {fileID: 330585545}
   _fadeCanvas: {fileID: 0}
@@ -1477,68 +1871,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 5417357307513599820, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
   m_PrefabInstance: {fileID: 1910933806}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &2139070025
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2139070026}
-  - component: {fileID: 2139070027}
-  m_Layer: 0
-  m_Name: SpringBone_HairSide
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2139070026
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2139070025}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 368953296}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2139070027
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2139070025}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 00ea06e1753e16f4ca870c39c067c86b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: VRM::VRM.VRMSpringBone
-  m_comment: SpringBone_HairSide
-  m_gizmoColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  m_stiffnessForce: 0.02
-  m_gravityPower: 0.7
-  m_gravityDir: {x: 0, y: -1, z: 0}
-  m_dragForce: 0.65
-  m_center: {fileID: 0}
-  RootBones:
-  - {fileID: 1382637956}
-  - {fileID: 2017376966}
-  m_hitRadius: 0.03
-  ColliderGroups:
-  - {fileID: 180238547}
-  - {fileID: 1008480044}
-  - {fileID: 1548628555}
-  - {fileID: 1937722822}
-  - {fileID: 1203924849}
-  m_updateType: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
