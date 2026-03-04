@@ -7,6 +7,7 @@ Safety ordering: Safety → Bandit → LLM (FR-SAFE-01).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import logging
 import random
@@ -28,13 +29,17 @@ from orchestrator.emotion_gesture_selector import (
     select_emotion_gesture,
     select_idle_emotion_gesture,
 )
+from orchestrator.episodic_store import EpisodicStore
 from orchestrator.event_bus import EventType, get_event_bus
+from orchestrator.gesture_composer import GestureComposer
 from orchestrator.latency import LatencyTracker
 from orchestrator.llm_client import LLMClient, LLMResult
 from orchestrator.memory import MemoryTracker
+from orchestrator.narrative_builder import NarrativeBuilder
 from orchestrator.overlay_server import OverlayServer
 from orchestrator.safety import SafetyVerdict, check_safety
 from orchestrator.summarizer import build_summary_prompt, cluster_messages, summarize_for_display
+from orchestrator.tom_estimator import TomEstimator
 from orchestrator.tts import TTSClient
 from orchestrator.world_context import WorldContext
 
@@ -91,6 +96,14 @@ class Orchestrator:
         self._running = False
         # FR-E1-01, FR-E4-01: world context (situatedness + avatar self-perception)
         self._world_context = WorldContext()
+        # FR-E2-01: Episodic memory
+        self._episodic = EpisodicStore()
+        # FR-E3-01: Theory of Mind estimator
+        self._tom = TomEstimator()
+        # FR-E5-01: Intensity/intent-aware gesture composer
+        self._gesture = GestureComposer()
+        # FR-E6-01: Narrative identity builder
+        self._narrative = NarrativeBuilder()
 
     async def start(self) -> None:
         """Start the orchestrator pipeline."""
@@ -378,6 +391,16 @@ class Orchestrator:
         except Exception:
             logger.warning("Avatar WS send failed")
 
+        # FR-E3-01: Theory of Mind — classify viewer intent before LLM call
+        episode_count = len(self._episodic.get_by_author(msg.author_display_name))
+        tom_est = self._tom.estimate(msg.text, msg.author_display_name, episode_count)
+        # FR-E2-01: Inject episodic memory fragment into LLM context
+        mem_frag = self._episodic.to_prompt_fragment(msg.text)
+        if mem_frag:
+            base_ctx = self._world_context.to_prompt_fragment()
+            combined = f"{base_ctx}\n\n{mem_frag}" if base_ctx else mem_frag
+            self._llm.set_world_context_fragment(combined)
+
         # LLM call (GRAYゾーンの場合は回避ヒント付き)
         self._event_bus.emit_simple(
             EventType.LLM_REQUEST_START,
@@ -402,8 +425,17 @@ class Orchestrator:
                 hourly_spend=self._llm.cost_tracker.hourly_spend(),
             )
 
-        # 返答内容に合わせて感情・ジェスチャーを動的選択
+        # 返答内容に合わせて感情・ジェスチャーを動的選択 (FR-E5-01)
         reply_emotion, reply_gesture = select_emotion_gesture(result.text)
+        # FR-E5-01: TOM intent may override gesture
+        if tom_est.intent not in ("neutral",):
+            spec = self._gesture.compose(
+                emotion=str(reply_emotion),
+                intensity=0.7,
+                intent=tom_est.intent,
+            )
+            with contextlib.suppress(ValueError):
+                reply_gesture = Gesture(spec.gesture)
         try:
             await self._avatar.send_update(
                 emotion=reply_emotion,
@@ -414,6 +446,16 @@ class Orchestrator:
             logger.warning("Avatar gesture update failed")
 
         await self._speak(result.text, msg)
+
+        # FR-E2-01: Store episode in episodic memory
+        try:
+            self._episodic.append(
+                author=msg.author_display_name,
+                user_text=msg.text,
+                ai_response=result.text,
+            )
+        except Exception:
+            logger.debug("Episodic store append failed")
 
         try:
             await self._avatar.send_event(AvatarEventType.COMMENT_READ_END)

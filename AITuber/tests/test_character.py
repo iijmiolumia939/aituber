@@ -194,3 +194,19 @@ class TestLoadCharacter:
             char = load_character(str(project_yml))
             assert char.name == "YUI.A"
             assert len(char.system_prompt) > 50
+
+    def test_load_yuia_by_name(self) -> None:
+        """TC-CHAR-10: `-c yuia` エントリポイント相当 — yuia.yml が正しくロードされる。
+
+        FR-CHATID-AUTO-01 (character resolution path).
+        Issue #6: キャラクター起動引数 `-c yuia` の動作確認.
+        """
+        char = load_character("yuia")
+        assert char.name  # 空でない
+        # yuia.yml が存在する場合は YUI.A の設定が適用される
+        project_yuia = Path(__file__).parent.parent / "config" / "characters" / "yuia.yml"
+        if project_yuia.exists():
+            assert char.name == "YUI.A"
+            assert len(char.system_prompt) > 50
+            assert char.voice.speaker_id is not None
+            assert len(char.idle_topics) >= 1

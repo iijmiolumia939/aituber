@@ -118,6 +118,8 @@ config/client_secret.json
 config/youtube_token.json
 AITuber/config/client_secret.json
 AITuber/config/youtube_token.json
+AITuber/config/episodic_memory.jsonl
+AITuber/config/narrative_log.jsonl
 
 # Unity project in subdirectory (paths not matched by leading-/ patterns above)
 AITuber/Temp/
