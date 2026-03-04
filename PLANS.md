@@ -1,6 +1,6 @@
 # PLANS.md — AITuber 実装計画トラッカー
 
-> **最終更新**: 2026-03-04 (M14 完了)  
+> **最終更新**: 2026-03-04 (M15 完了)  
 > これは計画の索引です。詳細はリンク先の exec-plan を参照。  
 > 完了した計画は `exec-plans/completed/` に移動し、ここでは状態を「✅完了」に更新する。
 
@@ -41,6 +41,7 @@
 | M12: Room/Environment テスト強化 | 2026-03-04 | 18/18テスト グリーン (Unity EditMode), FR-ROOM-01/02, TC-ROOM-01〜18 | — |
 | M13: CI Unity ビルド自動化 | 2026-03-04 | .github/workflows/ci.yml + unity-ci.yml 新設 (EditMode/PlayMode) | — |
 | M14: Overlay 自動テスト | 2026-03-04 | 20/20テスト グリーン (Python), TC-OVL-01〜20, overlay_server.py バグ修正 | — |
+| M15: LLM バックエンド切替 | 2026-03-04 | 6/6テスト グリーン, FR-LLM-BACKEND-01, LLM_BASE_URL/LLM_MODEL 環境変数, 507 passed | — |
 
 ---
 

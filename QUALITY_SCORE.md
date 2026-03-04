@@ -15,7 +15,7 @@
 | ChatPoller (FR-A3) | B | 中（モック中心） | 実YouTube APIとの e2e テストなし |
 | Safety / Content Filter (FR-SAFE) | B | 高 | GRAY判定の境界ケース不十分 |
 | Bandit / RL (FR-RL) | A | 高 (14/14 TC) | M11: ε自動調整(adapt_epsilon)実装済み。永続化が JSON ファイル |
-| LLM Client (FR-LLM) | B | 中 | テンプレートフォールバックのテストあり。コスト上限B |
+| LLM Client (FR-LLM) | A | 高 | M15: LLM_BASE_URL/LLM_MODELでOpenAI互換任意バックエンド切替対応。TC-LLM-BACKEND-01〜06 |
 | TTS / LipSync (FR-LIPSYNC) | B | 中 | M10: extract_visemes + VoicevoxBackend モック。23/23 TC |
 | AudioPlayer | B | 中 | M10: sounddevice モック化。テスト完備 |
 | AvatarController (全般) | B | 中 | Unity PlayMode テスト不足 |
@@ -67,7 +67,8 @@
 | Python pytest (new M10) | 23 | 23 | 0 |
 | Python pytest (new M11) | 14 | 14 | 0 |
 | Python pytest (new M14) | 20 | 20 | 0 |
-| Python pytest (全スイート) | 501 | 501 | 2 (pre-existing: emotion_gesture_selector) |
+| Python pytest (new M15) | 6 | 6 | 0 |
+| Python pytest (全スイート) | 507 | 507 | 2 (pre-existing: emotion_gesture_selector) |
 
 ---
 
