@@ -33,6 +33,7 @@ from orchestrator.episodic_store import EpisodicStore
 from orchestrator.event_bus import EventType, get_event_bus
 from orchestrator.gesture_composer import GestureComposer
 from orchestrator.latency import LatencyTracker
+from orchestrator.life_scheduler import LifeScheduler
 from orchestrator.llm_client import LLMClient, LLMResult
 from orchestrator.memory import MemoryTracker
 from orchestrator.narrative_builder import NarrativeBuilder
@@ -40,7 +41,7 @@ from orchestrator.overlay_server import OverlayServer
 from orchestrator.safety import SafetyVerdict, check_safety
 from orchestrator.summarizer import build_summary_prompt, cluster_messages, summarize_for_display
 from orchestrator.tom_estimator import TomEstimator
-from orchestrator.tts import TTSClient
+from orchestrator.tts import TTSClient, TTSResult
 from orchestrator.world_context import WorldContext
 
 logger = logging.getLogger(__name__)
@@ -104,6 +105,9 @@ class Orchestrator:
         self._gesture = GestureComposer()
         # FR-E6-01: Narrative identity builder
         self._narrative = NarrativeBuilder()
+        # FR-LIFE-01: Daily life scheduler (Sims-like autonomous activities)
+        self._life = LifeScheduler()
+        self._life_hint: str = ""
 
     async def start(self) -> None:
         """Start the orchestrator pipeline."""
@@ -138,6 +142,7 @@ class Orchestrator:
             self._poll_loop(),
             self._queue_consumer(),
             self._idle_talk_loop(),
+            self._life_loop(),
             self._memory_monitor(),
         )
 
@@ -220,7 +225,11 @@ class Orchestrator:
 
             try:
                 result = await self._llm.generate_idle_talk(
-                    hints=self._idle_topics if self._idle_topics else None,
+                    hints=(
+                        ([self._life_hint] + (self._idle_topics or []))
+                        if self._life_hint
+                        else (self._idle_topics if self._idle_topics else None)
+                    ),
                 )
                 talk_text = result.text.strip()
                 if not talk_text:
@@ -254,6 +263,64 @@ class Orchestrator:
                 )
             except Exception:
                 logger.warning("Idle talk failed; continuing")
+
+    # ── Daily life loop (FR-LIFE-01) ──────────────────────────────
+
+    _LIFE_TICK_SEC = 60.0  # how often to poll LifeScheduler
+
+    async def _life_loop(self) -> None:
+        """Autonomous daily life activity loop (Sims-like).
+
+        Polls LifeScheduler every _LIFE_TICK_SEC seconds and, when the
+        activity changes, sends avatar_update (gesture+emotion+look_target)
+        and optionally room_change to Unity.
+
+        FR-LIFE-01: time-of-day aware, energy-gated activity transitions.
+        """
+        while self._running:
+            await asyncio.sleep(self._LIFE_TICK_SEC)
+            try:
+                activity = self._life.tick()
+                if activity is None:
+                    continue
+
+                logger.info(
+                    "[LIFE] %s → gesture=%s emotion=%s energy=%.2f",
+                    activity.activity_type,
+                    activity.gesture,
+                    activity.emotion,
+                    self._life.state.energy,
+                )
+
+                # Update idle talk hint to match current activity context
+                self._life_hint = activity.idle_hint
+
+                # Apply emotion; fall back to NEUTRAL on unknown value
+                emotion = Emotion.NEUTRAL
+                with contextlib.suppress(ValueError):
+                    emotion = Emotion(activity.emotion)
+
+                # Apply gesture; fall back to NONE on unknown value
+                gesture = Gesture.NONE
+                with contextlib.suppress(ValueError):
+                    gesture = Gesture(activity.gesture)
+
+                look = LookTarget.RANDOM
+                with contextlib.suppress(ValueError):
+                    look = LookTarget(activity.look_target)
+
+                await self._avatar.send_update(
+                    emotion=emotion,
+                    gesture=gesture,
+                    look_target=look,
+                )
+
+                # Move to activity-specific room if specified
+                if activity.room_id:
+                    await self._avatar.send_room_change(activity.room_id)
+
+            except Exception:
+                logger.debug("[LIFE] tick error; continuing")
 
     # ── Memory monitor (NFR-RES-02) ───────────────────────────────
 

@@ -66,6 +66,19 @@ class Gesture(StrEnum):
     SIT_POINT   = "sit_point"
     SIT_DISBELIEF = "sit_disbelief"
     SIT_KICK    = "sit_kick"
+    # ── M4: stand-up gestures (behavior_policy M4) ──
+    BOW          = "bow"
+    CLAP         = "clap"
+    THUMBS_UP    = "thumbs_up"
+    POINT_FORWARD = "point_forward"
+    SPIN         = "spin"
+    # ── M19: daily life Sims-like gestures (FR-LIFE-01) ──
+    WALK         = "walk"
+    SIT_READ     = "sit_read"
+    SIT_EAT      = "sit_eat"
+    SIT_WRITE    = "sit_write"
+    SLEEP_IDLE   = "sleep_idle"
+    STRETCH      = "stretch"
 
 
 class LookTarget(StrEnum):
@@ -361,6 +374,19 @@ class AvatarWSSender:
     async def send_reset(self) -> None:
         """Send avatar_reset command."""
         msg = AvatarMessage(cmd="avatar_reset")
+        await self._send(msg)
+
+    async def send_room_change(self, room_id: str) -> None:
+        """Send room_change command to Unity RoomManager.
+
+        FR-LIFE-01: Used by LifeScheduler to move avatar between rooms
+        (e.g. to alchemist room for TINKER activity).
+        FR-ROOM-01: room_id must match a registered RoomDefinition.roomId.
+        """
+        msg = AvatarMessage(
+            cmd="room_change",
+            params={"room_id": room_id},
+        )
         await self._send(msg)
 
     async def send_viseme(

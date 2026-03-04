@@ -218,3 +218,72 @@
   emotion: neutral
   priority: 1
   notes: "視聴者スキャン。カメラに向かってニュートラル表情で観察. TC-YUIA-INT-06"
+
+# ── M19: Daily Life — Sims-like autonomous activities (FR-LIFE-01) ──────────
+# LifeScheduler が時刻+エネルギーに基づいて自律選択する活動インテント。
+# 配信外の「生活している様」を体現する。TC refs: TC-LIFE-01〜15
+
+- intent: life_sleep
+  cmd: avatar_update
+  gesture: sleep_idle
+  emotion: neutral
+  look_target: down
+  priority: 2
+  notes: "睡眠中。エネルギー回復フェーズ。00:00-06:00 帯。FR-LIFE-01"
+
+- intent: life_wake
+  cmd: avatar_update
+  gesture: stretch
+  emotion: neutral
+  look_target: camera
+  priority: 2
+  notes: "起床・朝のストレッチ。06:00-07:00 帯。FR-LIFE-01"
+
+- intent: life_eat
+  cmd: avatar_update
+  gesture: sit_eat
+  emotion: neutral
+  look_target: down
+  priority: 2
+  notes: "食事中。エネルギー補給。07-08 / 12-13 / 18-19 帯。FR-LIFE-01"
+
+- intent: life_read
+  cmd: avatar_update
+  gesture: sit_read
+  emotion: thinking
+  look_target: down
+  priority: 2
+  notes: "読書・文献調査。08-12 / 16-18 帯。FR-LIFE-01"
+
+- intent: life_tinker
+  cmd: avatar_update
+  gesture: sit_write
+  emotion: thinking
+  look_target: down
+  priority: 2
+  notes: "作業・データ整理・研究。13-15 帯。alchemist room。FR-LIFE-01"
+
+- intent: life_walk
+  cmd: avatar_update
+  gesture: walk
+  emotion: neutral
+  look_target: random
+  priority: 2
+  notes: "室内散歩。思考整理。15-16 / 21-22 帯。FR-LIFE-01"
+
+- intent: life_ponder
+  cmd: avatar_update
+  gesture: thinking
+  emotion: thinking
+  look_target: random
+  priority: 2
+  notes: "深い思索・哲学。19-21 帯。FR-LIFE-01"
+
+- intent: life_stretch
+  cmd: avatar_update
+  gesture: stretch
+  emotion: neutral
+  look_target: camera
+  priority: 2
+  notes: "夜のストレッチ・メンテナンス。22-23 帯。FR-LIFE-01"
+

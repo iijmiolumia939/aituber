@@ -1167,6 +1167,21 @@ namespace AITuber.Avatar
                 "sit_disbelief" => "SitDisbelief",
                 "sit_kick"      => "SitKick",
 
+                // ── M4: スタンドアップ追加ジェスチャー ──
+                "bow"           => "Bow",
+                "clap"          => "Clap",
+                "thumbs_up"     => "ThumbsUp",
+                "point_forward" => "PointForward",
+                "spin"          => "Spin",
+
+                // ── M19: 日常生活 Sims-like (FR-LIFE-01) ──
+                "walk"          => "Walk",
+                "sit_read"      => "SitRead",
+                "sit_eat"       => "SitEat",
+                "sit_write"     => "SitWrite",
+                "sleep_idle"    => "SleepIdle",
+                "stretch"       => "Stretch",
+
                 _               => null,
             };
 
