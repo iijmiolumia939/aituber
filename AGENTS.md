@@ -92,6 +92,7 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 | M15: LLM バックエンド切替 | ✅ 完了 (2026-03-04) | 6/6テスト グリーン, FR-LLM-BACKEND-01, LLM_BASE_URL/LLM_MODEL 環境変数 |
 | M16: LIVE_CHAT_ID 自動取得 | ✅ 完了 (2026-03-04) | 9/9テスト グリーン, FR-CHATID-AUTO-01, fetch_active_live_chat_id + Orchestrator._resolve_live_chat_id |
 | M17: YUI.A 世界観ブラッシュアップ | ✅ 完了 (2026-03-04) | 21/21テスト グリーン, behavior_policy +6 YUI.A intents, CHARACTER_NAME=yuia デフォルト設定 |
+| M18: 配信前 Inspector/設定確認 | ✅ 完了 (2026-03-04) | BlendShape全設定(26項目), TTS=47確認, VRM+Animator+Room 全OK, -c yuia 動作確認 |
 
 ---
 
