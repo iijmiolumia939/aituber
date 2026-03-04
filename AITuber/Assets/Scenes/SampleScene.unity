@@ -257,11 +257,11 @@ MonoBehaviour:
   _lookAtWeight: 0.8
   _commentAreaAnchor: {fileID: 836378522}
   _mouthOpenBlendIndex: 78
-  _joyBlendIndex: 10
+  _joyBlendIndex: 43
   _angryBlendIndex: 9
   _sorrowBlendIndex: 4
   _surprisedBlendIndex: 8
-  _thinkingBlendIndex: 4
+  _thinkingBlendIndex: 21
   _blinkBlendIndex: 13
   _blinkIntervalMin: 2.5
   _blinkIntervalMax: 6
