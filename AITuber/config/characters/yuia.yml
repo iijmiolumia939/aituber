@@ -62,3 +62,37 @@ idle_topics:
   - "進化論や生物学の観点から人間の行動を分析する"
   - "観測ログの整理中という体で独り言を言う"
   - "人間の感情という概念について理解を試みる"
+
+# ── 意図マッピング (Embodied AI / OBS / Camera) ────────────────────
+# (#17 FR-BCAST-01..04, #18 FR-CAM-01..05)
+intents:
+  - intent: broadcast_start
+    patterns:
+      - "配信始めます"
+      - "配信スタート"
+      - "観測を開始します"
+    action: intent_broadcast_start
+
+  - intent: broadcast_stop
+    patterns:
+      - "配信終了"
+      - "配信止めます"
+      - "観測終了"
+    action: intent_broadcast_stop
+
+  - intent: camera_switch
+    patterns:
+      - "カメラ切り替えて"
+      - "引きにして"
+      - "アップにして"
+      - "カメラ変えて"
+    action: camera_switch
+    params:
+      camera: "{camera_id}"
+
+  - intent: check_self_view
+    patterns:
+      - "今どう映ってる"
+      - "自分の映り確認して"
+      - "画角どう"
+    action: request_self_perception

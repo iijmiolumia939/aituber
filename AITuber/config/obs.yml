@@ -1,0 +1,42 @@
+# OBS Studio WebSocket configuration
+# Used by OBSController and OBSCameraController (FR-BCAST-02, FR-CAM-01)
+# Sensitive values (ws_password, stream_key) should be overridden via .env
+
+obs:
+  # Path to OBS executable
+  path: "C:/Program Files/obs-studio/bin/64bit/obs64.exe"
+
+  # WebSocket connection
+  ws_url: "ws://localhost:4455"
+  ws_host: "localhost"
+  ws_port: 4455
+  ws_password: ""          # override with OBS_WS_PASSWORD env var
+
+  # Process management
+  startup_wait_sec: 5
+
+  # Stream settings
+  stream_key_env: "YOUTUBE_STREAM_KEY"   # env var name that holds the stream key
+
+  # Auto-stop duration (seconds); 0 = unlimited (FR-BCAST-04)
+  max_stream_duration_sec: 7200          # 2 hours
+
+# Camera setup (FR-CAM-01): maps logical camera names to OBS scene/source names
+cameras:
+  - name: "A"
+    scene_name: "CamA_正面"
+    source_name: "UnityCapture_A"
+
+  - name: "B"
+    scene_name: "CamB_斜め"
+    source_name: "UnityCapture_B"
+
+  - name: "C"
+    scene_name: "CamC_引き"
+    source_name: "UnityCapture_C"
+
+# Self-perception screenshot (FR-CAM-03)
+screenshot:
+  width: 320
+  height: 180
+  interval_sec: 10    # how often to capture a self-view (NFR-CAM-02)
