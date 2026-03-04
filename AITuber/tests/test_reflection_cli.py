@@ -1,9 +1,11 @@
-"""TC-M5-01 〜 TC-M5-08: reflection_cli end-to-end pipeline tests.
+"""TC-M5-01 〜 TC-M5-09 + TC-M6-08/09: reflection_cli end-to-end pipeline tests.
 
 Verifies the full Phase-1 Growth Loop wiring:
   GapDashboard → ReflectionRunner(backend) → ProposalValidator → PolicyUpdater
 
-SRS refs: FR-REFL-01, FR-REFL-02, FR-REFL-03, FR-REFL-04.
+Also covers Phase-2 staging output (--output flag) for M6.
+
+SRS refs: FR-REFL-01, FR-REFL-02, FR-REFL-03, FR-REFL-04, FR-APPR-01.
 Resolves: TD-010 (backend wiring).
 
 TDD: tests written BEFORE implementation.
@@ -282,3 +284,71 @@ class TestParser:
         parser = build_parser()
         args = parser.parse_args(["--top-n", "10"])
         assert args.top_n == 10
+
+
+# ── TC-M6-08/09: --output staging flag ────────────────────────────────────
+
+
+class TestOutputFlag:
+    @pytest.fixture
+    def setup(self, tmp_path: Path):
+        gaps_dir = tmp_path / "gaps"
+        gaps_dir.mkdir()
+        gaps = [_make_gap("new_motion")] * 3
+        _write_gaps(gaps_dir / "stream.jsonl", gaps)
+        policy = tmp_path / "bp.yml"
+        policy.write_text("", encoding="utf-8")
+        staging = tmp_path / "staging.yml"
+        return gaps_dir, policy, staging
+
+    def test_output_flag_writes_staging_file(self, setup: Any) -> None:
+        """TC-M6-08: --output 指定 → staging.yml に proposals が書き込まれる。"""
+        gaps_dir, policy, staging = setup
+
+        mock_backend = MagicMock()
+        mock_backend.chat = AsyncMock(return_value=(_VALID_YAML_RESPONSE, 0.01))
+
+        cli = ReflectionCLI(
+            gaps_dir=str(gaps_dir),
+            policy_path=str(policy),
+            top_n=5,
+            dry_run=False,
+            backend=mock_backend,
+            output_path=str(staging),
+        )
+        result = asyncio.run(cli.run())
+        assert result == 0
+        assert staging.exists()
+        content = staging.read_text(encoding="utf-8")
+        assert "new_gesture" in content
+
+    def test_output_flag_does_not_write_policy(self, setup: Any) -> None:
+        """TC-M6-09: --output 指定時は behavior_policy.yml を変更しない。"""
+        gaps_dir, policy, staging = setup
+        original = policy.read_text(encoding="utf-8")
+
+        mock_backend = MagicMock()
+        mock_backend.chat = AsyncMock(return_value=(_VALID_YAML_RESPONSE, 0.01))
+
+        cli = ReflectionCLI(
+            gaps_dir=str(gaps_dir),
+            policy_path=str(policy),
+            top_n=5,
+            dry_run=False,
+            backend=mock_backend,
+            output_path=str(staging),
+        )
+        asyncio.run(cli.run())
+        assert policy.read_text(encoding="utf-8") == original
+
+    def test_parser_output_flag(self) -> None:
+        """TC-M6-10: --output フラグを解析できる。"""
+        parser = build_parser()
+        args = parser.parse_args(["--output", "staging.yml"])
+        assert args.output == "staging.yml"
+
+    def test_parser_output_default_is_none(self) -> None:
+        """TC-M6-11: --output のデフォルトは None。"""
+        parser = build_parser()
+        args = parser.parse_args([])
+        assert args.output is None

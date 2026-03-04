@@ -33,6 +33,7 @@ applyTo: 'AITuber/Assets/Tests/**/*.cs'
 | `TC-DASH-xx` | GapDashboard (Python) — FR-DASH-01, FR-DASH-02 |
 | `TC-M4-xx` | PolicyGrowth / GapDashboardフィクスチャースイート (Python) |
 | `TC-M5-xx` | reflection_cli end-to-end Growth Loop pipeline (Python) |
+| `TC-M6-xx` | approve_cli 人間承認フロー + reflection_cli --output staging (Python) |
 
 ## 参考ドキュメント
 

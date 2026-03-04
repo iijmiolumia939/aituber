@@ -1,18 +1,24 @@
 """reflection_cli: ReflectionRunner end-to-end CLI wiring.
 
-Phase-1 Growth Loop:
+Phase-1 Growth Loop (direct write):
   GapDashboard.load_all_gaps()
     → GapDashboard.get_top_gaps()
     → ReflectionRunner(backend).generate_proposals()
     → ProposalValidator.validate()
     → PolicyUpdater.append_entries()  (skipped when --dry-run)
 
+Phase-2 staging (human approval flow):
+  Same pipeline, but with --output staging.yml:
+    → valid proposals written to staging file (NOT to behavior_policy.yml)
+    → approve_cli reads staging file and lets human approve/reject
+
 Usage:
     python -m orchestrator.reflection_cli [options]
     python -m orchestrator.reflection_cli --dry-run
+    python -m orchestrator.reflection_cli --output proposals_staging.yml
     python -m orchestrator.reflection_cli --top-n 3 --model gpt-4o-mini
 
-SRS refs: FR-REFL-01, FR-REFL-02, FR-REFL-03, FR-REFL-04.
+SRS refs: FR-REFL-01, FR-REFL-02, FR-REFL-03, FR-REFL-04, FR-APPR-01.
 Resolves: TD-010 (ReflectionRunner backend wiring).
 """
 
@@ -22,12 +28,18 @@ import argparse
 import asyncio
 import logging
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from orchestrator.gap_dashboard import _DEFAULT_GAPS_DIR, GapDashboard
 from orchestrator.policy_updater import PolicyUpdater
 from orchestrator.proposal_validator import ProposalValidator, ValidationStatus
 from orchestrator.reflection_runner import ReflectionRunner
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover
+    yaml = None  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from orchestrator.llm_client import LLMBackend
@@ -84,6 +96,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run the pipeline but do NOT write to behavior_policy.yml.",
     )
     p.add_argument(
+        "--output",
+        default=None,
+        metavar="YAML",
+        help=(
+            "Write validated proposals to this staging YAML file instead of appending "
+            "directly to behavior_policy.yml.  Used for Phase-2 human approval flow "
+            "(approve_cli). Mutually exclusive with --dry-run."
+        ),
+    )
+    p.add_argument(
         "--model",
         default="gpt-4o-mini",
         help="OpenAI model name (default: gpt-4o-mini).",
@@ -99,12 +121,14 @@ class ReflectionCLI:
 
     Parameters
     ----------
-    gaps_dir:    Path to capability gap JSONL directory.
-    policy_path: Path to behavior_policy.yml.
-    top_n:       Maximum unique intents to submit to the LLM.
-    dry_run:     When True, skip the PolicyUpdater write step.
-    backend:     An LLMBackend instance.  When None, a real OpenAIBackend
-                 is constructed from environment variables at run time.
+    gaps_dir:     Path to capability gap JSONL directory.
+    policy_path:  Path to behavior_policy.yml.
+    top_n:        Maximum unique intents to submit to the LLM.
+    dry_run:      When True, skip the PolicyUpdater write step.
+    backend:      An LLMBackend instance.  When None, a real OpenAIBackend
+                  is constructed from environment variables at run time.
+    output_path:  When set, write valid proposals to this staging YAML file
+                  instead of appending to behavior_policy.yml (Phase-2 flow).
     """
 
     def __init__(
@@ -114,12 +138,14 @@ class ReflectionCLI:
         top_n: int = 5,
         dry_run: bool = False,
         backend: LLMBackend | None = None,
+        output_path: str | None = None,
     ) -> None:
         self.gaps_dir = gaps_dir
         self.policy_path = policy_path
         self.top_n = top_n
         self.dry_run = dry_run
         self._backend = backend
+        self.output_path = output_path
 
     # ── Step 1: load gaps ─────────────────────────────────────────────────
 
@@ -160,8 +186,26 @@ class ReflectionCLI:
                 )
         return valid
 
-    # ── Step 4: write policy ──────────────────────────────────────────────
+    # ── Step 4a: write staging file (Phase-2 flow) ────────────────────────
 
+    def _write_staging(self, valid_proposals: list[dict]) -> None:
+        """Write valid proposals to a staging YAML file for human review.
+
+        FR-APPR-01
+        """
+        assert yaml is not None, "PyYAML is required for --output staging."  # noqa: S101
+        path = Path(self.output_path)  # type: ignore[arg-type]
+        path.write_text(
+            yaml.dump(valid_proposals, allow_unicode=True, default_flow_style=False),
+            encoding="utf-8",
+        )
+        print(
+            f"Staged {len(valid_proposals)} proposal"
+            f"{'s' if len(valid_proposals) != 1 else ''} to {self.output_path}. "
+            "Run approve_cli to review."
+        )
+
+    # ── Step 4b: write policy ─────────────────────────────────────────────
     def _write(self, valid_proposals: list[dict]) -> None:
         n = PolicyUpdater().append_entries(self.policy_path, valid_proposals)
         print(f"Appended {n} entr{'y' if n == 1 else 'ies'} to {self.policy_path}")
@@ -194,7 +238,10 @@ class ReflectionCLI:
             return 0
 
         # Step 4
-        if self.dry_run:
+        if self.output_path:
+            # Phase-2: stage for human approval (do NOT write policy directly)
+            self._write_staging(valid)
+        elif self.dry_run:
             print(
                 f"[dry-run] Would append {len(valid)} entr"
                 f"{'y' if len(valid) == 1 else 'ies'} to {self.policy_path}."
@@ -236,6 +283,7 @@ def main(argv: list[str] | None = None) -> int:
         top_n=args.top_n,
         dry_run=args.dry_run,
         backend=backend,
+        output_path=args.output,
     )
     return asyncio.run(cli.run())
 

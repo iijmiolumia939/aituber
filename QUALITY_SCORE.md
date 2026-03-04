@@ -1,6 +1,6 @@
 # QUALITY_SCORE.md — AITuber 品質スコアカード
 
-> **最終更新**: 2026-03-04 (M5完了)  
+> **最終更新**: 2026-03-04 (M6完了)  
 > **更新ルール**: PR マージ後、影響するドメインのスコアを更新する。  
 > 改善が必要な領域は `tech-debt-tracker.md` にも反映すること。
 
@@ -25,6 +25,7 @@
 | Growth/BehaviorPolicyLoader (M1) | A | 高 (15/15 TC) | YAML スキーマバリデーションなし |
 | Growth/ReflectionRunner (M2) | A | 高 (41/41 TC) | LLM 本番呼び出しなし (モックのみ)。CLI は M5 で整備済み |
 | Growth/ReflectionCLI (M5) | A | 高 (11/11 TC) | end-to-end Growth Loop wiring。TD-010 解消 |
+| Growth/ApproveCLI (M6) | A | 高 (14/14 TC) | 人間承認フロー完成。Phase 2 Growth Loop 全配線 |
 | Growth/GapDashboard (M3) | A | 高 (26/26 TC) | rich 未インストールの場合はプレーンテキストフォールバック |
 | Growth/PolicyGrowth (M4) | A | 高 (24/24 TC) | behavior_policy.yml に 7 エントリ追加。実機テストは次回配信待ち |
 | WebSocket プロトコル準拠 | B | 中 | スキーマバリデーション未実装 (FR-A7) |
@@ -57,7 +58,8 @@
 | Python pytest (new M3) | 26 | 26 | 0 |
 | Python pytest (new M2) | 41 | 41 | 0 |
 | Python pytest (new M5) | 11 | 11 | 0 |
-| Python pytest (全スイート) | 326 | 326 | 2 (pre-existing: emotion_gesture_selector) |
+| Python pytest (new M6) | 14 | 14 | 0 |
+| Python pytest (全スイート) | 340 | 340 | 2 (pre-existing: emotion_gesture_selector) |
 
 ---
 
@@ -70,3 +72,4 @@
 5. ~~**M2 ReflectionRunner 実装** — (D→A)完了~~
 6. ~~**M3 GapDashboard 実装** — (D→A)完了~~
 7. ~~**M5 ReflectionCLI 配線** — TD-010解消完了~~
+8. ~~**M6 ApproveCLI 人間承認フロー** — Phase 2 Growth Loop完成~~

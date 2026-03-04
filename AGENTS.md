@@ -80,7 +80,8 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 | M3: GapDashboard (Gap 集計 CLI) | ✅ 完了 (2026-03-03) | 26/26テスト グリーン |
 | M4: 上位Gap 手動実装（初回成長） | ✅ 完了 (2026-03-04) | 24/24テスト グリーン, behavior_policy +7 |
 | M5: ReflectionRunner end-to-end 配線 | ✅ 完了 (2026-03-04) | 11/11テスト グリーン, TD-010 解消 |
-| M6: 自律コード生成 (BehaviorPolicy自動拡張) | 📋 未着手 | [PLANS.md](PLANS.md) |
+| M6: 人間承認フロー (ApproveCLI / Phase 2 Growth Loop) | ✅ 完了 (2026-03-04) | 14/14テスト グリーン, Phase 2 全配線 |
+| M7: 自律コード生成 (スコープ拡張) | 📋 未着手 | [PLANS.md](PLANS.md) |
 
 ---
 
