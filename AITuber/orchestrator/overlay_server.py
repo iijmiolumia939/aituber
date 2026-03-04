@@ -18,6 +18,11 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+try:
+    from websockets.exceptions import ConnectionClosed as _WsConnectionClosed
+except ImportError:  # websockets not installed (test env without it)
+    _WsConnectionClosed = None  # type: ignore[assignment,misc]
+
 logger = logging.getLogger(__name__)
 
 
@@ -87,19 +92,18 @@ class OverlayServer:
         """Send JSON data to all connected overlay clients."""
         if not self._clients:
             return
-        import websockets
 
         payload = json.dumps(data, ensure_ascii=False)
+        _dead_exc: tuple[type[Exception], ...] = (ConnectionError, OSError)
+        if _WsConnectionClosed is not None:
+            _dead_exc = (_WsConnectionClosed, ConnectionError, OSError)
+
         dead = set()
         async with self._lock:
             for ws in self._clients:
                 try:
                     await ws.send(payload)
-                except (
-                    websockets.exceptions.ConnectionClosed,
-                    ConnectionError,
-                    OSError,
-                ):
+                except _dead_exc:  # type: ignore[misc]
                     dead.add(ws)
         self._clients -= dead
 

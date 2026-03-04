@@ -29,7 +29,7 @@
 | Growth/GapDashboard (M3) | A | 高 (26/26 TC) | rich 未インストールの場合はプレーンテキストフォールバック |
 | Growth/PolicyGrowth (M4) | A | 高 (24/24 TC) | behavior_policy.yml に 7 エントリ追加。実機テストは次回配信待ち |
 | WebSocket プロトコル準拠 | B | 中 | スキーマバリデーション未実装 (FR-A7) |
-| Overlay / OBS 連携 | C | 低 | 手動確認のみ |
+| Overlay / OBS 連携 | B | 中 | Python ユニットテスト 20件 (TC-OVL-01〜20) / HTML overlay 手動確認のみ |
 
 ---
 

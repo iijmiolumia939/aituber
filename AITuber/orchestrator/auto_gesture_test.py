@@ -2,11 +2,12 @@
 Usage: python -m orchestrator.auto_gesture_test
 """
 from __future__ import annotations
+
 import asyncio
 import logging
 import sys
 
-from orchestrator.avatar_ws import AvatarWSSender, AvatarMessage
+from orchestrator.avatar_ws import AvatarMessage, AvatarWSSender
 from orchestrator.config import AvatarWSConfig
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
@@ -43,7 +44,7 @@ async def main() -> None:
         await asyncio.sleep(0.5)
         if i % 10 == 9:
             log.info("待機中 %d秒... (Unity PlayMode を起動してください)", (i + 1) // 2)
-    
+
     if not sender.connected:
         log.error("Unity が接続しませんでした。PlayMode が起動しているか確認してください。")
         await sender.stop_server()

@@ -37,6 +37,7 @@ applyTo: 'AITuber/Assets/Tests/**/*.cs'
 | `TC-M7-xx` | GrowthLoop フル統合オーケストレーター: GrowthLoopResult dataclass + run() pipeline (Python) |
 | `TC-M8-xx` | ScopeConfig + LLMModuloValidator + Phase 2b WSインテントプロポーザルバリデーション (Python) |
 | `TC-ROOM-xx` | RoomDefinition ScriptableObject + RoomManager guards (Unity EditMode) |
+| `TC-OVL-xx` | OverlayServer — broadcast, dead-client cleanup, message format (Python) |
 
 ## 参考ドキュメント
 

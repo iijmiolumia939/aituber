@@ -16,17 +16,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 import uuid
-from typing import Sequence
 
 from orchestrator.avatar_ws import (
-    AvatarEventType,
-    AvatarWSSender,
     AvatarMessage,
-    Emotion,
-    Gesture,
-    LookTarget,
+    AvatarWSSender,
     VisemeEvent,
 )
 from orchestrator.config import AvatarWSConfig

@@ -87,6 +87,8 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 | M10: TTS/AudioPlayer テスト強化 | ✅ 完了 (2026-03-04) | 23/23テスト グリーン, FR-LIPSYNC-01/02, extract_visemes + VoicevoxBackend mock |
 | M11: Bandit ε自動調整 | ✅ 完了 (2026-03-04) | 14/14テスト グリーン, FR-BANDIT-EPS-01, adapt_epsilon + auto_adapt |
 | M12: Room/Environment テスト強化 | ✅ 完了 (2026-03-04) | 18/18テスト グリーン (Unity EditMode), TC-ROOM-01〜18 |
+| M13: CI Unity ビルド自動化 | ✅ 完了 (2026-03-04) | .github/workflows/ci.yml + unity-ci.yml (game-ci/unity-test-runner@v4) |
+| M14: Overlay 自動テスト | ✅ 完了 (2026-03-04) | 20/20テスト グリーン, TC-OVL-01〜20, overlay_server.py バグ修正 |
 
 ---
 

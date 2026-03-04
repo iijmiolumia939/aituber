@@ -23,11 +23,14 @@ from orchestrator.bandit import BanditContext, ContextualBandit
 from orchestrator.character import load_character
 from orchestrator.chat_poller import ChatMessage, YouTubeChatPoller
 from orchestrator.config import AppConfig, TTSConfig, load_config
+from orchestrator.emotion_gesture_selector import (
+    select_emotion_gesture,
+    select_idle_emotion_gesture,
+)
 from orchestrator.event_bus import EventType, get_event_bus
 from orchestrator.latency import LatencyTracker
 from orchestrator.llm_client import LLMClient, LLMResult
 from orchestrator.memory import MemoryTracker
-from orchestrator.emotion_gesture_selector import select_emotion_gesture, select_idle_emotion_gesture
 from orchestrator.overlay_server import OverlayServer
 from orchestrator.safety import SafetyVerdict, check_safety
 from orchestrator.summarizer import build_summary_prompt, cluster_messages, summarize_for_display
@@ -419,7 +422,7 @@ class Orchestrator:
             await playback_queue.put(first_chunk)
             await lip_queue.put(first_chunk)
 
-            async def _forward_and_send_viseme() -> "TTSResult":
+            async def _forward_and_send_viseme() -> TTSResult:
                 # TTS完了を待つ（バッチ合成なら既に完了済み）
                 _result = await tts_task
                 # ここで send_viseme → play_task はすでに起動済みなので

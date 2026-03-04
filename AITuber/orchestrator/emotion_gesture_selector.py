@@ -12,7 +12,6 @@ import random
 
 from orchestrator.avatar_ws import Emotion, Gesture
 
-
 # ── Rule table ────────────────────────────────────────────────────────
 # Each rule = (keywords_set, Emotion, gesture_candidates)
 # gesture_candidates: list of Gesture — one is chosen at random if weight > 1

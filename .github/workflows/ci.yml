@@ -1,0 +1,49 @@
+# .github/workflows/ci.yml
+# Python Orchestrator CI — lint, format-check, pytest
+# SRS ref: NFR (CI automation)
+#
+# Runs on every push/PR to main.
+# Working directory: AITuber/ (contains pyproject.toml and tests/)
+
+name: Python CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: AITuber
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+
+      - name: Lint (ruff)
+        run: python -m ruff check orchestrator/ tests/
+
+      - name: Format check (black)
+        run: python -m black --check orchestrator/ tests/
+
+      - name: Tests
+        run: python -m pytest -q --tb=short
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: AITuber/.pytest_cache/
+          if-no-files-found: ignore

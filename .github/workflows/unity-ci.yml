@@ -1,0 +1,115 @@
+# .github/workflows/unity-ci.yml
+# Unity EditMode & PlayMode test runner (headless CI)
+# SRS ref: NFR (CI automation) / FR-ROOM-01, FR-ROOM-02, TC-ROOM-xx
+#
+# ── Prerequisites ────────────────────────────────────────────────────
+# Add the following repository secrets (Settings → Secrets → Actions):
+#
+#   UNITY_LICENSE   — contents of your Unity .ulf activation file
+#                     (obtained via: Edit > Manage License > Activate > Save)
+#
+#   UNITY_EMAIL     — Unity account e-mail (used for personal license activation)
+#   UNITY_PASSWORD  — Unity account password
+#   UNITY_SERIAL    — Unity serial number (printed on My Account page)
+#
+#   Only ONE of the two approaches above is required.
+#   For Unity Personal (free), use UNITY_LICENSE (offline file).
+#   For Unity Pro/Plus, use email+password+serial.
+# ─────────────────────────────────────────────────────────────────────
+
+name: Unity CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  # ── EditMode tests ────────────────────────────────────────────────
+  unity-editmode:
+    name: Unity EditMode Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: AITuber/Library
+          key: Library-EditMode-${{ runner.os }}-${{ hashFiles('AITuber/Assets/**', 'AITuber/Packages/**', 'AITuber/ProjectSettings/**') }}
+          restore-keys: |
+            Library-EditMode-${{ runner.os }}-
+            Library-${{ runner.os }}-
+
+      - name: Run Unity EditMode tests
+        uses: game-ci/unity-test-runner@v4
+        id: editmode-tests
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: AITuber
+          unityVersion: auto
+          testMode: EditMode
+          checkName: Unity EditMode Results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          coverageOptions: 'generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;assemblyFilters:+AITuber.Runtime'
+
+      - name: Upload EditMode test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unity-editmode-results
+          path: ${{ steps.editmode-tests.outputs.artifactsPath }}
+
+      - name: Upload EditMode coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unity-editmode-coverage
+          path: ${{ steps.editmode-tests.outputs.coveragePath }}
+
+  # ── PlayMode tests ─────────────────────────────────────────────────
+  unity-playmode:
+    name: Unity PlayMode Tests
+    runs-on: ubuntu-latest
+    needs: unity-editmode   # run after EditMode (Library cache already warmed)
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: AITuber/Library
+          key: Library-PlayMode-${{ runner.os }}-${{ hashFiles('AITuber/Assets/**', 'AITuber/Packages/**', 'AITuber/ProjectSettings/**') }}
+          restore-keys: |
+            Library-PlayMode-${{ runner.os }}-
+            Library-${{ runner.os }}-
+
+      - name: Run Unity PlayMode tests
+        uses: game-ci/unity-test-runner@v4
+        id: playmode-tests
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: AITuber
+          unityVersion: auto
+          testMode: PlayMode
+          checkName: Unity PlayMode Results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload PlayMode test artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unity-playmode-results
+          path: ${{ steps.playmode-tests.outputs.artifactsPath }}
