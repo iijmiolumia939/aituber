@@ -61,15 +61,22 @@ class TestSelectEmotionGesture:
 
 
 class TestSelectIdleEmotionGesture:
+    # Valid idle gesture pool (mirrors emotion_gesture_selector._idle_candidates)
+    _IDLE_GESTURES = {Gesture.WAVE, Gesture.NOD, Gesture.CHEER, Gesture.IDLE_ALT}
+
     def test_default_happy_wave(self):
+        # TC-IDLE-01: no hint → HAPPY + one of the idle gesture candidates
+        # Fix #19: was asserting WAVE only; function returns random.choice from pool
         emotion, gesture = select_idle_emotion_gesture()
         assert emotion == Emotion.HAPPY
-        assert gesture == Gesture.WAVE
+        assert gesture in self._IDLE_GESTURES
 
     def test_with_topic_hint_no_match_returns_wave(self):
+        # TC-IDLE-02: topic hint with no keyword match → HAPPY + idle pool
+        # Fix #19: same flaky assertion corrected to accept full idle pool
         emotion, gesture = select_idle_emotion_gesture("今日の天気について")
         assert emotion == Emotion.HAPPY
-        assert gesture == Gesture.WAVE
+        assert gesture in self._IDLE_GESTURES
 
     def test_with_topic_hint_match(self):
         emotion, gesture = select_idle_emotion_gesture("やったー！楽しかった！")
