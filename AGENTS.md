@@ -83,6 +83,7 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 | M6: 人間承認フロー (ApproveCLI / Phase 2 Growth Loop) | ✅ 完了 (2026-03-04) | 14/14テスト グリーン, Phase 2 全配線 |
 | M7: GrowthLoop フル統合オーケストレーター | ✅ 完了 (2026-03-04) | 13/13テスト グリーン, FR-LOOP-01/02, growth_loop.py |
 | M8: 自律コード生成スコープ拡張 (Phase 2b) | ✅ 完了 (2026-03-04) | 50/50テスト グリーン, FR-SCOPE-01/02, ScopeConfig + LLMModuloValidator |
+| M9: WebSocket スキーマバリデーション | ✅ 完了 (2026-03-04) | 41/41テスト グリーン, FR-WS-SCHEMA-01/02, WsSchemaValidator |
 
 ---
 

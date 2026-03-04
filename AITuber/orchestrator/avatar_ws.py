@@ -22,6 +22,7 @@ from typing import Any
 import numpy as np
 
 from orchestrator.config import AvatarWSConfig
+from orchestrator.ws_schema_validator import WsSchemaValidator
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,7 @@ class AvatarWSSender:
         self._server = None
         self._lock = asyncio.Lock()
         self._ready = asyncio.Event()
+        self._schema_validator = WsSchemaValidator()
 
 
     @property
@@ -249,7 +251,20 @@ class AvatarWSSender:
         self._clients -= dead
 
     async def _send(self, msg: AvatarMessage) -> None:
-        """Broadcast a message to all connected clients."""
+        """Broadcast a message to all connected clients.
+
+        FR-WS-SCHEMA-01, FR-WS-SCHEMA-02: Validates against protocol schema
+        before sending; logs a warning if the message is non-conformant but
+        does NOT block delivery (warn-only mode).
+        """
+        result = self._schema_validator.validate_json(msg.to_json())
+        if not result.ok:
+            logger.warning(
+                "WS schema validation failed (cmd=%s): [%s] %s",
+                msg.cmd,
+                result.error_code,
+                result.message,
+            )
         if not self._clients:
             logger.debug("No avatar clients connected; message dropped")
             return
