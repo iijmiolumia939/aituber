@@ -36,7 +36,7 @@
 | M2: ReflectionRunner (LLM-Modulo) | 2026-03-03 | 41/41テスト グリーン, ruff クリーン | [exec-plans/completed/m2-reflection-runner.md](AITuber/docs/exec-plans/completed/m2-reflection-runner.md) |
 | M3: GapDashboard (Gap 集計 CLI) | 2026-03-03 | 26/26テスト グリーン, ruff クリーン | [exec-plans/completed/m3-gap-dashboard.md](AITuber/docs/exec-plans/completed/m3-gap-dashboard.md) |
 | M4: 上位Gap 手動実装（初回成長） | 2026-03-04 | 24/24テスト グリーン, behavior_policy +7エントリ | [exec-plans/completed/m4-top-gap-impl.md](AITuber/docs/exec-plans/completed/m4-top-gap-impl.md) |
-| M5: ReflectionRunner end-to-end 配線 | 2026-03-04 | 11/11テスト グリーン, TD-010 解消 | [exec-plans/active/m5-reflection-cli.md](AITuber/docs/exec-plans/active/m5-reflection-cli.md) |
+| M5: ReflectionRunner end-to-end 配線 | 2026-03-04 | 11/11テスト グリーン, TD-010 解消 | [exec-plans/completed/m5-reflection-cli.md](AITuber/docs/exec-plans/completed/m5-reflection-cli.md) |
 
 ---
 

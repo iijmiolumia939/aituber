@@ -1,6 +1,6 @@
 # Autonomous Avatar Growth System
 
-> **ステータス**: M1・M2・M3・M4 実装完了（2026-03-03/04）— Phase 1 稼働中  
+> **ステータス**: M1・M2・M3・M4・M5 実装完了（2026-03-03/04）— Phase 1 Growth Loop 全配線完了  
 > **ゴール**: 配信を通してアバターが自律的に能力・表現・実装を成長させる  
 > **評価**: 文献調査に基づき [アーキテクチャの根本的見直し](#設計評価と改訂方針) を実施済み（2026-03-03）
 
@@ -450,8 +450,8 @@ GapLogの該当エントリをクローズ
 | M2 | `ReflectionRunner` + `ProposalValidator` + `PolicyUpdater` 実装（[完了記録](exec-plans/completed/m2-reflection-runner.md)） | M1 | ✅ 2026-03-03 (41/41 TC) |
 | M3 | `GapDashboard` で初回集計・上位5 Gap特定・Issue作成 | M2 | ✅ 2026-03-03 (26/26 TC) |
 | M4 | 上位GapのモーションをPhase 1で手動実装（初回成長） | M3 | ✅ 2026-03-04 (24/24 TC) |
-| M5 | `BehaviorPolicy` YAML導入・`ActionDispatcher`完全分離 | M4 | M4+2週 |
-| M6 | `LLMModuloValidator` 実装・全ゲート稼働確認 | M5 | M5+2週 |
+| M5 | `reflection_cli.py` で `OpenAIBackend` を注入し Growth Loop を end-to-end で配線。TD-010 解消 ([完了記録](exec-plans/completed/m5-reflection-cli.md)) | M4 | ✅ 2026-03-04 (11/11 TC) |
+| M6 | `LLMModuloValidator` 実装・全ゲート稼働確認 / 自律コード生成 (BehaviorPolicy自動拡張) | M5 | M5+2週 |
 | M7 | `ProposalGenerator` (スコープ2a: YAMLのみ) プロトタイプ | M6 | M6+4週 |
 | M8 | Phase 2b〜2d 段階的スコープ拡大 | M7 | M7+8週 |
 | M9 | 完全自律デプロイ実験（Phase 3パイロット） | M8 | TBD |
