@@ -77,7 +77,9 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 |---|---|---|
 | M1: Capability Gap Log収集 | ✅ 完了 (2026-03-03) | 61/61テスト グリーン |
 | M2: ReflectionRunner (LLM) | ✅ 完了 (2026-03-03) | 41/41テスト グリーン |
-| M3: 自律コード生成 | 📋 未着手 | [PLANS.md](PLANS.md) |
+| M3: GapDashboard (Gap 集計 CLI) | ✅ 完了 (2026-03-03) | 26/26テスト グリーン |
+| M4: 上位Gap 手動実装（初回成長） | ✅ 完了 (2026-03-04) | 24/24テスト グリーン, behavior_policy +7 |
+| M5: ReflectionRunner end-to-end 配線 | 📋 未着手 | [PLANS.md](PLANS.md) |
 
 ---
 
