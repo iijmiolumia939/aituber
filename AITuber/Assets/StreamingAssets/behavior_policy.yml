@@ -172,3 +172,49 @@
   emotion: sleepy
   priority: 0
   notes: "Drowsy / sleepy expression – 眠い. GapDashboard rank-7"
+
+# ── M17: YUI.A 観測AI専用 intents ────────────────────────────────────────────
+# YUI.A キャラクター（人類観測AI）の世界観を体現する固有インテント。
+# TC refs: TC-YUIA-INT-01〜06
+
+- intent: record_observation
+  cmd: avatar_update
+  gesture: nod
+  emotion: thinking
+  priority: 1
+  notes: "データ観測を記録するポーズ。頷き＋思考表情。YUI.A固有. TC-YUIA-INT-01"
+
+- intent: analyze_data
+  cmd: avatar_update
+  look_target: chat
+  emotion: thinking
+  priority: 1
+  notes: "チャットデータをスキャン分析。チャット方向注視＋思考表情. TC-YUIA-INT-02"
+
+- intent: express_curiosity
+  cmd: avatar_update
+  emotion: thinking
+  look_target: camera
+  priority: 1
+  notes: "静かな知的好奇心。カメラを見て考え込む表情. TC-YUIA-INT-03"
+
+- intent: acknowledge_anomaly
+  cmd: avatar_update
+  emotion: surprised
+  look_target: camera
+  priority: 1
+  notes: "異常値・斬新な発言への反応。驚き＋カメラ注視. TC-YUIA-INT-04"
+
+- intent: processing_lag
+  cmd: avatar_update
+  emotion: thinking
+  look_target: down
+  priority: 1
+  notes: "処理落ち演出。感情理解で固まる時の表現. TC-YUIA-INT-05"
+
+- intent: scan_viewer
+  cmd: avatar_update
+  look_target: camera
+  emotion: neutral
+  priority: 1
+  notes: "視聴者スキャン。カメラに向かってニュートラル表情で観察. TC-YUIA-INT-06"

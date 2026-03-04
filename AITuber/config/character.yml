@@ -1,6 +1,14 @@
-# AITuber キャラクター設定 (レガシー / デフォルト)
-# 推奨: config/characters/ ディレクトリ内の個別YAMLを使用してください
-# 起動例: python -m orchestrator -c yuia
+# ================================================================
+# AITuber キャラクター設定 ── レガシーフォールバック
+# ================================================================
+# ⚠️  このファイルは旧形式フォールバックです。
+#    通常は .env に「CHARACTER_NAME=yuia」を設定し、
+#    config/characters/yuia.yml を使用してください。
+#
+# 起動例:
+#   python -m orchestrator -c yuia    # 名前指定
+#   CHARACTER_NAME=yuia python -m orchestrator  # 環境変数
+# ================================================================
 
 name: "YUI.A"
 
