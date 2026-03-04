@@ -60,7 +60,8 @@
 | Python pytest (new M5) | 11 | 11 | 0 |
 | Python pytest (new M6) | 14 | 14 | 0 |
 | Python pytest (new M7) | 13 | 13 | 0 |
-| Python pytest (全スイート) | 353 | 353 | 2 (pre-existing: emotion_gesture_selector) |
+| Python pytest (new M8) | 50 | 50 | 0 |
+| Python pytest (全スイート) | 403 | 403 | 2 (pre-existing: emotion_gesture_selector) |
 
 ---
 
@@ -75,3 +76,4 @@
 7. ~~**M5 ReflectionCLI 配線** — TD-010解消完了~~
 8. ~~**M6 ApproveCLI 人間承認フロー** — Phase 2 Growth Loop完成~~
 9. ~~**M7 GrowthLoop 統合オーケストレーター** — FR-LOOP-01/02 実装完了~~
+10. ~~**M8 ScopeConfig + LLMModuloValidator** — FR-SCOPE-01/02 実装完了、Phase 2b《起動~~

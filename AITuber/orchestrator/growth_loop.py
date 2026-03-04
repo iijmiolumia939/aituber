@@ -26,8 +26,10 @@ import yaml
 
 from orchestrator.approve_cli import ApproveCLI
 from orchestrator.gap_dashboard import _DEFAULT_GAPS_DIR
+from orchestrator.llm_modulo_validator import LLMModuloValidator
 from orchestrator.policy_updater import PolicyUpdater
 from orchestrator.reflection_cli import ReflectionCLI
+from orchestrator.scope_config import GrowthScope, ScopeConfig
 
 if TYPE_CHECKING:
     from orchestrator.llm_client import LLMBackend
@@ -86,6 +88,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--staging", default=_DEFAULT_STAGING, metavar="YAML")
     p.add_argument("--top-n", dest="top_n", type=int, default=5, metavar="N")
     p.add_argument(
+        "--scope",
+        choices=[s.name.lower() for s in GrowthScope],
+        default=GrowthScope.YAML_ONLY.name.lower(),
+        help="Generation scope (default: yaml_only).",
+    )
+    p.add_argument(
         "--auto-approve",
         dest="auto_approve",
         action="store_true",
@@ -128,6 +136,30 @@ def _count_policy(policy_path: str) -> int:
     return len(PolicyUpdater().load_policy(policy_path))
 
 
+def _load_staging(staging_path: str) -> list[dict]:
+    """Load all proposals from the staging YAML file as a list of dicts."""
+    path = Path(staging_path)
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        return []
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [d for d in data if isinstance(d, dict)]
+
+
+def _clear_staging(staging_path: str) -> None:
+    """Remove the staging YAML file if it exists."""
+    path = Path(staging_path)
+    if path.exists():
+        path.unlink()
+
+
 # ── Core class ─────────────────────────────────────────────────────────────
 
 
@@ -135,7 +167,9 @@ class GrowthLoop:
     """Orchestrates the full Phase-2 Growth Loop in one object.
 
     Internally chains:
-      ReflectionCLI (--output staging_path) → ApproveCLI (staging_path)
+      ReflectionCLI (--output staging_path)
+        → LLMModuloValidator (scope + safety + diff-size gates)
+        → ApproveCLI (staging_path)
 
     Parameters
     ----------
@@ -147,8 +181,9 @@ class GrowthLoop:
     auto_reject:   Reject all staged proposals (test mode).
     input_fn:      Override stdin for interactive y/n. Injected in tests.
     backend:       LLMBackend instance. When None, real OpenAIBackend is used by main().
+    scope_config:  Growth scope configuration. Defaults to yaml_only.
 
-    FR-LOOP-01
+    FR-LOOP-01, FR-SCOPE-01, FR-SCOPE-02
     """
 
     def __init__(
@@ -161,6 +196,7 @@ class GrowthLoop:
         auto_reject: bool = False,
         input_fn: Callable[[str], str] | None = None,
         backend: LLMBackend | None = None,
+        scope_config: ScopeConfig | None = None,
     ) -> None:
         self.gaps_dir = gaps_dir
         self.policy_path = policy_path
@@ -170,6 +206,9 @@ class GrowthLoop:
         self.auto_reject = auto_reject
         self.input_fn = input_fn
         self._backend = backend
+        self._scope_config: ScopeConfig = (
+            scope_config if scope_config is not None else ScopeConfig()
+        )
 
     async def run(self) -> GrowthLoopResult:
         """Execute the full Growth Loop and return structured results.
@@ -201,7 +240,27 @@ class GrowthLoop:
             return GrowthLoopResult(0, 0, 0)
 
         logger.info("Staged %d proposal(s) for review.", n_generated)
+        # ── Step 2b: LLMModuloValidator gate (FR-SCOPE-02) ──────────────────
+        staged_proposals = _load_staging(self.staging_path)
+        lmv = LLMModuloValidator(self._scope_config)
+        passed_proposals, lmv_report = lmv.validate(staged_proposals)
+        if lmv_report.n_failed > 0:
+            logger.info(
+                "LLMModuloValidator: %d/%d proposals passed (%d filtered).",
+                lmv_report.n_passed,
+                lmv_report.n_validated,
+                lmv_report.n_failed,
+            )
+        if not passed_proposals:
+            # All proposals were filtered by LLMModuloValidator.
+            _clear_staging(self.staging_path)
+            return GrowthLoopResult(n_generated, 0, n_generated)
 
+        # Overwrite staging with only the validated proposals.
+        Path(self.staging_path).write_text(
+            yaml.dump(passed_proposals, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
         # ── Step 3: Snapshot policy before approval ────────────────────────
         policy_before = _count_policy(self.policy_path)
 
@@ -249,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     config = LLMConfig()
     config.model = args.model
     backend = OpenAIBackend(config)
+    scope = ScopeConfig(scope=GrowthScope[args.scope.upper()])
 
     loop = GrowthLoop(
         gaps_dir=args.gaps_dir,
@@ -258,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
         auto_approve=args.auto_approve,
         auto_reject=args.auto_reject,
         backend=backend,
+        scope_config=scope,
     )
     result = asyncio.run(loop.run())
     print(

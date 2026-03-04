@@ -236,3 +236,46 @@ fr:
       - "orchestrator/gap_dashboard.py: GapDashboard.get_top_gaps(), build_summary()"
       - "orchestrator/gap_dashboard.py: main() CLI"
       - "tests/test_gap_dashboard.py: TC-DASH-07〜12"
+
+  # ── Growth Scope / LLM-Modulo (FR-SCOPE) ──────────────────────────────
+
+  - id: FR-SCOPE-01
+    title: "ScopeConfig: Growth Loop generation scope external control"
+    srs_ref: "autonomous-growth.md Phase 2 (2a-2e)"
+    description: >
+      GrowthLoop の生成スコープを外部 YAML (growth_scope.yml) または
+      CLI フラグ (--scope) で制御できる。
+      スコープは yaml_only → ws_protocol → animator → action_dispatcher → full_cs の
+      順に段階的に拡大される。
+    acceptance:
+      - "ScopeConfig() のデフォルトは yaml_only・max 5 proposals・max 200 diff lines"
+      - "ScopeConfig.from_yaml(path) / to_yaml(path) でラウンドトリップ可能"
+      - "GrowthScope の数値序列: YAML_ONLY < WS_PROTOCOL < ANIMATOR < ACTION_DISPATCHER < FULL_CS"
+      - "allows_proposal_type('unknown') → False"
+    impl:
+      - "orchestrator/scope_config.py: GrowthScope, ScopeConfig"
+      - "Assets/StreamingAssets/growth_scope.yml (デフォルト設定)"
+      - "tests/test_scope_config.py: TC-M8-01〜06"
+
+  - id: FR-SCOPE-02
+    title: "LLMModuloValidator: 3-gate proposal filter"
+    srs_ref: "autonomous-growth.md Phase 2, Kambhampati et al. 2024"
+    description: >
+      LLM が生成したすべての提案は ApproveCLI 前に LLMModuloValidator の
+      3 ゲートを通過しなければならない。
+      (1) scope_gate: proposal_type が ScopeConfig で許可されているか
+      (2) safety_gate: ProposalValidator の安全チェックをパスするか
+      (3) diff_size_gate: 累積推定差分行数が max_diff_lines 以下か
+    acceptance:
+      - "behavior_policy_entry が yaml_only スコープで scope_gate PASS"
+      - "ws_intent_definition が yaml_only スコープで scope_gate FAIL"
+      - "ws_intent_definition が ws_protocol スコープで scope_gate PASS"
+      - "blocked word ('rm -rf') を含む提案が safety_gate FAIL"
+      - "累積差分 > max_diff_lines の提案が diff_size_gate FAIL"
+      - "GrowthLoop に scope_config=yaml_only で ws_intent 提案が全フィルタされる"
+    impl:
+      - "orchestrator/llm_modulo_validator.py: GateStatus, GateResult, LLMModuloReport, LLMModuloValidator"
+      - "orchestrator/growth_loop.py: LLMModuloValidator を run() 内に統合"
+      - "tests/test_llm_modulo_validator.py: TC-M8-07〜15"
+      - "tests/test_proposal_validator_phase2b.py: TC-M8-16〜20"
+      - "tests/test_growth_loop_scope.py: TC-M8-21〜23"

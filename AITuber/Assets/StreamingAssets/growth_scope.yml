@@ -1,0 +1,13 @@
+# Growth scope configuration (Phase 2a default)
+# Controls what the LLM Growth Loop is allowed to generate.
+# SRS ref: FR-SCOPE-01, autonomous-growth.md Phase 2
+#
+# scope values (ordered expansion):
+#   yaml_only          - Phase 2a: behavior_policy.yml entries only
+#   ws_protocol        - Phase 2b: avatar_intent WS command definitions
+#   animator           - Phase 2c: AnimatorController parameter additions
+#   action_dispatcher  - Phase 2d: ActionDispatcher.cs new intent handlers
+#   full_cs            - Phase 2e: arbitrary new C# files
+scope: yaml_only
+max_proposals_per_run: 5
+max_diff_lines: 200
