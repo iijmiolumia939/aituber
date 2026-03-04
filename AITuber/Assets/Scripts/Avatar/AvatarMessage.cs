@@ -234,6 +234,26 @@ namespace AITuber.Avatar
         public RoomChangeParams @params;
     }
 
+    // ── zone_change params ───────────────────────────────────────
+    // FR-ZONE-01
+    // Wire: { "cmd": "zone_change", "params": { "zone_id": "pc_area" } }
+
+    [Serializable]
+    public class ZoneChangeParams
+    {
+        /// <summary>RoomDefinition.zones[].zoneId と一致させる。</summary>
+        public string zone_id = "";
+    }
+
+    [Serializable]
+    internal class ZoneChangeEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public ZoneChangeParams @params;
+    }
+
     // ── avatar_intent params ─────────────────────────────────────────
     // Wire: { "cmd": "avatar_intent", "params": { "intent": "point_at_screen", "fallback": "nod" } }
     // The LLM brain sends what it *wants* to do. ActionDispatcher decides how to fulfil it.
