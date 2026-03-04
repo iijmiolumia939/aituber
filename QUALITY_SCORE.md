@@ -1,6 +1,6 @@
 # QUALITY_SCORE.md — AITuber 品質スコアカード
 
-> **最終更新**: 2026-03-03 (M3完了)  
+> **最終更新**: 2026-03-04 (M4完了)  
 > **更新ルール**: PR マージ後、影響するドメインのスコアを更新する。  
 > 改善が必要な領域は `tech-debt-tracker.md` にも反映すること。
 
@@ -25,6 +25,7 @@
 | Growth/BehaviorPolicyLoader (M1) | A | 高 (15/15 TC) | YAML スキーマバリデーションなし |
 | Growth/ReflectionRunner (M2) | B | 高 (41/41 TC) | LLM 本番呼び出しなし (モックのみ)。バッチ実行 CLI 未整備 |
 | Growth/GapDashboard (M3) | A | 高 (26/26 TC) | rich 未インストールの場合はプレーンテキストフォールバック |
+| Growth/PolicyGrowth (M4) | A | 高 (24/24 TC) | behavior_policy.yml に 7 エントリ追加。実機テストは次回配信待ち |
 | WebSocket プロトコル準拠 | B | 中 | スキーマバリデーション未実装 (FR-A7) |
 | Overlay / OBS 連携 | C | 低 | 手動確認のみ |
 
@@ -51,6 +52,7 @@
 |---|---|---|---|
 | Unity EditMode | 55 | 55 | 0 |
 | Unity PlayMode | 6 | 6 | 0 |
+| Python pytest (new M4) | 24 | 24 | 0 |
 | Python pytest (new M3) | 26 | 26 | 0 |
 | Python pytest (new M2) | 41 | 41 | 0 |
 | Python pytest (全スイート) | 265+ | 263+ | 2 (pre-existing: emotion_gesture_selector) |

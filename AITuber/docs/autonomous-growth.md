@@ -1,6 +1,6 @@
 # Autonomous Avatar Growth System
 
-> **ステータス**: M1・M2 実装完了（2026-03-03）— Phase 1 稼働中  
+> **ステータス**: M1・M2・M3・M4 実装完了（2026-03-03/04）— Phase 1 稼働中  
 > **ゴール**: 配信を通してアバターが自律的に能力・表現・実装を成長させる  
 > **評価**: 文献調査に基づき [アーキテクチャの根本的見直し](#設計評価と改訂方針) を実施済み（2026-03-03）
 
@@ -414,7 +414,7 @@ GapLogの該当エントリをクローズ
 |---|---|---|---|
 | ActionDispatcher | C# (Unity) | `Assets/Scripts/Growth/ActionDispatcher.cs` | Phase 1 ✅ M1 |
 | GapLogger | C# (Unity) | `Assets/Scripts/Growth/GapLogger.cs` | Phase 1 ✅ M1 |
-| GapDashboard | Python (click + rich) | `tools/gap_dashboard.py` | Phase 1 |
+| GapDashboard | Python (click + rich) | `orchestrator/gap_dashboard.py` | Phase 1 ✅ M3 |
 | ReflectionRunner | Python (LLM client) | `orchestrator/reflection_runner.py` | Phase 1 ✅ M2 |
 | ProposalValidator | Python | `orchestrator/proposal_validator.py` | Phase 1 ✅ M2 |
 | PolicyUpdater | Python | `orchestrator/policy_updater.py` | Phase 1 ✅ M2 |
@@ -449,7 +449,7 @@ GapLogの該当エントリをクローズ
 | M1 | `ActionDispatcher` + `GapLogger` 実装・ログ収集開始（[設計書](m1-design.md)） | — | ✅ 2026-03-03 (61/61 TC) |
 | M2 | `ReflectionRunner` + `ProposalValidator` + `PolicyUpdater` 実装（[完了記録](exec-plans/completed/m2-reflection-runner.md)） | M1 | ✅ 2026-03-03 (41/41 TC) |
 | M3 | `GapDashboard` で初回集計・上位5 Gap特定・Issue作成 | M2 | ✅ 2026-03-03 (26/26 TC) |
-| M4 | 上位GapのモーションをPhase 1で手動実装（初回成長） | M3 | M3+4週 |
+| M4 | 上位GapのモーションをPhase 1で手動実装（初回成長） | M3 | ✅ 2026-03-04 (24/24 TC) |
 | M5 | `BehaviorPolicy` YAML導入・`ActionDispatcher`完全分離 | M4 | M4+2週 |
 | M6 | `LLMModuloValidator` 実装・全ゲート稼働確認 | M5 | M5+2週 |
 | M7 | `ProposalGenerator` (スコープ2a: YAMLのみ) プロトタイプ | M6 | M6+4週 |
