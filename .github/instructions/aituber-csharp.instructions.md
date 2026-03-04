@@ -32,9 +32,3 @@ applyTo: 'AITuber/Assets/Scripts/**/*.cs'
 - `BehaviorPolicyLoader.Lookup(intent)` → `Assets/StreamingAssets/behavior_policy.yml`
 - intent 命名プレフィックス: `gesture_` / `emote_` / `event_` / `integrate_` / `env_`
 - `ActionDispatcher.Dispatch()` のギャップ分類: `gesture_*` / `emote_*` → `missing_motion`、`event_*` → `missing_behavior`
-
-## 参考ドキュメント
-
-- [SRS](../../docs/SRS.md)
-- [自律成長システム設計](../../docs/autonomous-growth.md)
-- [M1 実装設計](../../docs/m1-design.md)
