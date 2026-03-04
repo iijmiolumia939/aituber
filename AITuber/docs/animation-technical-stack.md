@@ -2,6 +2,7 @@
 
 > 作成日: 2026-03-02  
 > 対象Unity: 6000.3.0f1 / アバター: QuQu U.fbx (Humanoid FBX)
+> UniVRM (com.vrmc.vrm): 高級をは買わない・アバター形式としては不使用。VRMSpringBone《髪を揺れる物理》のみ使用。
 
 ---
 
