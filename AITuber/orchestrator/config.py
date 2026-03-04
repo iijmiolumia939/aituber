@@ -108,6 +108,10 @@ class BanditConfig:
     m: float = 0.05
     n: float = 0.10
     s: float = 5.0
+    # ε自動調整パラメータ (FR-BANDIT-EPS-01)
+    epsilon_min: float = 0.05   # 視聴者数多い → 活用重視
+    epsilon_max: float = 0.30   # 視聴者数少ない → 探索重視
+    viewer_rate_threshold: int = 20  # chat_rate_15s がこの値以上で epsilon_min に到達
 
 
 @dataclass(frozen=True)

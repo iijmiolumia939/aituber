@@ -1,8 +1,10 @@
 """Contextual bandit for chat action selection.
 
-SRS refs: FR-RL-01, bandit.yml, TC-D-01.
+SRS refs: FR-RL-01, FR-BANDIT-EPS-01, bandit.yml, TC-D-01.
 Actions: reply_now | queue_and_reply_later | summarize_cluster | ignore.
 Reward formula v1.0 params: k=0.10, m=0.05, n=0.10, S=5.0.
+ε auto-adjustment: epsilon decreases linearly as chat_rate_15s increases,
+  clamped to [epsilon_min, epsilon_max] from BanditConfig.
 """
 
 from __future__ import annotations
@@ -118,10 +120,12 @@ class ContextualBandit:
         config: BanditConfig | None = None,
         log_path: Path | None = None,
         epsilon: float = 0.15,
+        auto_adapt: bool = False,
     ) -> None:
         self._cfg = config or BanditConfig()
         self._actions = list(self._cfg.actions)
         self._epsilon = epsilon
+        self._auto_adapt = auto_adapt
         self._log_path = log_path or Path("bandit_log.jsonl")
 
         # 各アクションの累積報酬 (action → [cumulative, count])
@@ -133,11 +137,36 @@ class ContextualBandit:
     def actions(self) -> Sequence[str]:
         return self._actions
 
+    def adapt_epsilon(self, chat_rate_15s: int) -> float:
+        """Compute adaptive ε from viewer chat rate and cache it.
+
+        FR-BANDIT-EPS-01: epsilon decreases linearly as chat_rate_15s rises.
+          - chat_rate_15s == 0            → epsilon_max (explore)
+          - chat_rate_15s >= threshold    → epsilon_min (exploit)
+          - in between                    → linear interpolation
+
+        The computed value is stored in self._epsilon for the next select_action call.
+        Returns the new epsilon value.
+        """
+        lo = self._cfg.epsilon_min
+        hi = self._cfg.epsilon_max
+        threshold = max(1, self._cfg.viewer_rate_threshold)
+        rate = max(0, chat_rate_15s)
+        ratio = min(1.0, rate / threshold)
+        new_eps = hi - (hi - lo) * ratio
+        self._epsilon = round(new_eps, 6)
+        return self._epsilon
+
     def select_action(self, ctx: BanditContext) -> BanditDecision:
         """Select an action using ε-greedy policy.
 
+        FR-BANDIT-EPS-01: Auto-adapts epsilon from ctx.chat_rate_15s before
+        each decision to reflect current viewer activity.
         Returns a BanditDecision (logged as 'pre').
         """
+        # FR-BANDIT-EPS-01: realtime epsilon adaptation (opt-in)
+        if self._auto_adapt:
+            self.adapt_epsilon(ctx.chat_rate_15s)
         # Heuristic overrides
         if ctx.safety_risk > 0.8:
             action = "ignore"

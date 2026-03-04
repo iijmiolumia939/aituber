@@ -85,6 +85,7 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 | M8: 自律コード生成スコープ拡張 (Phase 2b) | ✅ 完了 (2026-03-04) | 50/50テスト グリーン, FR-SCOPE-01/02, ScopeConfig + LLMModuloValidator |
 | M9: WebSocket スキーマバリデーション | ✅ 完了 (2026-03-04) | 41/41テスト グリーン, FR-WS-SCHEMA-01/02, WsSchemaValidator |
 | M10: TTS/AudioPlayer テスト強化 | ✅ 完了 (2026-03-04) | 23/23テスト グリーン, FR-LIPSYNC-01/02, extract_visemes + VoicevoxBackend mock |
+| M11: Bandit ε自動調整 | ✅ 完了 (2026-03-04) | 14/14テスト グリーン, FR-BANDIT-EPS-01, adapt_epsilon + auto_adapt |
 
 ---
 
