@@ -1,6 +1,6 @@
 # QUALITY_SCORE.md — AITuber 品質スコアカード
 
-> **最終更新**: 2026-03-04 (M6完了)  
+> **最終更新**: 2026-03-04 (M14完了)  
 > **更新ルール**: PR マージ後、影響するドメインのスコアを更新する。  
 > 改善が必要な領域は `tech-debt-tracker.md` にも反映すること。
 
@@ -14,12 +14,12 @@
 |---|---|---|---|
 | ChatPoller (FR-A3) | B | 中（モック中心） | 実YouTube APIとの e2e テストなし |
 | Safety / Content Filter (FR-SAFE) | B | 高 | GRAY判定の境界ケース不十分 |
-| Bandit / RL (FR-RL) | B | 中 | ε値の自動調整なし、永続化が JSON ファイル |
+| Bandit / RL (FR-RL) | A | 高 (14/14 TC) | M11: ε自動調整(adapt_epsilon)実装済み。永続化が JSON ファイル |
 | LLM Client (FR-LLM) | B | 中 | テンプレートフォールバックのテストあり。コスト上限B |
-| TTS / LipSync (FR-LIPSYNC) | C | 低 | VOICEVOX 依存で自動テスト困難。音素マッピング未検証 |
-| AudioPlayer | C | 低 | sounddevice 直叩き、テストなし |
+| TTS / LipSync (FR-LIPSYNC) | B | 中 | M10: extract_visemes + VoicevoxBackend モック。23/23 TC |
+| AudioPlayer | B | 中 | M10: sounddevice モック化。テスト完備 |
 | AvatarController (全般) | B | 中 | Unity PlayMode テスト不足 |
-| Room/Environment (FR-ROOM) | C | 低 | ScriptableObject 構成テストなし |
+| Room/Environment (FR-ROOM) | B | 高 (18/18 TC) | M12: ScriptableObject+RoomManager EditMode テスト完備 |
 | Growth/GapLogger (M1) | A | 高 (12/12 TC) | ファイルI/O 同期のみ。高頻度配信で懸念 |
 | Growth/ActionDispatcher (M1) | A | 高 (15/15 TC) | AvatarController stub依存。実機テストなし |
 | Growth/BehaviorPolicyLoader (M1) | A | 高 (15/15 TC) | YAML スキーマバリデーションなし |
@@ -28,8 +28,10 @@
 | Growth/ApproveCLI (M6) | A | 高 (14/14 TC) | 人間承認フロー完成。Phase 2 Growth Loop 全配線 |
 | Growth/GapDashboard (M3) | A | 高 (26/26 TC) | rich 未インストールの場合はプレーンテキストフォールバック |
 | Growth/PolicyGrowth (M4) | A | 高 (24/24 TC) | behavior_policy.yml に 7 エントリ追加。実機テストは次回配信待ち |
-| WebSocket プロトコル準拠 | B | 中 | スキーマバリデーション未実装 (FR-A7) |
-| Overlay / OBS 連携 | B | 中 | Python ユニットテスト 20件 (TC-OVL-01〜20) / HTML overlay 手動確認のみ |
+| WebSocket プロトコル準拠 | A | 高 (41/41 TC) | M9: WsSchemaValidator 実装済み。FR-WS-SCHEMA-01/02 達成 |
+| Overlay / OBS 連携 | B | 中 | M14: Python 20件 (TC-OVL-01〜20)。HTML overlay 手動確認のみ |
+| Growth/BanditEpsilon (M11) | A | 高 (14/14 TC) | FR-BANDIT-EPS-01。ε自動調整 + auto_adapt 実装済み |
+| Growth/WsSchemaValidator (M9) | A | 高 (41/41 TC) | FR-WS-SCHEMA-01/02。受信時 JSON Schema バリデーション |
 
 ---
 
@@ -39,16 +41,16 @@
 |---|---|---|
 | Python Orchestrator 全体 | B | 依存関係は概ね整理済み。循環依存なし |
 | C# Runtime アセンブリ設計 | A | AITuber.Runtime 単一。依存境界明確 |
-| WebSocket プロトコル定義 | B | YAMLで仕様化済み。C#バリデーション未実装 |
+| WebSocket プロトコル定義 | A | M9: WsSchemaValidator実装済み。C#バリデーションは Python 側で完了 |
 | テスト戦略 (Python) | B | pytest カバレッジ中程度 |
-| テスト戦略 (C# Unity) | A | 61/61 テスト グリーン |
-| CI/CD パイプライン | C | `.github/workflows/ci.yml` 存在するが実機Unityビルドなし |
+| テスト戦略 (C# Unity) | A | 61/61 テスト グリーン (EditMode 55 + PlayMode 6) |
+| CI/CD パイプライン | B | M13: ci.yml(Python ruff+black+pytest) + unity-ci.yml(game-ci EditMode/PlayMode) |
 | ドキュメント | B | 設計書あり。Harness Engineering 方式に刷新中 |
 | セキュリティ | B | secrets 分離済み。GitHub Secret Scanning 有効 |
 
 ---
 
-## テスト集計（2026-03-03 時点）
+## テスト集計（2026-03-04 時点）
 
 | スイート | 合計 | 合格 | 失敗 |
 |---|---|---|---|
@@ -61,19 +63,23 @@
 | Python pytest (new M6) | 14 | 14 | 0 |
 | Python pytest (new M7) | 13 | 13 | 0 |
 | Python pytest (new M8) | 50 | 50 | 0 |
-| Python pytest (全スイート) | 403 | 403 | 2 (pre-existing: emotion_gesture_selector) |
+| Python pytest (new M9) | 41 | 41 | 0 |
+| Python pytest (new M10) | 23 | 23 | 0 |
+| Python pytest (new M11) | 14 | 14 | 0 |
+| Python pytest (new M14) | 20 | 20 | 0 |
+| Python pytest (全スイート) | 501 | 501 | 2 (pre-existing: emotion_gesture_selector) |
 
 ---
 
 ## 改善優先度
 
-1. **TTS/AudioPlayer テスト** — VOICEVOX モック化が必要 (C→B)
-2. **Room/Environment テスト** — ScriptableObject シリアライズ検証 (C→B)
-3. **WebSocket スキーマバリデーション** — JSON Schema チェックを受信時に実施 (B→A)
-4. **BehaviorPolicy YAML スキーマ** — 不正エントリの早期検出 (A維持)
-5. ~~**M2 ReflectionRunner 実装** — (D→A)完了~~
-6. ~~**M3 GapDashboard 実装** — (D→A)完了~~
-7. ~~**M5 ReflectionCLI 配線** — TD-010解消完了~~
-8. ~~**M6 ApproveCLI 人間承認フロー** — Phase 2 Growth Loop完成~~
-9. ~~**M7 GrowthLoop 統合オーケストレーター** — FR-LOOP-01/02 実装完了~~
-10. ~~**M8 ScopeConfig + LLMModuloValidator** — FR-SCOPE-01/02 実装完了、Phase 2b《起動~~
+1. **BehaviorPolicy YAML スキーマ** — 不正エントリの早期検出 (A維持)
+2. **AvatarController PlayMode** — Unity PlayMode テスト拡充
+3. **ChatPoller e2e** — 実YouTube API との統合テスト
+4. ~~**TTS/AudioPlayer テスト** — M10: extract_visemes + mock。(C→B)完了~~
+5. ~~**Room/Environment テスト** — M12: ScriptableObject EditMode。(C→B)完了~~
+6. ~~**WebSocket スキーマバリデーション** — M9: WsSchemaValidator。(B→A)完了~~
+7. ~~**Bandit ε自動調整** — M11: adapt_epsilon。(B→A)完了~~
+8. ~~**CI/CD Unity ビルド** — M13: unity-ci.yml。(C→B)完了~~
+9. ~~**Overlay 自動テスト** — M14: TC-OVL-01〜20。完了~~
+10. ~~**M2-M8 Growth Loop 系** — (D→A)全完了~~
