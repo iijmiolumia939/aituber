@@ -40,7 +40,14 @@ class LLMConfig:
         LLM_MODEL=deepseek-chat
     """
 
-    api_key: str = field(default_factory=lambda: os.environ.get("OPENAI_API_KEY", ""), repr=False)
+    # LLM_API_KEY が優先。未設定なら OPENAI_API_KEY にフォールバック (FR-LLM-BACKEND-01)
+    api_key: str = field(
+        default_factory=lambda: (
+            os.environ.get("LLM_API_KEY")
+            or os.environ.get("OPENAI_API_KEY", "")
+        ),
+        repr=False,
+    )
     model: str = field(default_factory=lambda: os.environ.get("LLM_MODEL", "gpt-4o-mini"))
     # OpenAI 互換エンドポイント。None = OpenAI デフォルト (FR-LLM-BACKEND-01)
     base_url: str | None = field(default_factory=lambda: os.environ.get("LLM_BASE_URL") or None)
