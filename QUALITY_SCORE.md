@@ -1,6 +1,6 @@
 # QUALITY_SCORE.md — AITuber 品質スコアカード
 
-> **最終更新**: 2026-03-04 (M4完了)  
+> **最終更新**: 2026-03-04 (M5完了)  
 > **更新ルール**: PR マージ後、影響するドメインのスコアを更新する。  
 > 改善が必要な領域は `tech-debt-tracker.md` にも反映すること。
 
@@ -23,7 +23,8 @@
 | Growth/GapLogger (M1) | A | 高 (12/12 TC) | ファイルI/O 同期のみ。高頻度配信で懸念 |
 | Growth/ActionDispatcher (M1) | A | 高 (15/15 TC) | AvatarController stub依存。実機テストなし |
 | Growth/BehaviorPolicyLoader (M1) | A | 高 (15/15 TC) | YAML スキーマバリデーションなし |
-| Growth/ReflectionRunner (M2) | B | 高 (41/41 TC) | LLM 本番呼び出しなし (モックのみ)。バッチ実行 CLI 未整備 |
+| Growth/ReflectionRunner (M2) | A | 高 (41/41 TC) | LLM 本番呼び出しなし (モックのみ)。CLI は M5 で整備済み |
+| Growth/ReflectionCLI (M5) | A | 高 (11/11 TC) | end-to-end Growth Loop wiring。TD-010 解消 |
 | Growth/GapDashboard (M3) | A | 高 (26/26 TC) | rich 未インストールの場合はプレーンテキストフォールバック |
 | Growth/PolicyGrowth (M4) | A | 高 (24/24 TC) | behavior_policy.yml に 7 エントリ追加。実機テストは次回配信待ち |
 | WebSocket プロトコル準拠 | B | 中 | スキーマバリデーション未実装 (FR-A7) |
@@ -55,7 +56,8 @@
 | Python pytest (new M4) | 24 | 24 | 0 |
 | Python pytest (new M3) | 26 | 26 | 0 |
 | Python pytest (new M2) | 41 | 41 | 0 |
-| Python pytest (全スイート) | 265+ | 263+ | 2 (pre-existing: emotion_gesture_selector) |
+| Python pytest (new M5) | 11 | 11 | 0 |
+| Python pytest (全スイート) | 326 | 326 | 2 (pre-existing: emotion_gesture_selector) |
 
 ---
 
@@ -65,5 +67,6 @@
 2. **Room/Environment テスト** — ScriptableObject シリアライズ検証 (C→B)
 3. **WebSocket スキーマバリデーション** — JSON Schema チェックを受信時に実施 (B→A)
 4. **BehaviorPolicy YAML スキーマ** — 不正エントリの早期検出 (A維持)
-5. **M2 ReflectionRunner 実装** — (D→実装)
+5. ~~**M2 ReflectionRunner 実装** — (D→A)完了~~
 6. ~~**M3 GapDashboard 実装** — (D→A)完了~~
+7. ~~**M5 ReflectionCLI 配線** — TD-010解消完了~~

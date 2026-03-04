@@ -29,7 +29,7 @@
 | TD-007 | Bandit | ε値がハードコード。視聴者数・配信時間に応じた動的調整なし | 探索/活用のバランスが最適でない | 2026-03 |
 | TD-008 | Memory | `memory.py` のコメント履歴が Python dict のみ。再起動で消える | 配信再開時に文脈が失われる | 2026-03 |
 | TD-009 | AvatarController | `ApplyFromPolicy()` と直接コマンド受信パスが混在。統一できていない | 将来の拡張時に複雑化 | 2026-03 |
-| TD-010 | ReflectionRunner | `ReflectionRunner.generate_proposals()` は `backend=None` の場合に空リストを返す。実際の LLM 呼び出しには外部から `OpenAIBackend` を注入するワイヤリングコードが未作成 | 実配信での自動 Reflection が動作しない | 2026-03-03 |
+
 ## 解消済み
 
 | ID | 内容 | 解消方法 | 解消日 |
@@ -37,3 +37,4 @@
 | TD-S01 | EditMode でシングルトン汚染 (`Instance` が stale) | `ClearInstanceForTest()` + `SetGapLoggerForTest()` / `SetPolicyLoaderForTest()` + Awake で `GetComponent` キャッシュ | 2026-03-03 |
 | TD-S02 | `GapLogger.SetLogPathForTest()` で `_streamId` が空のままになるケース | `SetLogPathForTest()` 内で `_streamId` の初期化を保証 | 2026-03-03 |
 | TD-011 | `priority_score` 算出式未実装 (すべて 0.0) | `GapDashboard.compute_priority_scores()` で `(freq/total) × (1/cost_weight)` を実装 (M3) | 2026-03-03 |
+| TD-010 | `ReflectionRunner.generate_proposals()` が `backend=None` で空リスト返却。実配信で Reflection が動作しない | `reflection_cli.py` で `OpenAIBackend` を注入する Growth Loop CLI を実装 (M5)。11/11 TC グリーン | 2026-03-04 |

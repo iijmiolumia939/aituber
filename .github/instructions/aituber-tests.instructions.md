@@ -32,6 +32,7 @@ applyTo: 'AITuber/Assets/Tests/**/*.cs'
 | `TC-REFL-xx` | ReflectionRunner / ProposalValidator / PolicyUpdater (Python) |
 | `TC-DASH-xx` | GapDashboard (Python) — FR-DASH-01, FR-DASH-02 |
 | `TC-M4-xx` | PolicyGrowth / GapDashboardフィクスチャースイート (Python) |
+| `TC-M5-xx` | reflection_cli end-to-end Growth Loop pipeline (Python) |
 
 ## 参考ドキュメント
 
