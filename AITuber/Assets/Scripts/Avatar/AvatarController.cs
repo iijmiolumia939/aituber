@@ -350,6 +350,32 @@ namespace AITuber.Avatar
                     selfAnim.enabled = false;
                     Debug.Log($"[AvatarCtrl] Disabled conflicting self-Animator on '{selfAnim.gameObject.name}' (controller='{ctrlName}')");
                 }
+
+                // デフォルトモーションを IdleAlt に設定。
+                // AnimatorController の defaultState が IdleAlt になっていれば自動で遷移するが、
+                // 旧バージョンのコントローラとの互換性のため 1 フレーム後に Play() でも確定させる。
+                // FR-A7-01: アイドル状態は IdleAlt (自然な立ちポーズ) を使用する。
+                StartCoroutine(PlayInitialIdleAlt());
+            }
+        }
+
+        /// <summary>
+        /// PlayMode 開始直後に IdleAlt ステートへ遷移させる。
+        /// Animator が完全に初期化されるまで 1 フレーム待つ必要があるため Coroutine で実装。
+        /// </summary>
+        private IEnumerator PlayInitialIdleAlt()
+        {
+            // Animator が完全に初期化されるまで待つ（最大 30 フレーム = 約 0.5 秒）
+            int safety = 30;
+            while (_animator != null && !_animator.isInitialized && safety-- > 0)
+                yield return null;
+            yield return null; // 初期化直後のフレームをさらに 1 つスキップ
+            if (_animator != null)
+            {
+                _animator.Play("IdleAlt", 0, 0f);
+                _currentGesture      = "idle_alt";
+                _lastAppliedGesture  = "idle_alt";
+                Debug.Log("[AvatarCtrl] Initial motion set to IdleAlt.");
             }
         }
 
