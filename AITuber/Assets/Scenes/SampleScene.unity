@@ -1846,8 +1846,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AITuber.Room.RoomManager
   _rooms:
-  - {fileID: 11400000, guid: e4224f515b316d9468fb661f8b2ea17f, type: 2}
   - {fileID: 11400000, guid: 452b7c940400e044381b4b37aa03f308, type: 2}
+  - {fileID: 11400000, guid: e4224f515b316d9468fb661f8b2ea17f, type: 2}
   _avatarRoot: {fileID: 100000005}
   _mainCamera: {fileID: 330585545}
   _fadeCanvas: {fileID: 0}
