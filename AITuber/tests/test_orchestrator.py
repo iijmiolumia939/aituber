@@ -6,7 +6,7 @@ Verifies the ordering Safety → Bandit → LLM (FR-SAFE-01).
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -236,3 +236,67 @@ class TestLifeLoopOnAirSkip:
 
         # NOT on airならavatar_updateが呼ばれる
         mock_update.assert_called_once()
+
+
+class TestNarrativeLoop:
+    """TC-NARR-01/02: _narrative_loop が定期的に NarrativeBuilder を呼び出す。
+
+    FR-E6-01, NFR-GROWTH-01.
+    """
+
+    @pytest.mark.asyncio
+    async def test_narrative_loop_builds_and_injects_hint(self):
+        """FR-E6-01: _narrative_loop が build() を呼び narrative_hint を更新。"""
+        from orchestrator.narrative_builder import NarrativeEntry
+
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._running = True
+
+        fake_entry = NarrativeEntry(
+            narrative_id="abc123",
+            timestamp=0.0,
+            narrative="最近の会話からとても多くを学びました。",
+            episode_count=5,
+        )
+
+        build_calls: list = []
+
+        def fake_build(episodes, **kwargs):
+            build_calls.append(episodes)
+            orch._running = False  # 1 反復後に停止
+            return fake_entry
+
+        orch._narrative.build = fake_build  # type: ignore[method-assign]
+        orch._episodic.get_recent = MagicMock(return_value=[])  # type: ignore[method-assign]
+
+        with patch("orchestrator.main.asyncio.sleep", new_callable=AsyncMock):
+            await orch._narrative_loop()
+
+        # build が呼ばれた
+        assert len(build_calls) == 1
+        # narrative_hint が更新された
+        assert orch._narrative_hint == fake_entry.narrative
+
+    @pytest.mark.asyncio
+    async def test_narrative_loop_does_not_raise_on_build_error(self):
+        """FR-E6-01: build() 例外でもループがクラッシュしない。"""
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._running = True
+
+        error_count = [0]
+
+        def fake_build(episodes, **kwargs):
+            error_count[0] += 1
+            orch._running = False
+            raise RuntimeError("LLM timeout")
+
+        orch._narrative.build = fake_build  # type: ignore[method-assign]
+
+        with patch("orchestrator.main.asyncio.sleep", new_callable=AsyncMock):
+            await orch._narrative_loop()  # should not raise
+
+        assert error_count[0] == 1
+        assert orch._narrative_hint == ""  # unchanged on error
+

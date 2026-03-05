@@ -110,6 +110,9 @@ class Orchestrator:
         self._life_hint: str = ""
         # FR-LIFE-01, FR-BCAST-01: ON_AIR 中は life_loop を一時停止
         self._is_live: bool = False
+        # FR-E6-01: NarrativeBuilder の直近ナラティブ断片（6時間ごと更新）
+        self._narrative_hint: str = ""
+        self._NARRATIVE_INTERVAL_SEC: float = 6.0 * 3600
 
     async def start(self) -> None:
         """Start the orchestrator pipeline."""
@@ -145,6 +148,7 @@ class Orchestrator:
             self._queue_consumer(),
             self._idle_talk_loop(),
             self._life_loop(),
+            self._narrative_loop(),
             self._memory_monitor(),
         )
 
@@ -224,12 +228,9 @@ class Orchestrator:
             logger.info("[IDLE] LLMでアイドルトーク生成中...")
 
             try:
+                extra_hints = [h for h in [self._life_hint, self._narrative_hint] if h]
                 result = await self._llm.generate_idle_talk(
-                    hints=(
-                        ([self._life_hint] + (self._idle_topics or []))
-                        if self._life_hint
-                        else (self._idle_topics if self._idle_topics else None)
-                    ),
+                    hints=(extra_hints + (self._idle_topics or [])) or None,
                 )
                 talk_text = result.text.strip()
                 if not talk_text:
@@ -330,6 +331,33 @@ class Orchestrator:
 
             except Exception:
                 logger.debug("[LIFE] tick error; continuing")
+
+    # ── Narrative loop (FR-E6-01) ──────────────────────────────────
+
+    async def _narrative_loop(self) -> None:
+        """定期的に NarrativeBuilder を実行して YUI.A の自己ナラティブを更新する。
+
+        FR-E6-01: Synthesises recent episodes into narrative identity.
+        NFR-GROWTH-01: Autonomous growth — periodic self-reflection.
+
+        6時間ごとに直近エピソードを集約し、生成したナラティブ断片を
+        ``_narrative_hint`` 経由でアイドルトーク LLM に注入する。
+        """
+        while self._running:
+            await asyncio.sleep(self._NARRATIVE_INTERVAL_SEC)
+            try:
+                episodes = self._episodic.get_recent(20)
+                entry = self._narrative.build(episodes)
+                if entry.narrative:
+                    self._narrative_hint = entry.narrative
+                    logger.info(
+                        "[NarrativeLoop] Narrative updated (%d chars, %d episodes): %s…",
+                        len(entry.narrative),
+                        entry.episode_count,
+                        entry.narrative[:80],
+                    )
+            except Exception:
+                logger.debug("[NarrativeLoop] narrative build error; continuing")
 
     # ── Memory monitor (NFR-RES-02) ───────────────────────────────
 
