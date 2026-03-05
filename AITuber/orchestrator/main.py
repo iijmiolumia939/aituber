@@ -11,6 +11,7 @@ import contextlib
 import dataclasses
 import logging
 import random
+import re
 import time
 
 from orchestrator.audio_player import play_audio_chunks
@@ -675,9 +676,15 @@ class Orchestrator:
         B2: sounddevice でスピーカー再生を並行実行。
         """
 
-        # Bug1: TTS サニタイズ — VOICEVOX に \n を渡すと発話が途切れるため全角スペースへ変換
+        # Bug1: TTS サニタイズ — 制御文字を除去し VOICEVOX が途切れないようにする。
+        # \r\n (Windows改行) や \r 単独が残ると VOICEVOX がそこで合成を停止する。
         # FR-LIPSYNC-01: text must be a single natural sentence for VOICEVOX mora extraction.
-        text = text.strip().replace("\n", "　")
+        text = re.sub(r"[\r\n]+", "、", text.strip())  # 改行 → 読点で自然な区切り
+        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)  # その他制御文字を除去
+        text = text.strip()
+        if not text:
+            return
+        logger.debug("[SPEAK] TTS input (full): %s", text)
 
         # TTS 合成 + リップシンクストリーム
         self._event_bus.emit_simple(EventType.TTS_START, text=text[:60])

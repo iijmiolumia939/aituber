@@ -189,37 +189,29 @@ class TestAudioPlayer:
 
     @pytest.mark.asyncio
     async def test_plays_with_mock_sounddevice(self):
-        """With a mock sounddevice, chunks are written to the stream."""
+        """With a mock sounddevice, concatenated PCM is passed to sd.play()."""
         from orchestrator.audio_player import play_audio_chunks
 
-        written_chunks = []
-
-        class MockStream:
-            def start(self):
-                pass
-
-            def stop(self):
-                pass
-
-            def close(self):
-                pass
-
-            def write(self, data):
-                written_chunks.append(data)
+        played_arrays = []
 
         class MockSD:
-            def OutputStream(self, **kwargs):  # noqa: N802
-                return MockStream()
+            def play(self, data, samplerate=24000, blocking=False):  # noqa: ARG002
+                played_arrays.append(data.copy())
 
         q: asyncio.Queue = asyncio.Queue()
-        q.put_nowait(np.zeros(100, dtype=np.int16))
-        q.put_nowait(np.ones(50, dtype=np.int16))
+        chunk0 = np.zeros(100, dtype=np.int16)
+        chunk1 = np.ones(50, dtype=np.int16)
+        q.put_nowait(chunk0)
+        q.put_nowait(chunk1)
         q.put_nowait(None)
 
         with patch("orchestrator.audio_player._get_sd", return_value=MockSD()):
             await play_audio_chunks(q)
 
-        assert len(written_chunks) == 2
+        # sd.play() should have been called exactly once with the full PCM array
+        assert len(played_arrays) == 1
+        expected = np.concatenate([chunk0, chunk1]).reshape(-1, 1)
+        np.testing.assert_array_equal(played_arrays[0], expected)
 
 
 # ── I4: QuotaExceededError tests ─────────────────────────────────────

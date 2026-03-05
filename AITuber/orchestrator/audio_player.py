@@ -37,41 +37,42 @@ async def play_audio_chunks(
     *,
     sample_rate: int = 24000,
     channels: int = 1,
-    blocksize: int = 1024,
+    blocksize: int = 1024,  # kept for API compat; unused with sd.play()
 ) -> None:
     """Play PCM int16 chunks from *audio_queue* through local speakers.
+
+    Collects all chunks, then plays the complete PCM array with
+    ``sounddevice.play(blocking=True)``.  This avoids manual ring-buffer
+    management and ensures the full audio plays before returning.
 
     Send ``None`` to *audio_queue* to signal end-of-stream.
     If ``sounddevice`` is unavailable, drains the queue silently.
     """
+    # Drain all chunks first (synthesize_and_stream is batch; all chunks
+    # arrive nearly instantly).
+    chunks: list[np.ndarray] = []
+    while True:
+        chunk = await audio_queue.get()
+        if chunk is None:
+            break
+        chunks.append(chunk)
+
+    if not chunks:
+        return
+
     sd = _get_sd()
     if sd is None:
-        # Drain queue so callers don't block
-        while True:
-            chunk = await audio_queue.get()
-            if chunk is None:
-                return
-        return  # pragma: no cover
+        return  # sounddevice not available; chunks already drained above
 
+    all_pcm = np.concatenate(chunks).reshape(-1, channels)
     loop = asyncio.get_running_loop()
-
-    # Use a blocking OutputStream wrapped in executor calls
-    stream = sd.OutputStream(
-        samplerate=sample_rate,
-        channels=channels,
-        dtype="int16",
-        blocksize=blocksize,
-    )
-    stream.start()
     try:
-        while True:
-            chunk = await audio_queue.get()
-            if chunk is None:
-                break
-            # Write to device in executor to avoid blocking event loop
-            await loop.run_in_executor(None, stream.write, chunk.reshape(-1, channels))
+        # sd.play(blocking=True) plays the entire buffer and only returns
+        # after the last sample has been sent to the hardware — no early
+        # cutoff from manual stream.stop().
+        await loop.run_in_executor(
+            None,
+            lambda: sd.play(all_pcm, samplerate=sample_rate, blocking=True),
+        )
     except Exception:
         logger.warning("Audio playback error", exc_info=True)
-    finally:
-        stream.stop()
-        stream.close()
