@@ -48,6 +48,21 @@ namespace AITuber.Editor
             { "Sitting And Pointing", ("SitPoint",      false) },
             { "Sitting Disbelief",    ("SitDisbelief",  false) },
             { "Sitting_kick",         ("SitKick",       false) },
+
+            // ── M4: スタンドアップ追加ジェスチャー (FR-LIFE-01) ──
+            { "Bow",                  ("Bow",           false) },
+            { "Clapping",             ("Clap",          false) },
+            { "Thumbs Up",            ("ThumbsUp",      false) },
+            { "Pointing Forward",     ("PointForward",  false) },
+            { "Spin",                 ("Spin",          false) },
+
+            // ── M19: 日常生活 Sims-like (FR-LIFE-01) ──
+            { "Walking",              ("Walk",          true)  },
+            { "Sitting Reading",      ("SitRead",       true)  },
+            { "Sitting Eating",       ("SitEat",        false) },
+            { "Sitting Writing",      ("SitWrite",      true)  },
+            { "Sleeping",             ("SleepIdle",     true)  },
+            { "Stretching",           ("Stretch",       false) },
         };
 
         [MenuItem("AITuber/Setup Mixamo Gestures")]
@@ -91,7 +106,7 @@ namespace AITuber.Editor
                 AnimationClip clip = LoadClipFromFbx(fbxPath);
                 if (clip == null)
                 {
-                    Debug.LogWarning($"[AnimatorSetup] Clip not found: {fbxPath}");
+                    Debug.LogWarning($"[AnimatorSetup] Clip not found: {fbxPath}  → Run 'AITuber/Register Gesture Triggers (Stubs)' for placeholder.");
                     continue;
                 }
 
@@ -156,6 +171,91 @@ namespace AITuber.Editor
             int col = index % cols;
             int row = index / cols;
             return new Vector3(startX + col * stepX, startY + row * stepY, 0f);
+        }
+
+        /// <summary>
+        /// FBX クリップが未用意でも、トリガーパラメータとスタブステート(Idle モーション)を
+        /// まとめて登録する。Mixamo FBX 入手後に SetupMixamoGestures を実行することで
+        /// 正規クリップに差し替え可能。
+        ///
+        /// 使用方法: AITuber/Register Gesture Triggers (Stubs)
+        /// FR-LIFE-01
+        /// </summary>
+        [MenuItem("AITuber/Register Gesture Triggers (Stubs)")]
+        public static void RegisterGestureTriggersAsStubs()
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+            if (controller == null)
+            {
+                Debug.LogError($"[AnimatorSetup] AnimatorController not found at: {ControllerPath}");
+                return;
+            }
+
+            var layer     = controller.layers[0];
+            var sm        = layer.stateMachine;
+            var existingParams = new HashSet<string>(controller.parameters.Select(p => p.name));
+            var existingStates = new HashSet<string>(sm.states.Select(s => s.state.name));
+
+            AnimatorState idleState = sm.states.FirstOrDefault(s => s.state.name == "Idle").state;
+
+            // Idle モーションをスタブクリップとして流用
+            AnimationClip stubClip = idleState?.motion as AnimationClip;
+            if (stubClip == null)
+            {
+                string idleFbxPath = $"{MixamoFolder}Idle.fbx";
+                stubClip = LoadClipFromFbx(idleFbxPath);
+            }
+
+            int added = 0, skipped = 0;
+            foreach (var kvp in ClipMap)
+            {
+                string trigger = kvp.Value.trigger;
+                bool   loop    = kvp.Value.loop;
+
+                if (existingStates.Contains(trigger))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                // Trigger パラメータ追加
+                if (!existingParams.Contains(trigger))
+                {
+                    controller.AddParameter(trigger, AnimatorControllerParameterType.Trigger);
+                    existingParams.Add(trigger);
+                }
+
+                // スタブステート追加（Idle モーションを仮用）
+                Vector3 pos   = GetGridPosition(added);
+                AnimatorState state = sm.AddState(trigger, pos);
+                state.motion             = stubClip;  // placeholder — replace with proper FBX later
+                state.writeDefaultValues = false;
+
+                // AnyState → stub state
+                AnimatorStateTransition anyTrans = sm.AddAnyStateTransition(state);
+                anyTrans.AddCondition(AnimatorConditionMode.If, 0f, trigger);
+                anyTrans.hasExitTime         = false;
+                anyTrans.duration            = 0.2f;
+                anyTrans.canTransitionToSelf = false;
+
+                // stub state → Idle（即時リターン）
+                if (!loop && idleState != null)
+                {
+                    AnimatorStateTransition exitTrans = state.AddTransition(idleState);
+                    exitTrans.hasExitTime      = true;
+                    exitTrans.exitTime         = 0.85f;
+                    exitTrans.duration         = 0.3f;
+                    exitTrans.hasFixedDuration = false;
+                }
+
+                added++;
+                Debug.Log($"[AnimatorSetup] +stub {trigger}  (loop={loop})  ← replace motion with Mixamo FBX later");
+            }
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+
+            Debug.Log($"[AnimatorSetup] Stubs done. added={added}, skipped={skipped}");
         }
     }
 }

@@ -69,6 +69,7 @@
     },
     "dotnet.defaultSolution": "AITuber.slnx",
     "chat.agent.maxTurns": 200,
+    "chat.tools.autoApprove": true,
     "chat.commandApproval": {
         "terminal": "auto"
     }

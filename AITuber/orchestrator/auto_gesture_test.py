@@ -14,7 +14,19 @@ from orchestrator.config import AvatarWSConfig
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
 
-GESTURES = ["wave", "nod", "shake", "cheer", "shrug", "facepalm", "laugh"]
+GESTURES = [
+    # 基本感情
+    "wave", "nod", "shake", "cheer", "shrug", "facepalm", "laugh",
+    "shy", "surprised", "rejected", "sigh", "thankful", "sad_idle", "sad_kick",
+    "thinking", "idle_alt",
+    # 座り系
+    "sit_down", "sit_idle", "sit_laugh", "sit_clap", "sit_point",
+    "sit_disbelief", "sit_kick",
+    # M4: スタンドアップ
+    "bow", "clap", "thumbs_up", "point_forward", "spin",
+    # M19: 日常生活 (FR-LIFE-01)
+    "walk", "sit_read", "sit_eat", "sit_write", "sleep_idle", "stretch",
+]
 
 
 async def send_gesture(sender: AvatarWSSender, gesture: str) -> None:
