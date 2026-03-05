@@ -57,7 +57,9 @@ class Orchestrator:
         self,
         config: AppConfig | None = None,
         character_name: str | None = None,
+        no_youtube: bool = False,
     ) -> None:
+        self._no_youtube = no_youtube
         self._cfg = config or load_config()
         self._character = load_character(character_name)
 
@@ -139,12 +141,18 @@ class Orchestrator:
             logger.warning("Overlay WS server failed to start; continuing without overlay.")
 
         # LIVE_CHAT_ID 自動取得 (FR-CHATID-AUTO-01)
-        if not self._cfg.youtube.live_chat_id:
+        if not self._no_youtube and not self._cfg.youtube.live_chat_id:
             await self._resolve_live_chat_id()
+
+        if self._no_youtube:
+            logger.info("[NO-YOUTUBE] YouTube ポーリングをスキップ。コンソール入力モードで起動します。")
+            _poll = self._console_poll_loop()
+        else:
+            _poll = self._poll_loop()
 
         # Run poller + processor + queue consumer + idle talk + memory monitor
         await asyncio.gather(
-            self._poll_loop(),
+            _poll,
             self._queue_consumer(),
             self._idle_talk_loop(),
             self._life_loop(),
@@ -385,6 +393,46 @@ class Orchestrator:
             except Exception:
                 logger.exception("Poll loop error; retrying in 5s")
                 await asyncio.sleep(5.0)
+
+    async def _console_poll_loop(self) -> None:
+        """--no-youtube 時の代替ポーリング。コンソール入力をコメントとして処理する。
+
+        - 空 Enter  : 自律ループ（idle_talk/life）に任せて何もしない
+        - テキスト入力 : そのコメントをパイプラインに流す
+        - q + Enter : 終了
+        """
+        print()
+        print("=" * 60)
+        print("  AITuber ローカルテストモード (--no-youtube)")
+        print("  自律行動ループ + コンソール入力でアバターを動作確認")
+        print("=" * 60)
+        print("  テキスト入力 → Enter : コメントをパイプラインに流す")
+        print("  空 Enter             : 自律ループに任せる（何もしない）")
+        print("  q + Enter            : 終了")
+        print("-" * 60)
+        loop = asyncio.get_event_loop()
+        msg_count = 0
+        while self._running:
+            try:
+                line = await loop.run_in_executor(None, input, "\n[コメント入力] >> ")
+                line = line.strip()
+            except (EOFError, KeyboardInterrupt):
+                self._running = False
+                break
+            if line.lower() == "q":
+                self._running = False
+                break
+            if not line:
+                continue
+            msg_count += 1
+            msg = ChatMessage(
+                message_id=f"console-{msg_count}",
+                text=line,
+                author_display_name="ローカルテスト",
+                author_channel_id="local",
+                published_at=__import__("time").strftime("%Y-%m-%dT%H:%M:%SZ", __import__("time").gmtime()),
+            )
+            await self._process_message(msg)
 
     # ── Message processing (Safety → Bandit → LLM) ───────────────────
 
@@ -771,6 +819,15 @@ def main() -> None:
         action="store_true",
         help="Textual TUI ダッシュボード付きで起動",
     )
+    parser.add_argument(
+        "--no-youtube",
+        action="store_true",
+        help=(
+            "YouTube ポーリングを無効化してローカルテストモードで起動。"
+            "idle_talk / life / narrative などの自律ループはそのまま動作。"
+            "コンソールからコメントを手動入力可能。YouTube API キー不要。"
+        ),
+    )
     args = parser.parse_args()
 
     if args.list_characters:
@@ -788,7 +845,7 @@ def main() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     config = load_config()
-    orch = Orchestrator(config, character_name=args.character)
+    orch = Orchestrator(config, character_name=args.character, no_youtube=args.no_youtube)
 
     if args.dashboard:
         from orchestrator.dashboard import DashboardApp
