@@ -57,7 +57,8 @@ namespace AITuber.Editor
             { "Spin",                 ("Spin",          false) },
 
             // ── M19: 日常生活 Sims-like (FR-LIFE-01) ──
-            { "Walking",              ("Walk",          true)  },
+            // Walk chain は SetupWalkStateMachine で管理。ClipMap は Walk ループのみ保持。
+            { "Female Walk",          ("Walk",          true)  },
             { "Sitting Reading",      ("SitRead",       true)  },
             { "Sitting Eating",       ("SitEat",        false) },
             { "Sitting Writing",      ("SitWrite",      true)  },
@@ -149,6 +150,160 @@ namespace AITuber.Editor
 
             Debug.Log($"[AnimatorSetup] Done. added={added}, skipped(already exist)={skipped}");
         }
+
+        /// <summary>
+        /// Walk チェーン全体をセットアップする。
+        ///
+        /// 遷移グラフ:
+        ///   AnyState ──[Walk]──► WalkStart(一発) ──[exitTime]──► Walk(ループ)
+        ///   Walk(ループ) ──[WalkStop]──► WalkStop(一発) ──[exitTime]──► Idle
+        ///   AnyState ──[WalkStopStart]──► WalkStopStart(一発) ──[exitTime]──► Walk(ループ)
+        ///
+        /// 使用方法: AITuber/Setup Walk State Machine
+        /// FR-LIFE-01
+        /// </summary>
+        [MenuItem("AITuber/Setup Walk State Machine")]
+        public static void SetupWalkStateMachine()
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+            if (controller == null)
+            {
+                Debug.LogError($"[AnimatorSetup] AnimatorController not found at: {ControllerPath}");
+                return;
+            }
+
+            var layer = controller.layers[0];
+            var sm    = layer.stateMachine;
+
+            AnimatorState idleState = sm.states.FirstOrDefault(s => s.state.name == "Idle").state;
+
+            // ── Load real FBX clips ──
+            AnimationClip clipWalk          = LoadClipFromFbx($"{MixamoFolder}Female Walk.fbx");
+            AnimationClip clipWalkStart     = LoadClipFromFbx($"{MixamoFolder}Female Start Walking.fbx");
+            AnimationClip clipWalkStop      = LoadClipFromFbx($"{MixamoFolder}Female Stop Walking.fbx");
+            AnimationClip clipWalkStopStart = LoadClipFromFbx($"{MixamoFolder}Female Stop And Start Walking.fbx");
+
+            // ── Ensure trigger parameters exist ──
+            WsmEnsureParam(controller, "Walk",          AnimatorControllerParameterType.Trigger);
+            WsmEnsureParam(controller, "WalkStop",      AnimatorControllerParameterType.Trigger);
+            WsmEnsureParam(controller, "WalkStopStart", AnimatorControllerParameterType.Trigger);
+
+            // ── Find or create states ──
+            AnimatorState walkState          = WsmGetOrCreate(sm, "Walk",          new Vector3(900f, 120f, 0f));
+            AnimatorState walkStartState     = WsmGetOrCreate(sm, "WalkStart",     new Vector3(700f, 120f, 0f));
+            AnimatorState walkStopState      = WsmGetOrCreate(sm, "WalkStop",      new Vector3(1100f, 120f, 0f));
+            AnimatorState walkStopStartState = WsmGetOrCreate(sm, "WalkStopStart", new Vector3(700f, 220f, 0f));
+
+            // ── Assign real clips ──
+            if (clipWalk          != null) { walkState.motion          = clipWalk;          Debug.Log("[AnimatorSetup] Walk         ← Female Walk.fbx"); }
+            if (clipWalkStart     != null) { walkStartState.motion     = clipWalkStart;     Debug.Log("[AnimatorSetup] WalkStart    ← Female Start Walking.fbx"); }
+            if (clipWalkStop      != null) { walkStopState.motion      = clipWalkStop;      Debug.Log("[AnimatorSetup] WalkStop     ← Female Stop Walking.fbx"); }
+            if (clipWalkStopStart != null) { walkStopStartState.motion = clipWalkStopStart; Debug.Log("[AnimatorSetup] WalkStopStart← Female Stop And Start Walking.fbx"); }
+
+            walkState.writeDefaultValues          = false;
+            walkStartState.writeDefaultValues     = false;
+            walkStopState.writeDefaultValues      = false;
+            walkStopStartState.writeDefaultValues = false;
+
+            // ── Remove old AnyState → Walk (replaced by → WalkStart) ──
+            WsmRemoveAnyStateTo(sm, "Walk");
+
+            // ── AnyState → WalkStart  (trigger: Walk) ──
+            if (!WsmHasAnyStateTo(sm, "WalkStart"))
+            {
+                var t = sm.AddAnyStateTransition(walkStartState);
+                t.AddCondition(AnimatorConditionMode.If, 0f, "Walk");
+                t.hasExitTime         = false;
+                t.duration            = 0.2f;
+                t.canTransitionToSelf = false;
+            }
+
+            // ── WalkStart → Walk  (auto, exitTime=0.9) ──
+            if (!WsmHasTransition(walkStartState, "Walk"))
+            {
+                var t = walkStartState.AddTransition(walkState);
+                t.hasExitTime      = true;
+                t.exitTime         = 0.9f;
+                t.duration         = 0.2f;
+                t.hasFixedDuration = false;
+            }
+
+            // ── Walk → WalkStop  (trigger: WalkStop) ──
+            if (!WsmHasTransition(walkState, "WalkStop"))
+            {
+                var t = walkState.AddTransition(walkStopState);
+                t.AddCondition(AnimatorConditionMode.If, 0f, "WalkStop");
+                t.hasExitTime = false;
+                t.duration    = 0.2f;
+            }
+
+            // ── WalkStop → Idle  (auto, exitTime=0.9) ──
+            if (idleState != null && !WsmHasTransition(walkStopState, "Idle"))
+            {
+                var t = walkStopState.AddTransition(idleState);
+                t.hasExitTime      = true;
+                t.exitTime         = 0.9f;
+                t.duration         = 0.3f;
+                t.hasFixedDuration = false;
+            }
+
+            // ── AnyState → WalkStopStart  (trigger: WalkStopStart) ──
+            WsmRemoveAnyStateTo(sm, "WalkStopStart");
+            {
+                var t = sm.AddAnyStateTransition(walkStopStartState);
+                t.AddCondition(AnimatorConditionMode.If, 0f, "WalkStopStart");
+                t.hasExitTime         = false;
+                t.duration            = 0.2f;
+                t.canTransitionToSelf = false;
+            }
+
+            // ── WalkStopStart → Walk  (auto, exitTime=0.9) ──
+            if (!WsmHasTransition(walkStopStartState, "Walk"))
+            {
+                var t = walkStopStartState.AddTransition(walkState);
+                t.hasExitTime      = true;
+                t.exitTime         = 0.9f;
+                t.duration         = 0.2f;
+                t.hasFixedDuration = false;
+            }
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+
+            Debug.Log("[AnimatorSetup] Walk state machine setup complete.");
+            Debug.Log("  Walk trigger → WalkStart → Walk(loop)");
+            Debug.Log("  WalkStop trigger → WalkStop → Idle");
+            Debug.Log("  WalkStopStart trigger → WalkStopStart → Walk(loop)");
+        }
+
+        // ── Walk State Machine helpers ─────────────────────────────────────
+
+        private static void WsmEnsureParam(AnimatorController ctrl, string name, AnimatorControllerParameterType type)
+        {
+            if (!ctrl.parameters.Any(p => p.name == name))
+                ctrl.AddParameter(name, type);
+        }
+
+        private static AnimatorState WsmGetOrCreate(AnimatorStateMachine sm, string name, Vector3 pos)
+        {
+            var found = sm.states.FirstOrDefault(s => s.state.name == name);
+            if (found.state != null) return found.state;
+            return sm.AddState(name, pos);
+        }
+
+        private static bool WsmHasAnyStateTo(AnimatorStateMachine sm, string stateName) =>
+            sm.anyStateTransitions.Any(t => t.destinationState?.name == stateName);
+
+        private static void WsmRemoveAnyStateTo(AnimatorStateMachine sm, string stateName)
+        {
+            foreach (var t in sm.anyStateTransitions
+                                 .Where(t => t.destinationState?.name == stateName)
+                                 .ToList())
+                sm.RemoveAnyStateTransition(t);
+        }
+
+        private static bool WsmHasTransition(AnimatorState from, string toStateName) =>
+            from.transitions.Any(t => t.destinationState?.name == toStateName);
 
         // FBX から AnimationClip を1つ取得
         private static AnimationClip LoadClipFromFbx(string fbxPath)

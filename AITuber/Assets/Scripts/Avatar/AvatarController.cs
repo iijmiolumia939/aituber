@@ -1216,8 +1216,10 @@ namespace AITuber.Avatar
                 "spin"          => "Spin",
 
                 // ── M19: 日常生活 Sims-like (FR-LIFE-01) ──
-                "walk"          => "Walk",
-                "sit_read"      => "SitRead",
+                "walk"           => "Walk",
+                "walk_stop"      => "WalkStop",
+                "walk_stop_start"=> "WalkStopStart",
+                "sit_read"       => "SitRead",
                 "sit_eat"       => "SitEat",
                 "sit_write"     => "SitWrite",
                 "sleep_idle"    => "SleepIdle",
