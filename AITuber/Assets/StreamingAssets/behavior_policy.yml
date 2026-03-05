@@ -287,3 +287,41 @@
   priority: 2
   notes: "夜のストレッチ・メンテナンス。22-23 帯。FR-LIFE-01"
 
+
+# ── Appearance intents (FR-APPEARANCE-03, FR-SHADER-02) ──────────────────────
+
+- intent: change_appearance_toon
+  cmd: appearance_update
+  shader_mode: toon
+  priority: 2
+  notes: "トゥーンシェーダーモードに切替 (FR-SHADER-02, FR-APPEARANCE-03)"
+
+- intent: change_appearance_lit
+  cmd: appearance_update
+  shader_mode: lit
+  priority: 2
+  notes: "リアル PBR シェーダーモードに切替 (FR-SHADER-02, FR-APPEARANCE-03)"
+
+- intent: change_appearance_casual
+  cmd: appearance_update
+  costume: casual
+  priority: 2
+  notes: "カジュアル衣装に切替 (FR-APPEARANCE-01, FR-APPEARANCE-03)"
+
+- intent: change_appearance_formal
+  cmd: appearance_update
+  costume: formal
+  priority: 2
+  notes: "フォーマル衣装に切替 (FR-APPEARANCE-01, FR-APPEARANCE-03)"
+
+- intent: change_appearance_pajama
+  cmd: appearance_update
+  costume: pajama
+  priority: 2
+  notes: "パジャマに切替 (睡眠前後) (FR-APPEARANCE-01, FR-APPEARANCE-03)"
+
+- intent: change_appearance_ponytail
+  cmd: appearance_update
+  hair: ponytail
+  priority: 2
+  notes: "ポニーテールに切替 (FR-APPEARANCE-02, FR-APPEARANCE-03)"

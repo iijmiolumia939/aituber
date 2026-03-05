@@ -174,6 +174,12 @@ namespace AITuber.Growth
                 }
                 else if (line.StartsWith("notes:"))
                     current.notes = ParseValue(line, "notes:");
+                else if (line.StartsWith("shader_mode:"))
+                    current.shader_mode = ParseValue(line, "shader_mode:");
+                else if (line.StartsWith("costume:"))
+                    current.costume = ParseValue(line, "costume:");
+                else if (line.StartsWith("hair:"))
+                    current.hair = ParseValue(line, "hair:");
                 // Unknown keys are silently ignored (forward compatible)
             }
 

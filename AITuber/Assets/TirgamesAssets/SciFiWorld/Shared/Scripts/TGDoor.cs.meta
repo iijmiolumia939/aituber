@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 4d4f052b718d2004eb44ba48884c6e67
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 274906
+  packageName: Sci-Fi Living Room
+  packageVersion: 1.1
+  assetPath: Assets/TirgamesAssets/SciFiWorld/Shared/Scripts/TGDoor.cs
+  uploadId: 657633

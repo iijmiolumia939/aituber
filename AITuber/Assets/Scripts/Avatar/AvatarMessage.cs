@@ -93,6 +93,10 @@ namespace AITuber.Avatar
                         var intent = JsonUtility.FromJson<AvatarIntentEnvelope>(json);
                         typed = intent?.@params;
                         break;
+                    case "appearance_update":
+                        var appearance = JsonUtility.FromJson<AppearanceUpdateEnvelope>(json);
+                        typed = appearance?.@params;
+                        break;
                     default:
                         // Unknown command – ignore (backward compatible)
                         Debug.Log($"[AvatarWS] Unknown cmd: {msg.cmd}");
@@ -289,6 +293,36 @@ namespace AITuber.Avatar
         public string ts;
         public string cmd;
         public AvatarIntentParams @params;
+    }
+
+    // ── appearance_update params ─────────────────────────────────────
+    // FR-SHADER-02, FR-APPEARANCE-01, FR-APPEARANCE-02
+    // Wire: { "cmd": "appearance_update", "params": { "shader_mode": "toon", "costume": "casual", "hair": "ponytail" } }
+
+    /// <summary>
+    /// Parameters for the "appearance_update" command.
+    /// All fields are optional – omit to leave unchanged.
+    /// </summary>
+    [Serializable]
+    public class AppearanceUpdateParams
+    {
+        /// <summary>"toon" | "lit"  (case-insensitive → ShaderMode enum). FR-SHADER-02.</summary>
+        public string shader_mode = "";
+
+        /// <summary>Costume preset ID (e.g. "default", "casual", "formal"). FR-APPEARANCE-01.</summary>
+        public string costume = "";
+
+        /// <summary>Hairstyle preset ID (e.g. "default", "ponytail", "short"). FR-APPEARANCE-02.</summary>
+        public string hair = "";
+    }
+
+    [Serializable]
+    internal class AppearanceUpdateEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public AppearanceUpdateParams @params;
     }
 
 }

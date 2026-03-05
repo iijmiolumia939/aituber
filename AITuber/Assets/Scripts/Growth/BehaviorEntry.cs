@@ -49,6 +49,17 @@ namespace AITuber.Growth
         /// <summary>Event intensity in [0, 1]</summary>
         public float intensity = 1f;
 
+        // ── appearance_update fields (optional) FR-APPEARANCE-03 ────────────────
+
+        /// <summary>Shader mode: "toon" | "lit". FR-SHADER-02.</summary>
+        public string shader_mode = "";
+
+        /// <summary>Costume preset ID (e.g. "casual", "formal", "pajama"). FR-APPEARANCE-01.</summary>
+        public string costume = "";
+
+        /// <summary>Hairstyle preset ID (e.g. "ponytail", "short"). FR-APPEARANCE-02.</summary>
+        public string hair = "";
+
         // ── Metadata ──────────────────────────────────────────────────────────
 
         /// <summary>

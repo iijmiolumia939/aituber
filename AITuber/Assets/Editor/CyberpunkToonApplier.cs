@@ -111,4 +111,83 @@ public static class CyberpunkToonApplier
 
     [MenuItem("AITuber/Apply CyberpunkToon to VRM", validate = true)]
     static bool ApplyValidate() => Selection.activeGameObject != null;
+
+    /// <summary>
+    /// Applies CyberpunkToon shader to every material under Assets/QuQu/U/TEX/
+    /// without requiring a selected GameObject.  FR-SHADER-01.
+    /// </summary>
+    [MenuItem("AITuber/Apply CyberpunkToon to All VRM Materials")]
+    public static void ApplyToAllVrmMaterials()
+    {
+        const string SearchFolder = "Assets/QuQu/U/TEX";
+        Shader toonShader = Shader.Find(SHADER_NAME);
+        if (toonShader == null)
+        {
+            Debug.LogError($"[CyberpunkToon] Shader not found: {SHADER_NAME}");
+            return;
+        }
+
+        var guids = AssetDatabase.FindAssets("t:Material", new[] { SearchFolder });
+        if (guids.Length == 0)
+        {
+            Debug.LogWarning($"[CyberpunkToon] No materials found in {SearchFolder}");
+            return;
+        }
+
+        int converted = 0;
+        foreach (var guid in guids)
+        {
+            var path = AssetDatabase.GUIDToAssetPath(guid);
+            var mat  = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat == null) continue;
+            if (mat.shader != null && mat.shader.name == SHADER_NAME)
+            {
+                Debug.Log($"  SKIP {path} (already CyberpunkToon)");
+                continue;
+            }
+
+            // Snapshot
+            Texture mainTex   = mat.HasProperty("_MainTex")       ? mat.GetTexture("_MainTex")       :
+                                 mat.HasProperty("_BaseMap")       ? mat.GetTexture("_BaseMap")       : null;
+            Texture shadeTex  = mat.HasProperty("_ShadeTexture")  ? mat.GetTexture("_ShadeTexture")  : null;
+            Texture normalMap = mat.HasProperty("_BumpMap")        ? mat.GetTexture("_BumpMap")       :
+                                mat.HasProperty("_NormalMap")      ? mat.GetTexture("_NormalMap")     : null;
+            Texture emisTex   = mat.HasProperty("_EmissionMap")   ? mat.GetTexture("_EmissionMap")   : null;
+            Color baseCol     = mat.HasProperty("_Color")         ? mat.GetColor("_Color")           :
+                                mat.HasProperty("_BaseColor")      ? mat.GetColor("_BaseColor")       : Color.white;
+            Color shadeCol    = mat.HasProperty("_ShadeColor")    ? mat.GetColor("_ShadeColor")      : new Color(0.35f, 0.25f, 0.45f);
+            Color emitCol     = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor")   : Color.black;
+
+            // Swap
+            mat.shader = toonShader;
+
+            if (mainTex   != null) mat.SetTexture("_BaseMap",    mainTex);
+            if (shadeTex  != null) mat.SetTexture("_ShadeMap",   shadeTex);
+            if (normalMap != null) { mat.SetTexture("_NormalMap", normalMap); mat.SetFloat("_UseNormalMap", 1f); }
+            if (emisTex   != null) mat.SetTexture("_EmissionMap", emisTex);
+
+            mat.SetColor("_BaseColor",    baseCol);
+            mat.SetColor("_ShadeColor",   shadeCol);
+            mat.SetColor("_EmissionColor",emitCol);
+
+            // Cyberpunk defaults
+            mat.SetFloat("_UseRimLight",  1f);
+            mat.SetColor("_RimColor",     new Color(0f, 1f, 1f, 1f));
+            mat.SetFloat("_RimPower",     3f);
+            mat.SetFloat("_RimIntensity", 1.8f);
+            mat.SetColor("_OutlineColor", new Color(0.04f, 0.02f, 0.08f, 1f));
+            mat.SetFloat("_OutlineWidth", 0.003f);
+            mat.SetFloat("_UseHighLight", 1f);
+            mat.SetColor("_HighLightColor", new Color(0.9f, 0.8f, 1f, 1f));
+            mat.SetFloat("_HighLightPower", 64f);
+
+            EditorUtility.SetDirty(mat);
+            Debug.Log($"  APPLIED {path}");
+            converted++;
+        }
+
+        AssetDatabase.SaveAssets();
+        Debug.Log($"[CyberpunkToon] FR-SHADER-01 complete: {converted}/{guids.Length} マテリアルに適用しました。");
+        EditorUtility.DisplayDialog("CyberpunkToon", $"FR-SHADER-01: {converted} マテリアルに適用しました。", "OK");
+    }
 }

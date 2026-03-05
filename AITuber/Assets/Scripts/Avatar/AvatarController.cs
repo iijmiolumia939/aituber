@@ -510,6 +510,9 @@ namespace AITuber.Avatar
                 case "avatar_intent":
                     HandleIntent(typedParams as AvatarIntentParams);
                     break;
+                case "appearance_update":
+                    HandleAppearanceUpdate(typedParams as AppearanceUpdateParams);
+                    break;
                 default:
                     // Unknown command: ignore (protocol: backward compatible)
                     Debug.Log($"[AvatarCtrl] Ignoring unknown cmd: {msg.cmd}");
@@ -527,6 +530,28 @@ namespace AITuber.Avatar
                 dispatcher.Dispatch(p, _currentGesture);
             else
                 Debug.LogWarning("[AvatarCtrl] avatar_intent received but ActionDispatcher.Instance is null.");
+        }
+
+        // ── appearance_update (FR-SHADER-02, FR-APPEARANCE-01/02) ─────────────
+
+        private void HandleAppearanceUpdate(AppearanceUpdateParams p)
+        {
+            if (p == null) return;
+            var ctrl = AppearanceController.Instance;
+            if (ctrl == null)
+            {
+                Debug.LogWarning("[AvatarCtrl] appearance_update received but AppearanceController.Instance is null.");
+                return;
+            }
+            if (!string.IsNullOrEmpty(p.shader_mode))
+            {
+                if (System.Enum.TryParse<ShaderMode>(p.shader_mode, true, out var mode))
+                    ctrl.ApplyShaderMode(mode);
+                else
+                    Debug.LogWarning($"[AvatarCtrl] Unknown shader_mode: '{p.shader_mode}'");
+            }
+            if (!string.IsNullOrEmpty(p.costume)) ctrl.ApplyCostume(p.costume);
+            if (!string.IsNullOrEmpty(p.hair))    ctrl.ApplyHair(p.hair);
         }
 
         // ── Growth System hooks (called by ActionDispatcher) ──────────────

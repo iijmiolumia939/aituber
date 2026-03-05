@@ -401,6 +401,32 @@ class AvatarWSSender:
         )
         await self._send(msg)
 
+    async def send_appearance_update(
+        self,
+        shader_mode: str | None = None,
+        costume: str | None = None,
+        hair: str | None = None,
+    ) -> None:
+        """Send appearance_update command to Unity AppearanceController.
+
+        FR-SHADER-02: shader_mode "toon" | "lit"
+        FR-APPEARANCE-01: costume preset ID (e.g. "default", "casual", "formal", "pajama")
+        FR-APPEARANCE-02: hair preset ID (e.g. "default", "ponytail", "short")
+
+        Omit arguments (or pass None) to leave the corresponding attribute unchanged.
+        """
+        params: dict = {}
+        if shader_mode is not None:
+            params["shader_mode"] = shader_mode
+        if costume is not None:
+            params["costume"] = costume
+        if hair is not None:
+            params["hair"] = hair
+        if not params:
+            return  # Nothing to change
+        msg = AvatarMessage(cmd="appearance_update", params=params)
+        await self._send(msg)
+
     async def send_viseme(
         self,
         utterance_id: str,

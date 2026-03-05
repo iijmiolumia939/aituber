@@ -102,6 +102,70 @@ class TestAvatarWSServer:
         await sender.disconnect()
         assert sender._server is None
 
+    # ── TC-SHADER-01/02: appearance_update command ────────────────────
+
+    @pytest.mark.asyncio
+    async def test_send_appearance_update_shader_mode(self):
+        """TC-SHADER-01: send_appearance_update emits correct appearance_update message."""
+        import json
+
+        import websockets
+
+        cfg = AvatarWSConfig(host="127.0.0.1", port=39108)
+        sender = AvatarWSSender(cfg)
+        await sender.start_server()
+
+        ws = await websockets.connect("ws://127.0.0.1:39108")
+        await asyncio.sleep(0.1)
+        # consume capabilities handshake
+        await asyncio.wait_for(ws.recv(), timeout=2.0)
+
+        await sender.send_appearance_update(shader_mode="toon")
+        msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
+        parsed = json.loads(msg)
+        assert parsed["cmd"] == "appearance_update"
+        assert parsed["params"]["shader_mode"] == "toon"
+        assert "costume" not in parsed["params"]
+
+        await ws.close()
+        await asyncio.sleep(0.1)
+        await sender.stop_server()
+
+    @pytest.mark.asyncio
+    async def test_send_appearance_update_no_args_skips(self):
+        """TC-SHADER-02: send_appearance_update() with no args sends nothing."""
+        cfg = AvatarWSConfig(host="127.0.0.1", port=39109)
+        sender = AvatarWSSender(cfg)
+        # No clients – just ensure it doesn't raise and doesn't send
+        await sender.send_appearance_update()  # all None → skipped, no error
+
+    @pytest.mark.asyncio
+    async def test_send_appearance_update_costume_and_hair(self):
+        """TC-SHADER-03: send_appearance_update with costume + hair emits both fields."""
+        import json
+
+        import websockets
+
+        cfg = AvatarWSConfig(host="127.0.0.1", port=39110)
+        sender = AvatarWSSender(cfg)
+        await sender.start_server()
+
+        ws = await websockets.connect("ws://127.0.0.1:39110")
+        await asyncio.sleep(0.1)
+        await asyncio.wait_for(ws.recv(), timeout=2.0)  # capabilities
+
+        await sender.send_appearance_update(costume="casual", hair="ponytail")
+        msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
+        parsed = json.loads(msg)
+        assert parsed["cmd"] == "appearance_update"
+        assert parsed["params"]["costume"] == "casual"
+        assert parsed["params"]["hair"] == "ponytail"
+        assert "shader_mode" not in parsed["params"]
+
+        await ws.close()
+        await asyncio.sleep(0.1)
+        await sender.stop_server()
+
 
 # ── B2: Audio player tests ───────────────────────────────────────────
 

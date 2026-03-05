@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 016dc4e940cd9dd4dbe3186ddfd7d8d5
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 13400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 274906
+  packageName: Sci-Fi Living Room
+  packageVersion: 1.1
+  assetPath: Assets/TirgamesAssets/SciFiWorld/Shared/PhyMaterials/PhyGlass.physicMaterial
+  uploadId: 657633

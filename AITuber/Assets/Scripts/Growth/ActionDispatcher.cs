@@ -166,6 +166,20 @@ namespace AITuber.Growth
                 case "avatar_event":
                     _avatarController.TriggerEventFromPolicy(entry.@event, entry.intensity);
                     break;
+                case "appearance_update":
+                    // FR-APPEARANCE-03: Autonomous appearance change via BehaviorPolicy
+                    var appearCtrl = AppearanceController.Instance;
+                    if (appearCtrl != null)
+                    {
+                        if (!string.IsNullOrEmpty(entry.shader_mode))
+                        {
+                            if (System.Enum.TryParse<ShaderMode>(entry.shader_mode, true, out var mode))
+                                appearCtrl.ApplyShaderMode(mode);
+                        }
+                        if (!string.IsNullOrEmpty(entry.costume)) appearCtrl.ApplyCostume(entry.costume);
+                        if (!string.IsNullOrEmpty(entry.hair))    appearCtrl.ApplyHair(entry.hair);
+                    }
+                    break;
                 default:
                     Debug.LogWarning($"[ActionDispatcher] Unknown cmd in policy entry: '{entry.cmd}'");
                     break;
@@ -222,8 +236,9 @@ namespace AITuber.Growth
             if (intent.StartsWith("gesture_"))     return "missing_motion";
             if (intent.StartsWith("emote_"))       return "missing_motion";
             if (intent.StartsWith("event_"))       return "missing_behavior";
-            if (intent.StartsWith("integrate_"))   return "missing_integration";
-            if (intent.StartsWith("env_"))         return "environment_limit";
+            if (intent.StartsWith("integrate_"))        return "missing_integration";
+            if (intent.StartsWith("env_"))               return "environment_limit";
+            if (intent.StartsWith("change_appearance_")) return "missing_appearance";
             return "capability_limit";
         }
     }
