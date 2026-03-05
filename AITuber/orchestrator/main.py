@@ -145,7 +145,10 @@ class Orchestrator:
             await self._resolve_live_chat_id()
 
         if self._no_youtube:
-            logger.info("[NO-YOUTUBE] YouTube ポーリングをスキップ。コンソール入力モードで起動します。")
+            await self._preflight_check()
+            logger.info(
+                "[NO-YOUTUBE] YouTube ポーリングをスキップ。コンソール入力モードで起動します。"
+            )
             _poll = self._console_poll_loop()
         else:
             _poll = self._poll_loop()
@@ -202,6 +205,37 @@ class Orchestrator:
         await self._tts.close()
         await self._avatar.disconnect()
         await self._overlay.stop()
+
+    async def _preflight_check(self) -> None:
+        """Bug3 fix: 起動時 VOICEVOX 接続確認。未起動なら stdout に警告を出力する。
+
+        --no-youtube 起動時に呼ばれる。本番配信では呼ばれない。
+        """
+        import aiohttp
+
+        tts_cfg = self._cfg.tts
+        url = f"http://{tts_cfg.host}:{tts_cfg.port}/version"
+        try:
+            async with aiohttp.ClientSession() as session:  # noqa: SIM117
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=3.0)
+                ) as resp:
+                    version = (await resp.text()).strip()[:40]
+                    logger.info("[PREFLIGHT] VOICEVOX OK: %s", version)
+                    print(f"[PREFLIGHT] VOICEVOX 接続OK ({url}) version={version}", flush=True)
+        except Exception as exc:
+            sep = "=" * 60
+            print(
+                f"\n{sep}\n"
+                f"[WARNING] VOICEVOX が起動していません!\n"
+                f"  URL   : {url}\n"
+                f"  Error : {exc}\n"
+                f"  -> VOICEVOX を起動してから再実行してください。\n"
+                f"  -> このまま続行しますが TTS (音声) は無効です。\n"
+                f"{sep}\n",
+                flush=True,
+            )
+            logger.warning("[PREFLIGHT] VOICEVOX 接続失敗: %s", exc)
 
     # ── World context / perception (FR-E1-01, FR-E4-01) ──────────────
 
@@ -275,7 +309,7 @@ class Orchestrator:
 
     # ── Daily life loop (FR-LIFE-01) ──────────────────────────────
 
-    _LIFE_TICK_SEC = 60.0  # how often to poll LifeScheduler
+    _LIFE_TICK_SEC = 15.0  # how often to poll LifeScheduler (15s; was 60s)
 
     async def _life_loop(self) -> None:
         """Autonomous daily life activity loop (Sims-like).
@@ -287,15 +321,19 @@ class Orchestrator:
         FR-LIFE-01: time-of-day aware, energy-gated activity transitions.
         Skips avatar updates while _is_live=True (ON_AIR) to avoid
         overwriting broadcast-driven emotions/gestures.
+
+        Bug2 fix: sleep moved to loop BOTTOM so the first tick fires immediately
+        on startup without waiting one full _LIFE_TICK_SEC.
         """
         while self._running:
-            await asyncio.sleep(self._LIFE_TICK_SEC)
             # FR-LIFE-01: ON_AIR 中は avatar を上書きしない
             if self._is_live:
+                await asyncio.sleep(self._LIFE_TICK_SEC)
                 continue
             try:
                 activity = self._life.tick()
                 if activity is None:
+                    await asyncio.sleep(self._LIFE_TICK_SEC)
                     continue
 
                 logger.info(
@@ -339,6 +377,7 @@ class Orchestrator:
 
             except Exception:
                 logger.debug("[LIFE] tick error; continuing")
+            await asyncio.sleep(self._LIFE_TICK_SEC)
 
     # ── Narrative loop (FR-E6-01) ──────────────────────────────────
 
@@ -430,7 +469,9 @@ class Orchestrator:
                 text=line,
                 author_display_name="ローカルテスト",
                 author_channel_id="local",
-                published_at=__import__("time").strftime("%Y-%m-%dT%H:%M:%SZ", __import__("time").gmtime()),
+                published_at=__import__("time").strftime(
+                    "%Y-%m-%dT%H:%M:%SZ", __import__("time").gmtime()
+                ),
             )
             await self._process_message(msg)
 
@@ -633,6 +674,10 @@ class Orchestrator:
         NFR-LAT-01: TTS 合成完了時に latency.finish() で計測。
         B2: sounddevice でスピーカー再生を並行実行。
         """
+
+        # Bug1: TTS サニタイズ — VOICEVOX に \n を渡すと発話が途切れるため全角スペースへ変換
+        # FR-LIPSYNC-01: text must be a single natural sentence for VOICEVOX mora extraction.
+        text = text.strip().replace("\n", "　")
 
         # TTS 合成 + リップシンクストリーム
         self._event_bus.emit_simple(EventType.TTS_START, text=text[:60])
