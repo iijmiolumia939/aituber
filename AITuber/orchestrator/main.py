@@ -108,6 +108,8 @@ class Orchestrator:
         # FR-LIFE-01: Daily life scheduler (Sims-like autonomous activities)
         self._life = LifeScheduler()
         self._life_hint: str = ""
+        # FR-LIFE-01, FR-BCAST-01: ON_AIR 中は life_loop を一時停止
+        self._is_live: bool = False
 
     async def start(self) -> None:
         """Start the orchestrator pipeline."""
@@ -274,9 +276,14 @@ class Orchestrator:
         and optionally room_change to Unity.
 
         FR-LIFE-01: time-of-day aware, energy-gated activity transitions.
+        Skips avatar updates while _is_live=True (ON_AIR) to avoid
+        overwriting broadcast-driven emotions/gestures.
         """
         while self._running:
             await asyncio.sleep(self._LIFE_TICK_SEC)
+            # FR-LIFE-01: ON_AIR 中は avatar を上書きしない
+            if self._is_live:
+                continue
             try:
                 activity = self._life.tick()
                 if activity is None:

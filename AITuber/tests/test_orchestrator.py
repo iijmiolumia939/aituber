@@ -172,3 +172,67 @@ class TestGrayZonePipeline:
             # Banditがignore以外を選ぶ保証はないが、少なくとも呼ばれる
             await orch._process_message(_make_msg("宗教について教えて"))
             spy.assert_called_once()
+
+
+class TestLifeLoopOnAirSkip:
+    """TC-LIFE-01: ON_AIR中はlife_loopがavatar_updateを送らない。
+
+    FR-LIFE-01, FR-BCAST-01.
+    """
+
+    @pytest.mark.asyncio
+    async def test_life_loop_skips_avatar_update_when_on_air(self):
+        """FR-LIFE-01: _is_live=True時にavatar_updateをスキップする。"""
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._running = True  # start() を呼ばずに直接テスト
+        orch._is_live = True  # ON_AIR 状態
+
+        sleep_count = 0
+
+        async def fake_sleep(_n: float) -> None:
+            nonlocal sleep_count
+            sleep_count += 1
+            if sleep_count >= 2:
+                orch._running = False
+
+        with (
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock) as mock_update,
+            patch("orchestrator.main.asyncio.sleep", side_effect=fake_sleep),
+        ):
+            await orch._life_loop()
+
+        # ON_AIR中はavatar_updateを送らない
+        mock_update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_life_loop_sends_update_when_not_on_air(self):
+        """FR-LIFE-01: _is_live=False時はavatar_updateを正常送信する。"""
+        from orchestrator.life_activity import ActivityType, LifeActivity
+
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._running = True  # start() を呼ばずに直接テスト
+        orch._is_live = False  # NOT on air
+
+        fake_activity = LifeActivity(
+            activity_type=ActivityType.READ,
+            gesture="idle",
+            emotion="neutral",
+            duration_sec=60.0,
+        )
+
+        def fake_tick() -> LifeActivity:
+            orch._running = False
+            return fake_activity
+
+        orch._life.tick = fake_tick  # type: ignore[method-assign]
+
+        with (
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock) as mock_update,
+            patch("orchestrator.main.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await orch._life_loop()
+
+        # NOT on airならavatar_updateが呼ばれる
+        mock_update.assert_called_once()
