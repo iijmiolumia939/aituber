@@ -113,6 +113,7 @@ namespace AITuber.Avatar
         /// <summary>RoomManager.DoSwitch() から呼ぶ。</summary>
         public IEnumerator SnapCoroutine()
         {
+            Debug.Log("[AvatarGrounding] SnapCoroutine START");
             _cc.enabled       = false;
             _verticalVelocity = 0f;
 
@@ -143,15 +144,22 @@ namespace AITuber.Avatar
                 _pivotFixed = true;
             }
 
-            // 床を Raycast で探す
+            // 床を RaycastAll で探す（天井など上の面を除き、最も低い面を床とみなす）
             float floorY   = transform.position.y;
             string hitName = "(none)";
             var origin     = transform.position + Vector3.up * 30f;
-            if (Physics.Raycast(new Ray(origin, Vector3.down), out var hit, 50f,
-                                _snapGroundLayers, QueryTriggerInteraction.Ignore))
+            var allHits    = Physics.RaycastAll(new Ray(origin, Vector3.down), 50f,
+                                                _snapGroundLayers, QueryTriggerInteraction.Ignore);
+            if (allHits.Length > 0)
             {
-                floorY  = hit.point.y;
-                hitName = hit.collider.name;
+                // 最下点（= 実際の床）を選ぶ
+                float minY    = float.MaxValue;
+                string minName = "(none)";
+                foreach (var h in allHits)
+                {
+                    if (h.point.y < minY) { minY = h.point.y; minName = h.collider.name; }
+                }
+                if (minY < float.MaxValue) { floorY = minY; hitName = minName; }
             }
             else
             {
