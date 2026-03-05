@@ -19,10 +19,24 @@ Background: AITuber のコンセプトは「Unity 世界に体を持つ AI」と
 """
 
 import json
+import os
 import urllib.request
+from pathlib import Path
+
+# .env ファイルから GH_TOKEN を読み込む（python-dotenv 不要）
+def _load_env():
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("GH_TOKEN="):
+                os.environ.setdefault("GH_TOKEN", line.split("=", 1)[1].strip())
+
+_load_env()
 
 REPO   = "iijmiolumia939/aituber"
-TOKEN  = "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"
+TOKEN  = os.environ.get("GH_TOKEN", "")
+if not TOKEN:
+    raise SystemExit("ERROR: GH_TOKEN が設定されていません。.env に GH_TOKEN=... を追加してください。")
 HEADERS = {
     "Authorization": f"token {TOKEN}",
     "Accept": "application/vnd.github+json",
