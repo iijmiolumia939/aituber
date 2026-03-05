@@ -84,6 +84,11 @@ namespace AITuber.Editor
 
         private static void CenterAtOrigin(GameObject root)
         {
+            // root は必ず原点に置く（Instantiate(prefab, Vector3.zero) で上書きされるため、
+            // root ではなく子の localPosition に centering を焼き込む）
+            root.transform.position = Vector3.zero;
+            root.transform.rotation = Quaternion.identity;
+
             var renderers = root.GetComponentsInChildren<Renderer>();
             if (renderers.Length == 0) return;
 
@@ -91,9 +96,15 @@ namespace AITuber.Editor
             foreach (var r in renderers)
                 bounds.Encapsulate(r.bounds);
 
-            // X/Z 中心を原点合わせ、Y は床がほぼ 0 になるよう下端基準
+            // X/Z 中心を原点合わせ、Y は床 (bounds.min.y) を 0 に
             var offset = new Vector3(-bounds.center.x, -bounds.min.y, -bounds.center.z);
-            root.transform.position += offset;
+
+            // root ではなく直接の子を動かして prefab の local positions に焼き込む
+            foreach (Transform child in root.transform)
+                child.position += offset;
+
+            Debug.Log($"[SciFiLivingRoomExporter] centering offset={offset}  " +
+                      $"room size X={bounds.size.x:F2} Y={bounds.size.y:F2} Z={bounds.size.z:F2}");
         }
 
         private static void RemoveMissingScripts(GameObject go)
