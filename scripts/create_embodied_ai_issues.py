@@ -23,20 +23,20 @@ import os
 import urllib.request
 from pathlib import Path
 
-# .env ファイルから GH_TOKEN を読み込む（python-dotenv 不要）
+# .env ファイルから GITHUB_TOKEN を読み込む（python-dotenv 不要）
 def _load_env():
-    env_path = Path(__file__).parent.parent / ".env"
+    env_path = Path(__file__).parent.parent / "AITuber" / ".env"
     if env_path.exists():
         for line in env_path.read_text(encoding="utf-8").splitlines():
-            if line.startswith("GH_TOKEN="):
-                os.environ.setdefault("GH_TOKEN", line.split("=", 1)[1].strip())
+            if line.startswith("GITHUB_TOKEN="):
+                os.environ.setdefault("GITHUB_TOKEN", line.split("=", 1)[1].strip())
 
 _load_env()
 
 REPO   = "iijmiolumia939/aituber"
-TOKEN  = os.environ.get("GH_TOKEN", "")
+TOKEN  = os.environ.get("GITHUB_TOKEN", "")
 if not TOKEN:
-    raise SystemExit("ERROR: GH_TOKEN が設定されていません。.env に GH_TOKEN=... を追加してください。")
+    raise SystemExit("ERROR: GITHUB_TOKEN が設定されていません。AITuber/.env に GITHUB_TOKEN=... を追加してください。")
 HEADERS = {
     "Authorization": f"token {TOKEN}",
     "Accept": "application/vnd.github+json",
