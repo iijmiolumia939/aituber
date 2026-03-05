@@ -64,7 +64,10 @@ namespace AITuber.Room
 
         private void Start()
         {
-            // 全部屋を非アクティブで Instantiate しておく
+            // 全部屋を非アクティブで準備する。
+            // ── 優先順位 ──────────────────────────────────────────────
+            // 1. シーン上に既存の "Room_{roomId}" GO があれば再利用（Edit Mode 事前配置対応）
+            // 2. なければ def.roomPrefab を Instantiate する（フォールバック）
             foreach (var def in _rooms)
             {
                 if (def == null || string.IsNullOrEmpty(def.roomId))
@@ -78,17 +81,29 @@ namespace AITuber.Room
                     continue;
                 }
 
-                GameObject instance = null;
-                if (def.roomPrefab != null)
+                // シーン上の既存インスタンスを探す
+                var expectedName = $"Room_{def.roomId}";
+                GameObject instance = GameObject.Find(expectedName);
+
+                if (instance != null)
                 {
+                    // Edit Mode で事前配置されていた場合はそのまま流用
+                    Debug.Log($"[RoomManager] Using pre-placed instance '{expectedName}'");
+                }
+                else if (def.roomPrefab != null)
+                {
+                    // 見つからなければ Instantiate（フォールバック）
                     instance = Instantiate(def.roomPrefab, Vector3.zero, Quaternion.identity);
-                    instance.name = $"Room_{def.roomId}";
-                    instance.SetActive(false);
+                    instance.name = expectedName;
+                    Debug.Log($"[RoomManager] Instantiated room '{expectedName}'");
                 }
                 else
                 {
                     Debug.LogWarning($"[RoomManager] Room '{def.roomId}' has no prefab assigned.");
                 }
+
+                if (instance != null)
+                    instance.SetActive(false);
 
                 _roomMap[def.roomId] = (def, instance);
             }

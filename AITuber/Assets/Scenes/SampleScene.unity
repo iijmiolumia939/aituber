@@ -666,10 +666,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 646b65a4a57afd34d8c4ed557efb46a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VRM::VRM.VRMSpringBoneColliderGroup
-  Colliders:
-  - Offset: {x: 0, y: 0, z: 0}
-    Radius: 0.045
-  m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
 --- !u!114 &180238548
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -705,10 +701,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 646b65a4a57afd34d8c4ed557efb46a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VRM::VRM.VRMSpringBoneColliderGroup
-  Colliders:
-  - Offset: {x: 0, y: 0.05, z: 0.02}
-    Radius: 0.1
-  m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
 --- !u!114 &180255606
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -935,6 +927,67 @@ Transform:
   - {fileID: 13076536}
   m_Father: {fileID: 100000005}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &376292234
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3354877591678336306, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6517600356848274842, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_Name
+      value: Room_alchemist
+      objectReference: {fileID: 0}
+    - target: {fileID: 6517600356848274842, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: ef263e0ad429ed74ab973776c5b1d87e, type: 3}
 --- !u!1 &391672929
 GameObject:
   m_ObjectHideFlags: 0
@@ -1264,10 +1317,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 646b65a4a57afd34d8c4ed557efb46a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VRM::VRM.VRMSpringBoneColliderGroup
-  Colliders:
-  - Offset: {x: 0.06, y: 0, z: 0}
-    Radius: 0.07
-  m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
 --- !u!114 &1008480045
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1296,6 +1345,67 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 5417357307513599662, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
   m_PrefabInstance: {fileID: 1910933806}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1158906789
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 2874617922267130060, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_Name
+      value: Room_living_room
+      objectReference: {fileID: 0}
+    - target: {fileID: 2874617922267130060, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4807220393383700719, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
 --- !u!1 &1203924847 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 5417357307513236282, guid: 2a82daac7d2bbcc44bf68d9f3ee78bb3, type: 3}
@@ -1313,10 +1423,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 646b65a4a57afd34d8c4ed557efb46a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VRM::VRM.VRMSpringBoneColliderGroup
-  Colliders:
-  - Offset: {x: -0.05, y: 0, z: 0}
-    Radius: 0.045
-  m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
 --- !u!114 &1203924850
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1357,10 +1463,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 646b65a4a57afd34d8c4ed557efb46a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VRM::VRM.VRMSpringBoneColliderGroup
-  Colliders:
-  - Offset: {x: -0.06, y: 0, z: 0}
-    Radius: 0.07
-  m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
 --- !u!114 &1548628556
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1501,10 +1603,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 646b65a4a57afd34d8c4ed557efb46a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VRM::VRM.VRMSpringBoneColliderGroup
-  Colliders:
-  - Offset: {x: 0, y: 0.03, z: 0}
-    Radius: 0.075
-  m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
 --- !u!114 &1809685624
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1794,10 +1892,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 646b65a4a57afd34d8c4ed557efb46a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: VRM::VRM.VRMSpringBoneColliderGroup
-  Colliders:
-  - Offset: {x: 0.05, y: 0, z: 0}
-    Radius: 0.045
-  m_gizmoColor: {r: 1, g: 0, b: 1, a: 1}
 --- !u!114 &1937722823
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1885,3 +1979,5 @@ SceneRoots:
   - {fileID: 100000015}
   - {fileID: 1987918714}
   - {fileID: 836378522}
+  - {fileID: 1158906789}
+  - {fileID: 376292234}
