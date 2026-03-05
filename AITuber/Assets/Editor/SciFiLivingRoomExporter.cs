@@ -12,7 +12,7 @@ namespace AITuber.Editor
 {
     public static class SciFiLivingRoomExporter
     {
-        private const string SourceScene = "Assets/TirgamesAssets/SciFiWorld/Scenes/SciFiLivingRoom1Props.unity";
+        private const string SourceScene = "Assets/TirgamesAssets/SciFiWorld/Scenes/SciFiLivingRoom1A.unity";
         private const string OutPrefab   = "Assets/Rooms/Prefabs/SciFiLivingRoom.prefab";
         private const string ReturnScene = "Assets/Scenes/SampleScene.unity";
 

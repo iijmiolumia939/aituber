@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AITuber.Room.RoomDefinition
   roomId: living_room
   displayName: "\u30b5\u30a4\u30d5\u30a1\u30a4\u30ea\u30d3\u30f3\u30b0"
-  roomPrefab: {fileID: 1184785806872299313, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+  roomPrefab: {fileID: 258124519312961883, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
   cameraPosition: {x: 0, y: 1.6, z: -2.0}
   cameraEuler: {x: 5, y: 0, z: 0}
   cameraFov: 50
