@@ -188,6 +188,5 @@ public static class CyberpunkToonApplier
 
         AssetDatabase.SaveAssets();
         Debug.Log($"[CyberpunkToon] FR-SHADER-01 complete: {converted}/{guids.Length} マテリアルに適用しました。");
-        EditorUtility.DisplayDialog("CyberpunkToon", $"FR-SHADER-01: {converted} マテリアルに適用しました。", "OK");
     }
 }
