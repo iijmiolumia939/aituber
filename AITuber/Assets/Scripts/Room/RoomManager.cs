@@ -81,9 +81,14 @@ namespace AITuber.Room
                     continue;
                 }
 
-                // シーン上の既存インスタンスを探す
+                // シーン上の既存インスタンスを探す（非アクティブも含む）
+                // GameObject.Find は非アクティブ GO を見つけられないため GetRootGameObjects を使用
                 var expectedName = $"Room_{def.roomId}";
-                GameObject instance = GameObject.Find(expectedName);
+                GameObject instance = null;
+                foreach (var root in gameObject.scene.GetRootGameObjects())
+                {
+                    if (root.name == expectedName) { instance = root; break; }
+                }
 
                 if (instance != null)
                 {
