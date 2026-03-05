@@ -1,20 +1,22 @@
 // SciFiLivingRoomExporter.cs
-// TirgamesAssets SciFi Living Room の Props シーンからプレハブを書き出す Editor ツール。
+// TirgamesAssets SciFi Living Room 1A シーンからプレハブを書き出す Editor ツール。
+// 保存後に RoomDefinition ScriptableObject の roomPrefab を自動更新する。
 // Unity メニュー: AITuber > Export SciFiLivingRoom Prefab
 // SRS ref: FR-ROOM-01, FR-ZONE-01
 
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.SceneManagement;
+using AITuber.Room;
 
 namespace AITuber.Editor
 {
     public static class SciFiLivingRoomExporter
     {
-        private const string SourceScene = "Assets/TirgamesAssets/SciFiWorld/Scenes/SciFiLivingRoom1A.unity";
-        private const string OutPrefab   = "Assets/Rooms/Prefabs/SciFiLivingRoom.prefab";
-        private const string ReturnScene = "Assets/Scenes/SampleScene.unity";
+        private const string SourceScene  = "Assets/TirgamesAssets/SciFiWorld/Scenes/SciFiLivingRoom1A.unity";
+        private const string OutPrefab    = "Assets/Rooms/Prefabs/SciFiLivingRoom.prefab";
+        private const string RoomDefPath  = "Assets/Rooms/Definitions/SciFiLivingRoom.asset";
+        private const string ReturnScene  = "Assets/Scenes/SampleScene.unity";
 
         [MenuItem("AITuber/Export SciFiLivingRoom Prefab")]
         public static void Export()
@@ -28,7 +30,7 @@ namespace AITuber.Editor
             foreach (var go in scene.GetRootGameObjects())
             {
                 var nameLower = go.name.ToLower();
-                // カメラ・ライトは除外する（RoomDefinition のカメラ設定を使う）
+                // カメラ・ライトは除外（RoomDefinition のカメラ設定を使う）
                 if (nameLower.Contains("camera") || nameLower.Contains("directional light"))
                     continue;
                 go.transform.SetParent(root.transform, true);
@@ -37,27 +39,47 @@ namespace AITuber.Editor
             // Missing Script を削除
             RemoveMissingScripts(root);
 
-            // 原点付近へオフセット（バウンド中心を Y=0 に合わせる）
+            // 原点付近へオフセット
             CenterAtOrigin(root);
 
             System.IO.Directory.CreateDirectory("Assets/Rooms/Prefabs");
 
             bool success;
+            GameObject prefabGO;
 #if UNITY_2022_2_OR_NEWER
-            var prefabGO = PrefabUtility.SaveAsPrefabAsset(root, OutPrefab, out success);
+            prefabGO = PrefabUtility.SaveAsPrefabAsset(root, OutPrefab, out success);
 #else
-            var prefabGO = PrefabUtility.SaveAsPrefabAsset(root, OutPrefab);
-            success      = prefabGO != null;
+            prefabGO = PrefabUtility.SaveAsPrefabAsset(root, OutPrefab);
+            success  = prefabGO != null;
 #endif
             Object.DestroyImmediate(root);
 
-            if (success)
-                Debug.Log($"[SciFiLivingRoomExporter] Prefab saved → {OutPrefab}");
-            else
+            if (!success)
+            {
                 Debug.LogError("[SciFiLivingRoomExporter] SaveAsPrefabAsset FAILED");
+                EditorSceneManager.OpenScene(ReturnScene, OpenSceneMode.Single);
+                return;
+            }
+
+            Debug.Log($"[SciFiLivingRoomExporter] Prefab saved → {OutPrefab}");
+
+            // ── RoomDefinition の roomPrefab を自動更新 ────────────────
+            AssetDatabase.Refresh();
+            var roomDef = AssetDatabase.LoadAssetAtPath<RoomDefinition>(RoomDefPath);
+            if (roomDef != null && prefabGO != null)
+            {
+                Undo.RecordObject(roomDef, "Update SciFiLivingRoom roomPrefab");
+                roomDef.roomPrefab = prefabGO;
+                EditorUtility.SetDirty(roomDef);
+                AssetDatabase.SaveAssets();
+                Debug.Log($"[SciFiLivingRoomExporter] RoomDefinition.roomPrefab を更新しました。");
+            }
+            else
+            {
+                Debug.LogWarning($"[SciFiLivingRoomExporter] RoomDefinition が見つかりません: {RoomDefPath}");
+            }
 
             EditorSceneManager.OpenScene(ReturnScene, OpenSceneMode.Single);
-            AssetDatabase.Refresh();
         }
 
         private static void CenterAtOrigin(GameObject root)

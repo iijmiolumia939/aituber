@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: SciFiLivingRoom
   m_EditorClassIdentifier: Assembly-CSharp::AITuber.Room.RoomDefinition
   roomId: living_room
-  displayName: "\u30b5\u30a4\u30d5\u30a1\u30a4\u30ea\u30d3\u30f3\u30b0"
-  roomPrefab: {fileID: 258124519312961883, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
-  cameraPosition: {x: 0, y: 1.6, z: -2.0}
+  displayName: "\u30B5\u30A4\u30D5\u30A1\u30A4\u30EA\u30D3\u30F3\u30B0"
+  roomPrefab: {fileID: 2874617922267130060, guid: f705a20c95ebf2a4db4dcc2002f9a879, type: 3}
+  cameraPosition: {x: 0, y: 1.6, z: -2}
   cameraEuler: {x: 5, y: 0, z: 0}
   cameraFov: 50
   avatarPosition: {x: 0, y: 0, z: 0}
@@ -26,7 +26,7 @@ MonoBehaviour:
   - zoneId: pc_area
     avatarPosition: {x: 1.2, y: 0, z: -0.5}
     avatarEuler: {x: 0, y: -90, z: 0}
-    cameraPosition: {x: 0.0, y: 1.6, z: -1.8}
+    cameraPosition: {x: 0, y: 1.6, z: -1.8}
     cameraEuler: {x: 5, y: 15, z: 0}
     cameraFov: 45
   - zoneId: sleep_area
@@ -36,7 +36,7 @@ MonoBehaviour:
     cameraEuler: {x: 5, y: 100, z: 0}
     cameraFov: 50
   - zoneId: relax_area
-    avatarPosition: {x: 0, y: 0, z: 1.0}
+    avatarPosition: {x: 0, y: 0, z: 1}
     avatarEuler: {x: 0, y: 180, z: 0}
     cameraPosition: {x: 0, y: 1.5, z: -0.5}
     cameraEuler: {x: 5, y: 0, z: 0}
