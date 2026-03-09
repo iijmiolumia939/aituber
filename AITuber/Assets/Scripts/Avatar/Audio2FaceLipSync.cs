@@ -114,6 +114,11 @@ namespace AITuber.Avatar
         // Auto-stop timer: Time.time at which IsSpeaking should be cleared after audio ends
         private float  _speakingEndTime = float.MaxValue;
 
+        // Cumulative sample count and start time for current utterance (streaming mode).
+        // Needed so _speakingEndTime is based on total pushed audio, not per-chunk.
+        private int    _pushedSampleCount = 0;
+        private float  _utteranceStartTime = 0f;
+
         // Rate-limiter: A2F frames must not be consumed faster than the configured output FPS.
         // At high Unity frame rates (e.g. 120 fps) with A2F at 30 fps, consuming one frame
         // per Update() would replay 4 s of animation in just 1 s.
@@ -482,14 +487,18 @@ namespace AITuber.Avatar
             if (isFirst)
             {
                 Audio2FacePlugin.A2FPlugin_Reset(_handle);
-                _nextFrameTime   = 0f;   // allow first frame immediately
-                _speakingEndTime = 0f;   // reset so Mathf.Max picks up the new value
+                _nextFrameTime      = 0f;   // allow first frame immediately
+                _pushedSampleCount  = 0;
+                _utteranceStartTime = Time.time;
+                _speakingEndTime    = 0f;
             }
             Audio2FacePlugin.A2FPlugin_PushAudio(_handle, pcm16kHz, pcm16kHz.Length);
+            _pushedSampleCount += pcm16kHz.Length;
             _isSpeaking = true;
-            // Extend auto-stop deadline by this chunk's duration + buffer
-            _speakingEndTime = Mathf.Max(_speakingEndTime,
-                Time.time + pcm16kHz.Length / 16000f + 0.5f);
+            // Deadline = utterance start + cumulative pushed duration + 0.5s buffer.
+            // Using cumulative samples (not per-chunk) ensures batched streaming
+            // (all chunks in one frame) gets the correct total audio deadline.
+            _speakingEndTime = _utteranceStartTime + (float)_pushedSampleCount / 16000f + 0.5f;
         }
 
         /// <summary>Close the streaming audio accumulator for the current utterance.</summary>
