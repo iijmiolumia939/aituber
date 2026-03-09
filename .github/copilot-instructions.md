@@ -24,12 +24,13 @@ applyTo: "**"
 | [ARCHITECTURE.md](../ARCHITECTURE.md) | システムアーキテクチャ・ドメイン境界・依存ルール |
 | [QUALITY_SCORE.md](../QUALITY_SCORE.md) | ドメイン別品質グレード |
 | [PLANS.md](../PLANS.md) | 実装計画トラッカー |
-| [docs/design-docs/index.md](AITuber/docs/design-docs/index.md) | 設計ドキュメント一覧 |
-| [docs/exec-plans/](AITuber/docs/exec-plans/) | 実行計画（active/completed） |
-| [docs/tech-debt-tracker.md](AITuber/docs/tech-debt-tracker.md) | 技術的負債リスト |
-| [docs/SRS.md](AITuber/docs/SRS.md) | システム要件定義 |
-| [docs/autonomous-growth.md](AITuber/docs/autonomous-growth.md) | 自律成長システム設計 |
-| [docs/m1-design.md](AITuber/docs/m1-design.md) | M1 実装設計・テストケース仕様 |
+| [docs/design-docs/index.md](../AITuber/docs/design-docs/index.md) | 設計ドキュメント一覧 |
+| [docs/exec-plans/](../AITuber/docs/exec-plans/) | 実行計画（active/completed） |
+| [docs/tech-debt-tracker.md](../AITuber/docs/tech-debt-tracker.md) | 技術的負債リスト |
+| [docs/SRS.md](../AITuber/docs/SRS.md) | システム要件定義 |
+| [docs/autonomous-growth.md](../AITuber/docs/autonomous-growth.md) | 自律成長システム設計 |
+| [docs/m1-design.md](../AITuber/docs/m1-design.md) | M1 実装設計・テストケース仕様 |
+| [copilot-review-workflow.md](../AITuber/.github/copilot-review-workflow.md) | レビューワークフロー＆プロンプト一覧 |
 
 ## Context7 MCP
 

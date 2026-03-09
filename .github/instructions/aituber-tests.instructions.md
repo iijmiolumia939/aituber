@@ -38,8 +38,9 @@ applyTo: 'AITuber/Assets/Tests/**/*.cs'
 | `TC-M8-xx` | ScopeConfig + LLMModuloValidator + Phase 2b WSインテントプロポーザルバリデーション (Python) |
 | `TC-ROOM-xx` | RoomDefinition ScriptableObject + RoomManager guards (Unity EditMode) |
 | `TC-OVL-xx` | OverlayServer — broadcast, dead-client cleanup, message format (Python) |
+| `TC-BSR-xx` | BehaviorSequenceRunner — state management, singleton safety, StopBehavior (Unity EditMode) |
 
 ## 参考ドキュメント
 
-- [M1 実装設計（テストケース仕様含む）](../../docs/m1-design.md)
-- [M2 ReflectionRunner 完了記録](../../docs/exec-plans/completed/m2-reflection-runner.md)
+- [M1 実装設計（テストケース仕様含む）](../../AITuber/docs/m1-design.md)
+- [M2 ReflectionRunner 完了記録](../../AITuber/docs/exec-plans/completed/m2-reflection-runner.md)

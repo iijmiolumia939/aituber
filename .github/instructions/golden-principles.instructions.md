@@ -72,6 +72,18 @@ IDが不明な場合は `.github/srs/requirements.yml` を確認する。
 
 ---
 
+## 原則 8: Issue 管理は GitHub Issues を Single Source of Truth にする
+
+- 「BUG」「技術的負債」「機能要期」はすべて `gh issue create` で GitHub Issue として登録する
+- ローカルドキュメント（`tech-debt-tracker.md`、`PLANS.md`）は Issue 番号へのリンクのみを持つ。詳細決して Issue 側に書く
+- 解溈時は `gh issue close` で close する。ローカルドキュメントの記載は「解消済み」に移動する
+diff:
+  - 重複管理しない: 同じ情報を Issue とローカル両方に書かない
+  - PowerShell から楽書きする時はボディを必ずファイル経由で渡す（`--body-file`）。インライン文字列に日本語やバッククォートを含めると文字化けする
+  - ファイルは `[System.IO.File]::WriteAllText(path, body, UTF8)` で作成すると安全
+
+---
+
 ## 原則 7: エラーメッセージは修正ヒントを含む
 
 「何が間違っているか」だけでなく「どのファイルを修正すべきか」までメッセージに含める。

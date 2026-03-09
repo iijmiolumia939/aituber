@@ -1,18 +1,29 @@
-## What
-<!-- What changed -->
+## Summary
 
-## SRS IDs addressed
-- FR:
-- NFR:
-- TC:
+Describe the purpose of this change.
 
-## How to test
-```bash
-python -m ruff check .
-python -m black --check .
-python -m pytest
-```
+## Requirements
 
-## Risks / rollback
-- Risk:
-- Rollback:
+Link to requirements or issue.
+
+## Changes
+
+Explain what was implemented.
+
+## AI Review Checklist
+
+- [ ] Requirements Reviewer
+- [ ] Architecture Reviewer
+- [ ] Reliability Reviewer
+- [ ] Security Reviewer (if applicable)
+- [ ] Performance Reviewer (if applicable)
+- [ ] Test Reviewer
+- [ ] Lead Reviewer
+
+## Risk Level
+
+Low / Medium / High
+
+## Test Plan
+
+Explain how this change is tested.
