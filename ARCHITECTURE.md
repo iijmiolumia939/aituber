@@ -1,6 +1,6 @@
 # ARCHITECTURE.md — AITuber システムアーキテクチャ
 
-> **最終更新**: 2026-03-09 (M20完了後)
+> **最終更新**: 2026-03-09 (M24完了: AivisSpeech TTS 対応)
 > このドキュメントはシステム全体のドメイン境界・依存方向・パッケージ構造を定義する。  
 > 実装の詳細は各設計書を参照。設計決定の変更は必ずここを更新すること。
 
@@ -28,6 +28,7 @@ YouTube LiveChat API
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │ Audio2Emotion (ONNX: audio2emotion-v2.2)                   │  │
 │  │  push_audio(PCM) → infer() → 10-dim A2E scores             │  │
+│  │  ※ Python fallback when Unity Sentis A2E is not ready      │  │
 │  └───────────────────────────┬────────────────────────────────┘  │
 │                              │                                    │
 │  ┌───────────────────────────▼───────────────────────────────┐   │
@@ -52,16 +53,21 @@ YouTube LiveChat API
 │                            │                   │                   │
 │                     ┌──────▼──────┐    ┌──────▼──────────────┐   │
 │                     │ LipSync     │    │ Emotion / Gesture    │   │
-│                     │ (TTS viseme │    │ (BlendShape + A2E    │   │
-│                     │ + A2F neural│    │  emotion-driven A2G  │   │
+│                     │ (A2F neural │    │ (BlendShape + A2E    │   │
+│                     │  default;   │    │  emotion-driven A2G  │   │
 │                     │  ARKit-52)  │    │  scale)              │   │
 │                     └──────┬──────┘    └──────┬───────────────┘   │
 │                            │                  │                    │
 │                     ┌──────▼──────────────────▼───────────────┐   │
 │                     │ Audio2FaceLipSync  (NVIDIA A2F v3.0 DLL) │   │
 │                     │ Audio2GestureController (A2G DLL,         │   │
-│                     │   graceful no-op if absent)               │   │
+│                     │   RMS/IIR procedural gesture, M22 done)   │   │
 │                     └──────────────────────────────────────────┘   │
+│                                                                    │
+│  Audio2EmotionInferer (Unity Sentis, FR-A2E-01)                    │
+│    ← PushPcmChunk(a2f_chunk PCM) / InferAndApply(a2f_stream_close) │
+│    → EmotionController.ApplyA2E() + A2GGesture.SetScale()          │
+│    (graceful fallback: no-op when ONNX model absent)               │
 │                                                                    │
 │  ActionDispatcher ──► BehaviorPolicyLoader / GapLogger             │
 │  BehaviorSequenceRunner (walk_to/gesture/wait JSON)                │
@@ -103,8 +109,8 @@ AITuber/orchestrator/
 ├── bandit.py                FR-RL-01        ε-greedy contextual bandit
 │                              + auto-adapt ε (FR-BANDIT-EPS-01)
 ├── llm_client.py            FR-LLM-01       OpenAI 互換ラッパー (LLM_BASE_URL 切替)
-├── tts.py                   FR-LIPSYNC-01   VOICEVOX / Style-BERT-VITS2 バックエンド
-│                              + extract_visemes (mora → VisemeEvent list)
+├── tts.py                   FR-LIPSYNC-01   VOICEVOX / AivisSpeech / Style-BERT-VITS2 バックエンド
+│                              + extract_visemes (mora → VisemeEvent list)  FR-TTS-01
 ├── audio_player.py          sounddevice ストリーム再生
 ├── avatar_ws.py             FR-A7-01        WS サーバー (port 31900)
 │                              + WsSchemaValidator (FR-WS-SCHEMA-01)
@@ -199,10 +205,14 @@ AITuber/Assets/Scripts/
 ├── GestureController.cs        Animator ジェスチャートリガー
 ├── GazeController.cs           Animator IK 視線制御
 ├── LipSyncController.cs        VisemeTimeline + ARKit-52 → BlendShape
+│                                 LipSyncMode: A2FNeural(default) / TtsViseme / Hybrid
 ├── Audio2FaceLipSync.cs        NVIDIA A2F v3.0 native DLL ラッパー
 │                                 ResolveModelJsonPath() (v3.0 multi-char)
 ├── Audio2FacePlugin.cs         A2F P/Invoke バインディング
 ├── A2FNativeLoader.cs          A2F DLL 遅延ロード
+├── Audio2EmotionInferer.cs     Unity Sentis A2E on-device 推論 (FR-A2E-01)
+│                                 PushPcmChunk / InferAndApply / PostProcess
+│                                 UNITY_AI_INFERENCE_ENABLED #if ガード
 ├── Audio2GestureController.cs  NVIDIA A2G native DLL ラッパー
 │                                 SetEmotionGestureScale() (感情連動強度)
 ├── Audio2GesturePlugin.cs      A2G P/Invoke バインディング
@@ -247,6 +257,7 @@ AvatarRoot (GameObject)
 ├── LipSyncController       ← UpdateViseme() / BlendShape
 ├── Audio2FaceLipSync       ← ProcessAudio(pcm) / ARKit-52 毎フレーム適用
 ├── Audio2GestureController ← PushAudioChunk / ApplyBoneDeltas (optional)
+├── Audio2EmotionInferer    ← PushPcmChunk(a2f_chunk) / InferAndApply(stream_close) FR-A2E-01
 ├── BehaviorSequenceRunner  ← RunSequence(name) / NavMesh agent
 ├── ActionDispatcher        ← Dispatch(intent) → BehaviorPolicy / GapLog
 └── AvatarGrounding         ← 重力・FootIK
@@ -289,11 +300,14 @@ AvatarRoot (GameObject)
 
 | 項目 | 値 |
 |---|---|
-| DLL | `Assets/Plugins/x86_64/A2GPlugin.dll` (**現在不在**) |
+| DLL | `Assets/Plugins/x86_64/A2GPlugin.dll` (150 KB、実装済み) |
+| ソース | `native/A2GPlugin/` (RMS/IIR C++ 独自実装、TRT不要、GPU不要) |
+| アルゴリズム | RMS energy→Spine sway / Onset→Head nod / Amp×sin→Arm swing |
 | 出力 | 上半身 13 ジョイント 回転デルタ(quaternion) |
 | 入力 | 16kHz mono PCM float32 |
 | フォールバック | DLL 不在時 `IsReady=false`、全メソッドが no-op |
 | 感情連動 | `SetEmotionGestureScale(float)` で `_emotionGestureScale` を設定、`ApplyBoneDeltas()` で乗算 |
+| 備考 | NVIDIA neural ACE A2G (TensorRT) は未対応 — 本 DLL が Procedural Body Gesture 実装 (M22) |
 
 ### audio2emotion-v2.2 (ONNX)
 
@@ -303,10 +317,13 @@ AvatarRoot (GameObject)
 | 入力 | `input_values [batch, seq_len] float32` (16kHz mono) |
 | 出力 | `output [batch, 6] float32` (logits: angry/disgust/fear/happy/neutral/sad) |
 | バッファ | MIN=5000 (0.3s), OPT=30000 (1.875s), MAX=60000 (3.75s) |
-| 実行場所 | Python (onnxruntime 1.24.3, CPUExecutionProvider) |
+| **推論場所 (primary)** | **Unity: `Audio2EmotionInferer.cs` (Unity Sentis CPUBackend)** |
+| 推論場所 (fallback) | Python onnxruntime 1.24.3, CPUExecutionProvider — `a2e_emotion` WS cmd は後方互換で維持 |
+| on-device モデルパス | `Application.streamingAssetsPath/audio2emotion-v2.2/network.onnx` |
 | A2F マッピング | `{1: angry, 3: disgust, 4: fear, 6: happy, 9: sad}` (10-dim) |
 | Python クラス | `orchestrator/audio2emotion.py` の `A2EInferer` |
-| Unity 受信 | `AvatarMessage.a2e_emotion` → `EmotionController.ApplyA2E()` |
+| Unity クラス | `Audio2EmotionInferer.cs` (FR-A2E-01) |
+| Unity 適用 | `EmotionController.ApplyA2E()` + `Audio2GestureController.SetEmotionGestureScale()` |
 
 ---
 
@@ -383,7 +400,7 @@ AITuber/Assets/Tests/
 | パッケージ | バージョン | 用途 |
 |---|---|---|
 | `com.unity.render-pipelines.universal` | 17.3.0 | URP レンダリング |
-| `com.unity.ai.inference` | 2.5.0 | **Unity Sentis** — Unity 内 ONNX 推論 (現在未使用) |
+| `com.unity.ai.inference` | 2.5.0 | **Unity Sentis** — Unity 内 ONNX 推論 (Audio2EmotionInferer, FR-A2E-01) |
 | `com.unity.ai.navigation` | 2.0.11 | NavMesh (BehaviorSequenceRunner) |
 | `com.unity.cinemachine` | 3.1.6 | カメラシステム |
 | `com.unity.cloud.gltfast` | 6.14.1 | glTF/VRM ロード |
@@ -400,10 +417,11 @@ AITuber/Assets/Tests/
 | YouTube Data API v3 | LiveChat ポーリング | REST (YOUTUBE_API_KEY) |
 | OpenAI API (gpt-4o-mini) | LLM 応答生成・Reflection | REST (LLM_BASE_URL 切替可) |
 | VOICEVOX | TTS 音声合成 | HTTP localhost:50021 |
+| AivisSpeech | TTS 代替バックエンド (高品質) | HTTP localhost:10101 (AIVISSPEECH_URL) |
 | Style-BERT-VITS2 | TTS 代替バックエンド | HTTP localhost (TTS_BACKEND env) |
 | OBS Studio | 配信ソフト | obs-websocket / HTTP overlay |
 | NVIDIA audio2face-3d-sdk | 神経リップシンク | Native DLL (A2FPlugin.dll) |
-| NVIDIA audio2emotion-v2.2 | 感情認識 (ONNX) | onnxruntime (Python) |
+| NVIDIA audio2emotion-v2.2 | 感情認識 (ONNX) | onnxruntime (Python, fallback) / Unity Sentis (primary) |
 | NVIDIA audio2gesture-sdk | 上半身ジェスチャー | Native DLL (A2GPlugin.dll, 未設置) |
 
 ---
@@ -433,3 +451,6 @@ AITuber/Assets/Tests/
 | M19 | Sims-like 行動シーケンス (BehaviorSequenceRunner) | 2026-03-05 |
 | M20 | 行動シーケンス完全統合 (ActionDispatcher 配線) | 2026-03-05 |
 | (前) | A2F v3.0 マルチキャラ対応 + A2E ONNX 統合 + A2G 感情連動 | 2026-03-09 |
+| M22 | Procedural Body Gesture (A2GPlugin RMS/IIR DLL) | 2026-03-09 |
+| M23 | Unity Sentis A2E on-device推論 (Audio2EmotionInferer) | 2026-03-09 |
+| M24 | AivisSpeech TTS 対応 (AivisSpeechBackend, FR-TTS-01) | 2026-03-09 |

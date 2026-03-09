@@ -149,3 +149,29 @@ python -m black --check orchestrator/ tests/
 ## ライセンス
 
 Private repository.
+
+# GitHub Copilot Review Prompts Package
+
+This package provides a pseudo-subagent review setup for GitHub Copilot.
+
+## Included
+
+- `.github/copilot-review-prompts/requirements-reviewer.md`
+- `.github/copilot-review-prompts/architecture-reviewer.md`
+- `.github/copilot-review-prompts/reliability-reviewer.md`
+- `.github/copilot-review-prompts/security-reviewer.md`
+- `.github/copilot-review-prompts/performance-reviewer.md`
+- `.github/copilot-review-prompts/test-reviewer.md`
+- `.github/copilot-review-prompts/lead-reviewer.md`
+- `.github/PULL_REQUEST_TEMPLATE.md`
+- `.github/copilot-review-workflow.md`
+
+## Suggested flow
+
+1. Requirements Reviewer
+2. Architecture Reviewer
+3. Reliability Reviewer
+4. Security Reviewer (if needed)
+5. Performance Reviewer (if needed)
+6. Test Reviewer
+7. Lead Reviewer

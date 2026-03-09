@@ -1,34 +1,24 @@
 # 技術的負債トラッカー
 
-> **ルール**: 技術的負債を認識したら即座にここに追記する。  
-> QUALITY_SCORE.md の改善優先度と対応させること。  
-> 定期的（週1）に棚卸しし、解消済みのものは「✅解消」に更新する。
+> **方針 (2026-03-06〜)**: 技術的負債・バグ・改善は **GitHub Issues を Single Source of Truth** とする。
+> このファイルは GitHub Issues へのインデックス。詳細・議論・進捗は Issue 側に記載すること。  
+> 新しい負債は `gh issue create` で Issue を作成し、下表に ID とリンクを追記する。  
+> 解消時は Issue を close し、下表を「解消済み」に移動する。
 
 ---
 
-## 高優先度 (対応要)
+## Open（GitHub Issues）
 
-| ID | ドメイン | 内容 | 影響 | 追加日 |
-|---|---|---|---|---|
-| TD-001 | TTS/Audio | `tts.py` / `audio_player.py` の自動テストなし。VOICEVOX 起動必須で CI が通らない | 音素マッピングバグを検出できない | 2026-03 |
-| TD-002 | GapLogger | `GapLogger.Log()` がメインスレッド同期 I/O。高頻度配信でフレームドロップの可能性 | 高頻度配信時のパフォーマンス劣化 | 2026-03 |
-| TD-003 | BehaviorPolicy | `behavior_policy.yml` にスキーマバリデーションなし。誤ったフィールドが silently skip される | 設定ミスが実行時まで発覚しない | 2026-03 |
-
-## 中優先度 (次スプリント)
-
-| ID | ドメイン | 内容 | 影響 | 追加日 |
-|---|---|---|---|---|
-| TD-004 | WebSocket | 受信 JSON のスキーマバリデーション未実装。不正コマンドがそのまま処理される | 外部からの不正コマンドへの脆弱性 | 2026-03 |
-| TD-005 | Room | `RoomManager` のテストなし。Prefab 読み込み・切り替えが手動確認のみ | リグレッション検知不可 | 2026-03 |
-| TD-006 | CI | Unity ヘッドレスビルドが CI に含まれない。コンパイルエラーを PR 前に検知できない | C# コンパイルエラーが master に入りうる | 2026-03 |
-
-## 低優先度 (将来対応)
-
-| ID | ドメイン | 内容 | 影響 | 追加日 |
-|---|---|---|---|---|
-| TD-007 | Bandit | ε値がハードコード。視聴者数・配信時間に応じた動的調整なし | 探索/活用のバランスが最適でない | 2026-03 |
-| TD-008 | Memory | `memory.py` のコメント履歴が Python dict のみ。再起動で消える | 配信再開時に文脈が失われる | 2026-03 |
-| TD-009 | AvatarController | `ApplyFromPolicy()` と直接コマンド受信パスが混在。統一できていない | 将来の拡張時に複雑化 | 2026-03 |
+| TD | Issue | ドメイン | 概要 |
+|---|---|---|---|
+| TD-001 | [#39](https://github.com/iijmiolumia939/aituber/issues/39) | TTS/Audio | `tts.py`/`audio_player.py` 自動テスト未整備 |
+| TD-002 | [#40](https://github.com/iijmiolumia939/aituber/issues/40) | GapLogger | `GapLogger.Log()` が同期 I/O |
+| TD-003 | [#41](https://github.com/iijmiolumia939/aituber/issues/41) | BehaviorPolicy | `behavior_policy.yml` スキーマバリデーションなし |
+| TD-007 | （Issue未作成） | Bandit | ε値ハードコード、動的調整なし |
+| TD-008 | [#42](https://github.com/iijmiolumia939/aituber/issues/42) | Memory | コメント履歴が再起動で消える |
+| TD-009 | [#43](https://github.com/iijmiolumia939/aituber/issues/43) | AvatarController | ApplyFromPolicy と直接パスが混在 |
+| TD-012 | [#36](https://github.com/iijmiolumia939/aituber/issues/36) | BehaviorSeq | `StepWalkTo` が NavMesh 未使用、壁すり抜け |
+| TD-013 | [#38](https://github.com/iijmiolumia939/aituber/issues/38) | BehaviorSeq | 歩行アニメーションと移動速度の不一致 |
 
 ## 解消済み
 

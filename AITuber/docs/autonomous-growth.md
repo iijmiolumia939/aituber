@@ -1,6 +1,6 @@
 # Autonomous Avatar Growth System
 
-> **ステータス**: M1・M2・M3・M4・M5・M6・M7 実装完了（2026-03-03/04）— Phase 2a Growth Loop 全配線完了、M8 (Phase 2b) 実装中  
+> **ステータス**: M1〜M20 全実装完了（2026-03-03＞05）— Phase 2b・日常生活 Sims-like 行動シーケンス・行動完全統合まで完了  
 > **ゴール**: 配信を通してアバターが自律的に能力・表現・実装を成長させる  
 > **評価**: 文献調査に基づき [アーキテクチャの根本的見直し](#設計評価と改訂方針) を実施済み（2026-03-03）
 
@@ -29,6 +29,15 @@
 | Kambhampati et al., 2024「LLMs Can't Plan」(arXiv:2402.01817) | LLMは単体では自律的な計画検証ができない。**LLM-Modulo**（LLM生成 + 外部バリデーター）が必要 | Phase 2/3で全LLM出力に外部検証器を必須化 |
 | South et al., 2025「Authenticated Delegation」(arXiv:2501.09674) | 自律エージェントには**認可スコープの明示的制限と監査ログ**が必要 | GrowthAgentが操作できるファイルパス・コマンドをホワイトリスト管理 |
 | Huang et al., 2022「LLMs Can Self-Improve」(arXiv:2210.11610) | LLMは自己生成解からの学習で推論能力を向上できる。ただし*自信スコアによるフィルタリングが重要* | GapからのProposal生成には、LLMの確信度スコアによるフィルタを追加 |
+
+#### 身体運動・自立行動に関する追加文献（2026-03-06 追記）
+
+| 論文 | 知見 | 本設計への示唆 |
+|---|---|---|
+| Rao & Georgeff, 1991「BDI: Modeling Rational Agents」IJCAI Proceedings | **Beliefs（世界モデル）→ Desires（目標）→ Intentions（実行）** の三層。世界知覚なしで意図を生成すると非整合行動が生まれる | `WorldContext`（現在ゾーン・ポーズ）を `LifeScheduler.tick(current_zone=…)` に入力し、既にターゲットゾーンにいる場合の冗長 `walk_to` を排除（Issue #46） |
+| Ahn et al., 2022「SayCan: Do As I Can, Not As I Say」(arXiv:2204.01691) | LLMが意図を生成しても、**現在の身体・環境で実行可能か（Affordance）の事前確認**が必須。「言えること ≠ できること」という Grounding 問題 | `BehaviorSequenceRunner` が `walk_to` 前に NavMesh 経路を確認し、取れなければ `gap_category: locomotion_blocked` としてGapLogに記録（Issue #44 拡張） |
+| Puig et al., 2018「VirtualHome: Simulating Household Activities」(arXiv:1806.07011) | 室内生活アクティビティを **原子アクション（walk_to / sit / lie / pick_up）の連鎖**で表現し Unity3D上で実行。アトム化することでロバスト性と拡張性が上がる | `behaviors.json` のステップモデル（`walk_to→gesture→wait`）の理論的土台。現行は `walk_to` が 1ステップで位置遷移を完結しているが、**向き合わせ・速度ランプ・到達確認**の細分化が品質向上の鍵 |
+| Wang et al., 2023「A Survey on LLM-based Autonomous Agents」(arXiv:2308.11432) | **Perception-Memory-Action ループの閉包**が自律エージェントの安定性に不可欠。行動の完了/失敗が記憶に還流しないと成長しない | `BehaviorSequenceRunner` の完了・失敗を `perception_update` で Python に返送し GapLog へフィード（Issue #44） |
 
 ### 初期設計の問題点（Critical）
 
@@ -64,6 +73,52 @@ PRを自動生成しても「コンパイル通過」「テスト通過」「saf
 #### 問題4: Priority Scoreの算出が未具体化 ⚡
 
 `(発生頻度) × (視聴者エンゲージメント係数) × (実装コスト逆数)` の「実装コスト」の自動見積もり手段が未定義。
+
+#### 問題5: 身体運動（Locomotion）品質が自立行動の believability を損なう ⚠️
+
+文献調査（BDI / SayCan / VirtualHome）に基づき、現行 `BehaviorSequenceRunner` の locomotion 品質に以下の欠陥が確認された。
+
+| # | 欠陥 | 対応文献 | 影響 |
+|---|---|---|---|
+| L-1 | `walk_to` 前に NavMesh 経路を確認しない → 壁抜け・ワープが発生 | SayCan (Affordance) | アバターが壁を突き抜けて視聴者に不自然な印象 |
+| L-2 | 歩行開始時にアバターが目的地を向かずスライドする（ターン先行なし） | VirtualHome (原子分解) | 人間的な動きに見えない |
+| L-3 | walk→停止→ジェスチャーが 1 フレームでスイッチ（Blend Tree なし） | VirtualHome (アトム細分化) | アニメーション遷移がぎこちない |
+| L-4 | `WorldContext`（現在ゾーン）が `LifeScheduler` に入力されない | BDI (Beliefs→Desires) | 既に desk にいるのに `go_stream` を再送する冗長移動 |
+| L-5 | `BehaviorSequenceRunner` の完了/失敗が Python 側に通知されない | Survey (Perception-Memory-Action) | GapLog に locomotion 失敗が記録されず Growth が学習できない |
+
+**現行利用可能 Asset の調査**（`Assets/Scripts/` 調査済み）:
+
+| Asset | 現状 | Locomotion品質への活用度 |
+|---|---|---|
+| `BehaviorSequenceRunner.cs` | NavMeshAgent + CharacterController で `walk_to` 実行 | ✅ 基盤あり。L-1〜L-3 の改善が必要 |
+| `AvatarGrounding.cs` | CharacterController 重力・着地 + Foot IK（`_enableFootIK = false` で無効） | ⚡ Foot IK は実装済みだが **無効化されたまま**。歩行中の足ズレ補正に活用可能 |
+| `AvatarIKProxy.cs` | Animator → AvatarGrounding への IK コールバック転送 | ✅ 有効。Foot IK 有効化時に自動機能 |
+| `InteractionSlot.cs` | ルーム内の名前付きスロット（`sit_work`, `sleep_area`, `sofa`） | ✅ walk_to のターゲット座標・向き定義の基盤 |
+| `NavMeshAgent` (UnityEngine.AI) | `BehaviorSequenceRunner` が `_navMeshAgent` として参照 | ✅ 経路確認 API（`CalculatePath`）が利用可能 → L-1 修正の根拠 |
+| `AvatarAnimatorController.controller` | Animator に 20+ クリップ。Blend Tree **なし**。Walk state `m_WriteDefaultValues=0` | ❌ Blend Tree 未整備がアニメーション品質の主要ボトルネック |
+| `behaviors.json` | `walk_to→gesture→wait` の 3 ステップモデル | ⚡ VirtualHome 教訓に基づく細分化（`face_toward` ステップ追加）が必要 |
+
+**修正ロードマップ（L-1〜L-5 対応）**:
+
+```
+L-1: BehaviorSequenceRunner.walk_to前に NavMesh.CalculatePath() でAffordance確認
+     → 経路なし → gap_category: locomotion_blocked をGapLogに記録
+
+L-2: behaviors.json に face_toward ステップ型を追加
+     { "type": "face_toward", "slot_id": "sit_work", "duration": 0.4 }
+     → walk_to 前にアバターを目的地に向かせる
+
+L-3: AvatarAnimatorController に Blend Tree 追加
+     speed パラメーター → Idle(0) ⇔ Walk(1) を補間
+     + Walk state m_WriteDefaultValues: 1 に修正
+
+L-4: LifeScheduler.tick(current_zone=WorldContext.current_zone) に変更
+     (Issue #46)
+
+L-5: BehaviorSequenceRunner がシーケンス完了時に
+     perception_update { "behavior_completed": "go_stream", "success": true } を送信
+     → Python _on_perception_update → GapLogger.RecordCompletion()
+```
 
 ### 設計改訂方針
 
@@ -161,8 +216,8 @@ WS Protocolに `avatar_intent` コマンドを追加し、ActionDispatcher層を
 |---|---|---|
 | **視線制御** | camera/chat/commentArea向き | ✅ 実装済み |
 | **表情** | happy/sad/surprised/angry/neutral | ✅ 実装済み |
-| **ジェスチャー** | nod/shake/wave/point/think | 🔶 一部 |
-| **ポーズ変化** | 立ち/座り/前傾き | ❌ 未実装 |
+| **ジェスチャー** | nod/shake/wave/point/think | ✅ 実装済み (20クリップ) |
+| **ポーズ変化** | 立ち/座り/前傾き/睡眠/歩行 | ✅ M4+M19 で実装 |
 | **環境インタラクション** | 小道具を触る/背景オブジェクト操作 | ❌ 未実装 |
 | **視聴者への直接反応** | 名前呼び/スーパーチャット反応 | ❌ 未実装 |
 | **自発的会話開始** | アイドル時に独り言 | ❌ 未実装 |
@@ -207,6 +262,9 @@ WS Protocolに `avatar_intent` コマンドを追加し、ActionDispatcher層を
 | `missing_integration` | 外部サービス未連携（BGM等） | 新機能実装 |
 | `capability_limit` | LLMが意図を持てるが実行APIがない | WS protocol拡張 |
 | `environment_limit` | 部屋・小道具が存在しない | アセット追加 |
+| `locomotion_blocked` | NavMesh経路が取れず walk_to が実行不可（SayCan: Affordance 失敗） | InteractionSlot 位置修正 / NavMesh Bake 再設定 |
+| `locomotion_quality` | 経路は取れるが遷移品質が低い（ターンなし・Blend Treeなし等） | L-1〜L-3 ロードマップ適用 |
+| `world_belief_stale` | WorldContext が更新されず古い状態で行動選択された（BDI: Beliefs失効） | perception_update サイクル短縮 / Issue #46 修正 |
 
 ---
 
@@ -420,9 +478,18 @@ GapLogの該当エントリをクローズ
 | PolicyUpdater | Python | `orchestrator/policy_updater.py` | Phase 1 ✅ M2 |
 | BehaviorPolicy | YAML + C# loader | `Assets/StreamingAssets/behavior_policy.yml` | Phase 1 ✅ M1 |
 | GrowthLoop | Python | `orchestrator/growth_loop.py` | Phase 1 ✅ M7 |
-| ScopeConfig | Python | `orchestrator/scope_config.py` | Phase 2 🔧 M8 |
-| LLMModuloValidator | Python | `orchestrator/llm_modulo_validator.py` | Phase 2 🔧 M8 |
-| ProposalGenerator | Python (LLM + SOP) | `tools/growth/proposal_generator.py` | Phase 2 |
+| ScopeConfig | Python | `orchestrator/scope_config.py` | Phase 2 ✅ M8 |
+| LLMModuloValidator | Python | `orchestrator/llm_modulo_validator.py` | Phase 2 ✅ M8 |
+| WsSchemaValidator | Python | `orchestrator/ws_schema_validator.py` | Phase 2 ✅ M9 |
+| BehaviorDefinitionLoader | C# (Unity) | `Assets/Scripts/Behavior/BehaviorDefinitionLoader.cs` | Phase 2 ✅ M19 |
+| BehaviorSequenceRunner | C# (Unity) | `Assets/Scripts/Behavior/BehaviorSequenceRunner.cs` | Phase 2 ✅ M19 |
+| BehaviorSequences (data) | JSON | `Assets/StreamingAssets/behaviors.json` | Phase 2 ✅ M19 |
+| AvatarGrounding (Foot IK) | C# (Unity) | `Assets/Scripts/Avatar/AvatarGrounding.cs` | Phase 2 ⚡ `_enableFootIK` 有効化待ち |
+| face_toward ステップ対応 | C# (Unity) | `BehaviorSequenceRunner.cs` 拡張 | Phase 2 ❌ 未実装 (L-2) |
+| NavMesh Affordance 確認 | C# (Unity) | `BehaviorSequenceRunner.cs` 拡張 | Phase 2 ❌ 未実装 (L-1) |
+| BSR completion callback | C# + Python | `BehaviorSequenceRunner` → `perception_update` | Phase 2 ❌ 未実装 (L-5) |
+| Blend Tree (walk speed) | AnimatorController | `AvatarAnimatorController.controller` | Phase 2 ❌ 未実装 (L-3) |
+| ProposalGenerator | Python (LLM + SOP) | `tools/growth/proposal_generator.py` | Phase 3 |
 | GrowthAgent | Python (マルチエージェント) | `tools/growth/growth_agent.py` | Phase 3 |
 | CI/CD | GitHub Actions | `.github/workflows/growth-*.yml` | Phase 2〜 |
 
@@ -454,7 +521,18 @@ GapLogの該当エントリをクローズ
 | M4 | 上位GapのモーションをPhase 1で手動実装（初回成長） | M3 | ✅ 2026-03-04 (24/24 TC) |
 | M5 | `reflection_cli.py` で `OpenAIBackend` を注入し Growth Loop を end-to-end で配線。TD-010 解消 ([完了記録](exec-plans/completed/m5-reflection-cli.md)) | M4 | ✅ 2026-03-04 (11/11 TC) |
 | M6 | `approve_cli.py` で人間承認フロー実装。`reflection_cli --output` staging + 対話 y/n + `--auto-approve` (CI)。Phase 2 Growth Loop 全配線 ([完了記録](exec-plans/completed/m6-approve-cli.md)) | M5 | ✅ 2026-03-04 (14/14 TC) |
-| M6 | `approve_cli.py` で人間承認フロー実装。`reflection_cli --output` staging + 対話 y/n + `--auto-approve` (CI)。Phase 2 Growth Loop 全配線 ([完了記録](exec-plans/completed/m6-approve-cli.md)) | M5 | ✅ 2026-03-04 (14/14 TC) |
 | M7 | `growth_loop.py` で Phase-2 ループを 1 コマンドで実行。`GrowthLoop` + `GrowthLoopResult`。FR-LOOP-01/02 ([完了記録](exec-plans/completed/m7-growth-loop.md)) | M6 | ✅ 2026-03-04 (13/13 TC) |
-| M8 | `ScopeConfig` + `LLMModuloValidator` + Phase 2b WS protocol スコープ拡大。FR-SCOPE-01/02 ([exec-plan](exec-plans/active/m8-scope-expansion.md)) | M7 | 🔧 2026-03-04 実装中 |
-| M9 | 完全自律デプロイ実験（Phase 3パイロット） | M8 | TBD |
+| M8 | `ScopeConfig` + `LLMModuloValidator` + Phase 2b WS protocol スコープ拡大。FR-SCOPE-01/02 | M7 | ✅ 2026-03-04 (50/50 TC) |
+| M9 | WebSocket スキーマバリデーション。`WsSchemaValidator`。FR-WS-SCHEMA-01/02 | M8 | ✅ 2026-03-04 (41/41 TC) |
+| M10 | TTS/AudioPlayer テスト強化。`extract_visemes` + `VoicevoxBackend` mock。FR-LIPSYNC-01/02 | M9 | ✅ 2026-03-04 (23/23 TC) |
+| M11 | Bandit ε自動調整。`adapt_epsilon` + `auto_adapt`。FR-BANDIT-EPS-01 | M10 | ✅ 2026-03-04 (14/14 TC) |
+| M12 | Room/Environment テスト強化。TC-ROOM-01〜18 (Unity EditMode) | M11 | ✅ 2026-03-04 (18/18 TC) |
+| M13 | CI Unity ビルド自動化。`.github/workflows/ci.yml` + `unity-ci.yml` (game-ci/unity-test-runner@v4) | M12 | ✅ 2026-03-04 |
+| M14 | Overlay 自動テスト。`overlay_server.py` バグ修正。TC-OVL-01〜20 | M13 | ✅ 2026-03-04 (20/20 TC) |
+| M15 | LLM バックエンド切替。`LLM_BASE_URL`/`LLM_MODEL` 環境変数。FR-LLM-BACKEND-01 | M14 | ✅ 2026-03-04 (6/6 TC) |
+| M16 | `LIVE_CHAT_ID` 自動取得。`fetch_active_live_chat_id`。FR-CHATID-AUTO-01 | M15 | ✅ 2026-03-04 (9/9 TC) |
+| M17 | YUI.A 世界観ブラッシュアップ。`behavior_policy` +6 intents。FR-YUIA-INT-01〜06 | M16 | ✅ 2026-03-04 (21/21 TC) |
+| M18 | 配信前 Inspector/設定確認。BlendShape全設定(26項目)・TTS・VRM・Animator・Room確認 | M17 | ✅ 2026-03-04 |
+| M19 | 日常生活 Sims-like 行動シーケンス。`BehaviorSequenceRunner` + `behaviors.json`。FR-LIFE-01, FR-BEHAVIOR-SEQ-01 | M18 | ✅ 2026-03-05 |
+| M20 | `behavior_start` cmd 統合。`BehaviorDefinitionLoader`・`BehaviorStartParams`・ActionDispatcher 配線。`behavior_policy` M19 intents を behavior_start に移行。`RoomManager.TryGetZone` 追加。FR-BEHAVIOR-SEQ-01 | M19 | ✅ 2026-03-05 |
+| M21 | 完全自律デプロイ実験（Phase 3パイロット） | M20 | TBD |

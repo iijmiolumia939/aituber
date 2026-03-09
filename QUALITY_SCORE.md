@@ -1,6 +1,6 @@
 # QUALITY_SCORE.md — AITuber 品質スコアカード
 
-> **最終更新**: 2026-03-04 (M14完了)  
+> **最終更新**: 2026-03-05 (M20完了)  
 > **更新ルール**: PR マージ後、影響するドメインのスコアを更新する。  
 > 改善が必要な領域は `tech-debt-tracker.md` にも反映すること。
 
@@ -32,6 +32,10 @@
 | Overlay / OBS 連携 | B | 中 | M14: Python 20件 (TC-OVL-01〜20)。HTML overlay 手動確認のみ |
 | Growth/BanditEpsilon (M11) | A | 高 (14/14 TC) | FR-BANDIT-EPS-01。ε自動調整 + auto_adapt 実装済み |
 | Growth/WsSchemaValidator (M9) | A | 高 (41/41 TC) | FR-WS-SCHEMA-01/02。受信時 JSON Schema バリデーション |
+| Growth/LiveChatId (M16) | A | 高 (9/9 TC) | FR-CHATID-AUTO-01。fetch_active_live_chat_id + Orchestrator._resolve_live_chat_id |
+| Growth/YuiaIntents (M17) | A | 高 (21/21 TC) | FR-YUIA-INT-01〜06。behavior_policy +6 YUI.A intents |
+| Behavior/BehaviorDefinitionLoader (M20) | B | 中 (テスト未実装) | FR-BEHAVIOR-SEQ-01。behaviors.json ロード+ルックアップシングルトン |
+| Behavior/BehaviorSequenceRunner (M20) | B | 中 (テスト未実装) | FR-BEHAVIOR-SEQ-01。walk_to/gesture/wait コルーチン |
 
 ---
 
@@ -50,15 +54,15 @@
 
 ---
 
-## テスト集計（2026-03-04 時点）
+## テスト集計（2026-03-05 時点）
 
 | スイート | 合計 | 合格 | 失敗 |
 |---|---|---|---|
 | Unity EditMode | 55 | 55 | 0 |
 | Unity PlayMode | 6 | 6 | 0 |
-| Python pytest (new M4) | 24 | 24 | 0 |
-| Python pytest (new M3) | 26 | 26 | 0 |
 | Python pytest (new M2) | 41 | 41 | 0 |
+| Python pytest (new M3) | 26 | 26 | 0 |
+| Python pytest (new M4) | 24 | 24 | 0 |
 | Python pytest (new M5) | 11 | 11 | 0 |
 | Python pytest (new M6) | 14 | 14 | 0 |
 | Python pytest (new M7) | 13 | 13 | 0 |
@@ -68,16 +72,19 @@
 | Python pytest (new M11) | 14 | 14 | 0 |
 | Python pytest (new M14) | 20 | 20 | 0 |
 | Python pytest (new M15) | 6 | 6 | 0 |
+| Python pytest (new M16) | 9 | 9 | 0 |
+| Python pytest (new M17) | 21 | 21 | 0 |
 | Python pytest (全スイート) | 507 | 507 | 2 (pre-existing: emotion_gesture_selector) |
 
 ---
 
 ## 改善優先度
 
-1. **BehaviorPolicy YAML スキーマ** — 不正エントリの早期検出 (A維持)
-2. **AvatarController PlayMode** — Unity PlayMode テスト拡充
-3. **ChatPoller e2e** — 実YouTube API との統合テスト
-4. ~~**TTS/AudioPlayer テスト** — M10: extract_visemes + mock。(C→B)完了~~
+1. **BehaviorSequenceRunner テスト** — EditMode テストがゼロ (B→Aのため) (TD候補)
+2. **BehaviorPolicy YAML スキーマ** — 不正エントリの早期検出 (A維持) (TD-003)
+3. **AvatarController PlayMode** — Unity PlayMode テスト拡充
+4. **ChatPoller e2e** — 実YouTube API との統合テスト
+5. ~~**TTS/AudioPlayer テスト** — M10: extract_visemes + mock。(C→B)完了~~
 5. ~~**Room/Environment テスト** — M12: ScriptableObject EditMode。(C→B)完了~~
 6. ~~**WebSocket スキーマバリデーション** — M9: WsSchemaValidator。(B→A)完了~~
 7. ~~**Bandit ε自動調整** — M11: adapt_epsilon。(B→A)完了~~
