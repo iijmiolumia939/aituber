@@ -19,11 +19,12 @@ Orchestrator (Python)          ← Brain: orchestrator/
       │ WebSocket ws://0.0.0.0:31900
       ▼
 Unity Avatar Client (C#)       ← Renderer: AITuber/Assets/Scripts/
-  AvatarController (Emotion/Gesture/IK/Room)
+  AvatarController (Emotion/Gesture/IK/Room/BehaviorSeq)
       │ Capability Gap 未知Intent
       ▼
-Growth System (C#/Python)      ← M1完了, M2計画中
-  ActionDispatcher → GapLogger → ReflectionRunner(M2)
+Growth System (C#/Python)      ← M1〜M20 全完了 (2026-03-05)
+  ActionDispatcher → GapLogger → ReflectionRunner
+  BehaviorSequenceRunner → behaviors.json (walk_to/gesture/wait)
 ```
 
 ---
@@ -35,9 +36,10 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 | アーキテクチャ全体像・ドメイン境界・依存ルール | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | 機能要件・非機能要件（FR/NFR/TC） | [AITuber/.github/srs/](AITuber/.github/srs/) |
 | 品質グレードと既知ギャップ | [QUALITY_SCORE.md](QUALITY_SCORE.md) |
+| バグ・技術的負債・機能要期の管理 | [GitHub Issues](https://github.com/iijmiolumia939/aituber/issues) — **Single Source of Truth** |
 | 現在進行中の実装計画 | [PLANS.md](PLANS.md) |
 | 詳細実行計画（進捗ログ付き） | [AITuber/docs/exec-plans/](AITuber/docs/exec-plans/) |
-| 技術的負債リスト | [AITuber/docs/tech-debt-tracker.md](AITuber/docs/tech-debt-tracker.md) |
+| 技術的負債リスト（Index） | [AITuber/docs/tech-debt-tracker.md](AITuber/docs/tech-debt-tracker.md) |
 | 設計ドキュメント一覧 | [AITuber/docs/design-docs/index.md](AITuber/docs/design-docs/index.md) |
 | C# コーディングルール (Namespace/WS プロトコル) | [.github/instructions/aituber-csharp.instructions.md](.github/instructions/aituber-csharp.instructions.md) |
 | テストアセンブリ・TC-ID 体系 | [.github/instructions/aituber-tests.instructions.md](.github/instructions/aituber-tests.instructions.md) |
@@ -55,6 +57,7 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 3. **SRS ID 参照** — コード・コミットには関連する FR/NFR/TC ID を記載
 4. **シークレット禁止** — `.env` はリポジトリに含めない（`.gitignore` 参照）
 5. **ドキュメント同期** — コード変更時は関連ドキュメントを同時更新（sync-docs.instructions.md 参照）
+6. **Issue 管理は GitHub Issues 一元** — バグ・技術的負債・機能要期は `gh issue create` で登録する。ローカルドキュメントに詳細をデュプしない。解溈時は Issue を close する
 
 ---
 
@@ -93,6 +96,13 @@ Growth System (C#/Python)      ← M1完了, M2計画中
 | M16: LIVE_CHAT_ID 自動取得 | ✅ 完了 (2026-03-04) | 9/9テスト グリーン, FR-CHATID-AUTO-01, fetch_active_live_chat_id + Orchestrator._resolve_live_chat_id |
 | M17: YUI.A 世界観ブラッシュアップ | ✅ 完了 (2026-03-04) | 21/21テスト グリーン, behavior_policy +6 YUI.A intents, CHARACTER_NAME=yuia デフォルト設定 |
 | M18: 配信前 Inspector/設定確認 | ✅ 完了 (2026-03-04) | BlendShape全設定(26項目), TTS=47確認, VRM+Animator+Room 全OK, -c yuia 動作確認 |
+| M19: 日常生活 Sims-like 行動シーケンス | ✅ 完了 (2026-03-05) | BehaviorSequenceRunner + behaviors.json, FR-LIFE-01, FR-BEHAVIOR-SEQ-01 |
+| M20: 行動シーケンス完全統合 | ✅ 完了 (2026-03-05) | behavior_start cmd, BehaviorDefinitionLoader, ActionDispatcher 配線, RoomManager.TryGetZone |
+| M21: LipSync 統一化 | ✅ 完了 (2026-03-09) | LipSyncMode enum (A2FNeural/TtsViseme/Hybrid), 二重書込み競合解消, Issue #56 close |
+| M22: Procedural Body Gesture (A2GPlugin RMS/IIR DLL) | ✅ 完了 (2026-03-09) | A2GPlugin.dll, SetEmotionGestureScale(), FR-GESTURE-PROC-01, Issue #57 close |
+| M23: Unity Sentis A2E on-device推論 | ✅ 完了 (2026-03-09) | Audio2EmotionInferer.cs, UNITY_AI_INFERENCE_ENABLED, Issue #58 close |
+| M24: AivisSpeech TTS 対応 | ✅ 完了 (2026-03-09) | 7/7テスト グリーン, FR-TTS-01, TTS_BACKEND=aivisspeech, Issue #59 close |
+| M25: 優先度付き Intent キュー | ✅ 完了 (2026-03-10) | 12/12テスト グリーン, FR-INTENT-PRIORITY-01, IntentItem + _intent_dispatcher, Issue #45 close |
 
 ---
 

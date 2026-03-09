@@ -14,6 +14,7 @@ import random
 import re
 import time
 
+from orchestrator.audio2emotion import A2EInferer
 from orchestrator.audio_player import play_audio_chunks
 from orchestrator.avatar_ws import (
     AvatarEventType,
@@ -46,6 +47,35 @@ from orchestrator.tts import TTSClient, TTSResult
 from orchestrator.world_context import WorldContext
 
 logger = logging.getLogger(__name__)
+
+# ── FR-INTENT-PRIORITY-01: Priority intent queue ──────────────────────────────
+PRIORITY_INTERACTIVE = 0  # _queue_consumer — runs directly, not queued
+PRIORITY_LIFE = 1         # _life_loop
+PRIORITY_IDLE = 2         # _idle_talk_loop (unused as queue; only flag-gated)
+
+
+@dataclasses.dataclass(order=True)
+class IntentItem:
+    """Priority-queue item for coordinating avatar intents (FR-INTENT-PRIORITY-01)."""
+
+    priority: int
+    seq: int                                           # monotonic insertion-order tiebreaker
+    intent: str         = dataclasses.field(compare=False)
+    source: str         = dataclasses.field(compare=False)
+    room_id: str | None = dataclasses.field(compare=False, default=None)
+
+
+# Note: _ACTIVITY_TO_BEHAVIOR removed (Issue #44).
+# All life activities now route via send_avatar_intent → ActionDispatcher
+# → BehaviorPolicyLoader (see behavior_policy.yml life_* entries).
+# This closes the Growth-system loop: unknown intents become GapEntries.
+
+# FR-GOAL-01: keywords that raise YUI.A's intellectual curiosity (GoalState)
+_INTELLECTUAL_KEYWORDS: frozenset[str] = frozenset({
+    "宇宙", "哲学", "AI", "人工知能", "量子", "タイムトラベル", "SF", "科学",
+    "数学", "物理", "意識", "未来", "ロボット", "進化", "宇宙人", "次元",
+    "simulation", "universe", "quantum", "philosophy", "consciousness",
+})
 
 
 class Orchestrator:
@@ -116,12 +146,31 @@ class Orchestrator:
         # FR-E6-01: NarrativeBuilder の直近ナラティブ断片（6時間ごと更新）
         self._narrative_hint: str = ""
         self._NARRATIVE_INTERVAL_SEC: float = 6.0 * 3600
+        # FR-A2E-01: Audio2Emotion ONNX inferer (lazy-init in start())
+        self._a2e: A2EInferer | None = None
+        # FR-INTENT-PRIORITY-01: Priority intent queue coordination fields
+        self._is_replying: bool = False
+        self._intent_queue: asyncio.PriorityQueue[IntentItem] = asyncio.PriorityQueue()
+        self._intent_seq: int = 0
 
     async def start(self) -> None:
         """Start the orchestrator pipeline."""
         self._running = True
         self._start_time = time.monotonic()
         logger.info("Orchestrator starting…")
+
+        # FR-A2E-01: Init Audio2Emotion ONNX inferer (optional — graceful if absent)
+        try:
+            import os
+            from pathlib import Path as _Path
+            _a2e_dir = _Path(os.environ.get(
+                "A2E_MODEL_DIR",
+                r"C:\Users\iijmi\st\audio2face-3d-sdk\_data\audio2emotion-models\audio2emotion-v2.2",
+            ))
+            self._a2e = A2EInferer(_a2e_dir)
+            logger.info("Audio2Emotion ONNX inferer ready (%s)", _a2e_dir)
+        except Exception:
+            logger.warning("Audio2Emotion unavailable; emotion inference disabled.", exc_info=True)
 
         # Start WS server (Unity connects to us)
         try:
@@ -140,6 +189,9 @@ class Orchestrator:
             )
         except Exception:
             logger.warning("Overlay WS server failed to start; continuing without overlay.")
+
+        # LLM ウォームアップ (ローカル LLM の初回レイテンシ回避)
+        await self._llm.warmup()
 
         # LIVE_CHAT_ID 自動取得 (FR-CHATID-AUTO-01)
         if not self._no_youtube and not self._cfg.youtube.live_chat_id:
@@ -160,6 +212,7 @@ class Orchestrator:
             self._queue_consumer(),
             self._idle_talk_loop(),
             self._life_loop(),
+            self._intent_dispatcher(),
             self._narrative_loop(),
             self._memory_monitor(),
         )
@@ -246,7 +299,31 @@ class Orchestrator:
         FR-E4-01: Called synchronously by AvatarWSSender when Unity sends
         a ``perception_update`` JSON message over the WS connection.
         Updates WorldContext and propagates the prompt fragment to LLMClient.
+
+        L-5 / Issue #50: Also handles behavior_completed events from
+        BehaviorSequenceRunner to close the Perception-Memory-Action loop
+        (Wang Survey 2023 §Perception-Memory-Action).
         """
+        # L-5: behavior_completed notification from BehaviorSequenceRunner
+        if "behavior_completed" in msg:
+            behavior = msg.get("behavior_completed", "")
+            success  = bool(msg.get("success", True))
+            reason   = str(msg.get("reason", ""))
+            if success:
+                logger.info(
+                    "[BSR] behavior_completed: behavior=%s success=True", behavior
+                )
+            else:
+                # R3-2: Use reason as gap_category rather than hardcoding locomotion_blocked.
+                # "interrupted" comes from StopBehavior(); "locomotion_blocked" from NavMesh.
+                gap_cat = reason if reason else "unknown"
+                logger.warning(
+                    "[BSR] behavior_completed: behavior=%s success=False "
+                    "gap_category=%s — GrowthSystem should reflect.",
+                    behavior, gap_cat,
+                )
+            return  # behavior_completed events do not carry scene/room context
+
         self._world_context.update(msg)
         fragment = self._world_context.to_prompt_fragment()
         self._llm.set_world_context_fragment(fragment)
@@ -265,6 +342,12 @@ class Orchestrator:
                 elapsed = time.monotonic() - self._start_time
             if elapsed < self._IDLE_TIMEOUT_SEC:
                 continue
+            # FR-INTENT-PRIORITY-01: skip if INTERACTIVE reply is in progress
+            # or if a user message is waiting in the queue.
+            if self._is_replying or self._reply_queue.qsize() > 0:
+                if self._reply_queue.qsize() > 0:
+                    self._last_reply_time = time.monotonic()  # reset idle timer
+                continue
             if not self._avatar.connected:
                 logger.debug("[IDLE] Avatar未接続; TTS のみで発話します")
 
@@ -279,6 +362,11 @@ class Orchestrator:
                 if not talk_text:
                     continue
 
+                # FR-INTENT-PRIORITY-01: second check after awaits — an
+                # INTERACTIVE reply may have started during LLM generation.
+                if self._is_replying or self._reply_queue.qsize() > 0:
+                    continue
+
                 self._event_bus.emit_simple(
                     EventType.IDLE_TALK,
                     text=talk_text,
@@ -286,26 +374,32 @@ class Orchestrator:
                 )
                 logger.info("[IDLE] 自動発話: %s", talk_text[:60])
 
-                idle_emotion, idle_gesture = select_idle_emotion_gesture(talk_text)
-                await self._avatar.send_update(
-                    emotion=idle_emotion,
-                    gesture=idle_gesture,
-                    look_target=LookTarget.CAMERA,
-                )
-                dummy = ChatMessage(
-                    message_id=f"idle-{int(time.monotonic())}",
-                    text="",
-                    author_display_name="System",
-                    author_channel_id="system",
-                    published_at="",
-                )
-                self._last_reply_time = time.monotonic()
-                await self._speak(talk_text, dummy)
-                await self._avatar.send_update(
-                    emotion=Emotion.NEUTRAL,
-                    look_target=LookTarget.CAMERA,
-                )
+                idle_emotion, _ = select_idle_emotion_gesture(talk_text)
+                # gesture intentionally omitted (= Gesture.NONE / no change) so
+                # BSR-driven poses (sit_write, sit_idle …) are not interrupted.
+                self._is_replying = True
+                try:
+                    await self._avatar.send_update(
+                        emotion=idle_emotion,
+                        look_target=LookTarget.CAMERA,
+                    )
+                    dummy = ChatMessage(
+                        message_id=f"idle-{int(time.monotonic())}",
+                        text="",
+                        author_display_name="System",
+                        author_channel_id="system",
+                        published_at="",
+                    )
+                    self._last_reply_time = time.monotonic()
+                    await self._speak(talk_text, dummy)
+                    await self._avatar.send_update(
+                        emotion=Emotion.NEUTRAL,
+                        look_target=LookTarget.CAMERA,
+                    )
+                finally:
+                    self._is_replying = False
             except Exception:
+                self._is_replying = False
                 logger.warning("Idle talk failed; continuing")
 
     # ── Daily life loop (FR-LIFE-01) ──────────────────────────────
@@ -315,16 +409,18 @@ class Orchestrator:
     async def _life_loop(self) -> None:
         """Autonomous daily life activity loop (Sims-like).
 
-        Polls LifeScheduler every _LIFE_TICK_SEC seconds and, when the
-        activity changes, sends avatar_update (gesture+emotion+look_target)
-        and optionally room_change to Unity.
+        All activities route via send_avatar_intent → ActionDispatcher
+        → BehaviorPolicyLoader (Issue #44).  Locomotion activities
+        (life_sleep, life_stream, …) expand to behavior_start sequences via
+        policy; non-locomotion activities (life_ponder, …) expand to
+        avatar_update gestures.  Unrecognised intents become GapEntries for
+        the Growth system.
 
         FR-LIFE-01: time-of-day aware, energy-gated activity transitions.
-        Skips avatar updates while _is_live=True (ON_AIR) to avoid
-        overwriting broadcast-driven emotions/gestures.
+        FR-BEHAVIOR-SEQ-01: behavior sequences owned by BehaviorPolicyLoader.
+        Skips updates while _is_live=True (ON_AIR).
 
-        Bug2 fix: sleep moved to loop BOTTOM so the first tick fires immediately
-        on startup without waiting one full _LIFE_TICK_SEC.
+        Bug2 fix: sleep moved to loop BOTTOM so the first tick fires immediately.
         """
         while self._running:
             # FR-LIFE-01: ON_AIR 中は avatar を上書きしない
@@ -332,7 +428,9 @@ class Orchestrator:
                 await asyncio.sleep(self._LIFE_TICK_SEC)
                 continue
             try:
-                activity = self._life.tick()
+                activity = self._life.tick(
+                    current_zone=self._world_context.state.room_name or None
+                )
                 if activity is None:
                     await asyncio.sleep(self._LIFE_TICK_SEC)
                     continue
@@ -348,37 +446,68 @@ class Orchestrator:
                 # Update idle talk hint to match current activity context
                 self._life_hint = activity.idle_hint
 
-                # Apply emotion; fall back to NEUTRAL on unknown value
-                emotion = Emotion.NEUTRAL
-                with contextlib.suppress(ValueError):
-                    emotion = Emotion(activity.emotion)
-
-                # Apply gesture; fall back to NONE on unknown value
-                gesture = Gesture.NONE
-                with contextlib.suppress(ValueError):
-                    gesture = Gesture(activity.gesture)
-
-                look = LookTarget.RANDOM
-                with contextlib.suppress(ValueError):
-                    look = LookTarget(activity.look_target)
-
-                await self._avatar.send_update(
-                    emotion=emotion,
-                    gesture=gesture,
-                    look_target=look,
+                # Route ALL activities through avatar_intent → ActionDispatcher
+                # → BehaviorPolicyLoader. This closes the Growth-system loop:
+                # unrecognised life intents are recorded as GapEntries, enabling
+                # ReflectionRunner to autonomously expand the policy.
+                # Issue #44 / FR-BEHAVIOR-SEQ-01 / FR-LIFE-01.
+                intent = f"life_{str(activity.activity_type).lower()}"
+                # FR-INTENT-PRIORITY-01: push to priority queue; _intent_dispatcher
+                # will defer dispatch until any INTERACTIVE reply finishes.
+                self._intent_seq += 1
+                await self._intent_queue.put(
+                    IntentItem(
+                        priority=PRIORITY_LIFE,
+                        seq=self._intent_seq,
+                        intent=intent,
+                        source="life",
+                        room_id=activity.room_id or None,
+                    )
                 )
-
-                # Move to activity-specific room if specified
-                if activity.room_id:
-                    await self._avatar.send_room_change(activity.room_id)
-
-                # Move to activity-specific zone within room if specified
-                if activity.zone_id:
-                    await self._avatar.send_zone_change(activity.zone_id)
+                logger.info("[LIFE] intent queued → '%s'", intent)
 
             except Exception:
                 logger.debug("[LIFE] tick error; continuing")
             await asyncio.sleep(self._LIFE_TICK_SEC)
+
+    # ── Intent priority dispatcher (FR-INTENT-PRIORITY-01) ───────────
+
+    async def _intent_dispatcher(self) -> None:
+        """Drain the intent queue, deferring non-interactive items while
+        INTERACTIVE (_queue_consumer / _reply_to) is actively replying.
+
+        Priority:  INTERACTIVE(0) > LIFE(1) > IDLE(2) — lower number = higher priority.
+        LIFE intents are re-queued (with a short delay) until the current
+        reply finishes so avatar state is not clobbered mid-speech.
+        FR-INTENT-PRIORITY-01.
+        """
+        while self._running:
+            try:
+                item: IntentItem = await asyncio.wait_for(
+                    self._intent_queue.get(), timeout=1.0
+                )
+            except TimeoutError:
+                continue
+            # Defer lower-priority intents while INTERACTIVE reply is in progress
+            if self._is_replying and item.priority > PRIORITY_INTERACTIVE:
+                await asyncio.sleep(0.5)
+                await self._intent_queue.put(item)
+                self._intent_queue.task_done()
+                continue
+            try:
+                if item.room_id:
+                    await self._avatar.send_room_change(item.room_id)
+                await self._avatar.send_avatar_intent(intent=item.intent, source=item.source)
+                logger.info(
+                    "[IntentDispatcher] dispatched intent='%s' priority=%d source='%s'",
+                    item.intent,
+                    item.priority,
+                    item.source,
+                )
+            except Exception:
+                logger.warning("[IntentDispatcher] send failed; item dropped")
+            finally:
+                self._intent_queue.task_done()
 
     # ── Narrative loop (FR-E6-01) ──────────────────────────────────
 
@@ -503,6 +632,11 @@ class Orchestrator:
         except Exception:
             logger.debug("Overlay chat send failed")
 
+        # FR-GOAL-01: GoalState を視聴者コメントで更新
+        self._life.observe_comment()
+        if any(kw in msg.text for kw in _INTELLECTUAL_KEYWORDS):
+            self._life.observe_intellectual_topic()
+
         # 1) Safety filter FIRST
         safety_result = check_safety(msg.text)
         if safety_result.verdict == SafetyVerdict.NG:
@@ -573,8 +707,15 @@ class Orchestrator:
             await self._reply_to(msg, avoidance_hint=safety_result.avoidance_hint)
 
     async def _reply_to(self, msg: ChatMessage, *, avoidance_hint: str | None = None) -> None:
-        """Generate LLM reply and send to avatar."""
+        """Generate LLM reply and send to avatar.
+
+        FR-LLM-STREAM-01: LLM output is streamed sentence-by-sentence.
+        TTS for the first sentence starts as soon as the LLM emits it,
+        while subsequent sentences are generated concurrently — reducing
+        time-to-first-audio from ~1.5 s to ~0.7 s.
+        """
         self._last_reply_time = time.monotonic()
+        self._is_replying = True  # FR-INTENT-PRIORITY-01
         try:
             await self._avatar.send_event(AvatarEventType.COMMENT_READ_START)
             await self._avatar.send_update(
@@ -601,28 +742,58 @@ class Orchestrator:
             author=msg.author_display_name,
             text=msg.text,
         )
-        result: LLMResult = await self._llm.generate_reply(msg.text, avoidance_hint=avoidance_hint)
 
-        if result.is_template:
+        # FR-LLM-STREAM-01: pipeline — sentence queue bridges LLM stream and TTS.
+        # _generate fills the queue; _speak_all drains it.  Both run concurrently
+        # so TTS for sentence N starts while the LLM is still generating sentence
+        # N+1, cutting time-to-first-audio roughly in half.
+        sentence_queue: asyncio.Queue[LLMResult | None] = asyncio.Queue()
+        accumulated: list[str] = []
+        first_sr: LLMResult | None = None
+
+        async def _generate() -> None:
+            nonlocal first_sr
+            try:
+                async for sr in self._llm.generate_reply_stream(
+                    msg.text, avoidance_hint=avoidance_hint
+                ):
+                    accumulated.append(sr.text)
+                    if first_sr is None:
+                        first_sr = sr
+                    await sentence_queue.put(sr)
+            except Exception:
+                logger.warning("LLM stream outer error; continuing")
+            finally:
+                await sentence_queue.put(None)  # sentinel — always sent
+
+        async def _speak_all() -> None:
+            while True:
+                sr = await sentence_queue.get()
+                if sr is None:
+                    break
+                await self._speak(sr.text, msg)
+
+        gen_task = asyncio.create_task(_generate())
+        # Wait for the first sentence before selecting emotion/gesture so the
+        # avatar state is updated before audio begins.
+        first_item = await sentence_queue.get()
+        if first_item is None:
+            # Empty stream (cost limit / total failure)
+            await gen_task
+            self._is_replying = False  # FR-INTENT-PRIORITY-01
+            return
+
+        first_sr = first_item
+        accumulated.append(first_item.text)
+
+        # Emit LLM events based on the first sentence
+        if first_item.is_template:
             self._event_bus.emit_simple(
                 EventType.LLM_TEMPLATE_FALLBACK,
-                text=result.text,
+                text=first_item.text,
             )
-        else:
-            self._event_bus.emit_simple(
-                EventType.LLM_RESPONSE,
-                text=result.text,
-                cost_yen=result.cost_yen,
-                retries=result.retries_used,
-            )
-            self._event_bus.emit_simple(
-                EventType.COST_UPDATE,
-                hourly_spend=self._llm.cost_tracker.hourly_spend(),
-            )
-
-        # 返答内容に合わせて感情・ジェスチャーを動的選択 (FR-E5-01)
-        reply_emotion, reply_gesture = select_emotion_gesture(result.text)
-        # FR-E5-01: TOM intent may override gesture
+        # Emotion/gesture selection from first sentence (FR-E5-01)
+        reply_emotion, reply_gesture = select_emotion_gesture(first_item.text)
         if tom_est.intent not in ("neutral",):
             spec = self._gesture.compose(
                 emotion=str(reply_emotion),
@@ -640,14 +811,38 @@ class Orchestrator:
         except Exception:
             logger.warning("Avatar gesture update failed")
 
-        await self._speak(result.text, msg)
+        # Speak first sentence and remaining sentences concurrently with generation
+        async def _speak_all_from_first() -> None:
+            await self._speak(first_item.text, msg)
+            while True:
+                sr = await sentence_queue.get()
+                if sr is None:
+                    break
+                await self._speak(sr.text, msg)
+
+        speak_task = asyncio.create_task(_speak_all_from_first())
+        await asyncio.gather(gen_task, speak_task)
+
+        full_text = "".join(accumulated)
+
+        if first_sr and not first_sr.is_template:
+            self._event_bus.emit_simple(
+                EventType.LLM_RESPONSE,
+                text=full_text,
+                cost_yen=self._llm.cost_tracker.hourly_spend(),
+                retries=0,
+            )
+            self._event_bus.emit_simple(
+                EventType.COST_UPDATE,
+                hourly_spend=self._llm.cost_tracker.hourly_spend(),
+            )
 
         # FR-E2-01: Store episode in episodic memory
         try:
             self._episodic.append(
                 author=msg.author_display_name,
                 user_text=msg.text,
-                ai_response=result.text,
+                ai_response=full_text,
             )
         except Exception:
             logger.debug("Episodic store append failed")
@@ -660,6 +855,7 @@ class Orchestrator:
 
         # Record reward (simplified)
         self._bandit.update_action_reward("reply_now", 1.0)
+        self._is_replying = False  # FR-INTENT-PRIORITY-01
 
     async def _speak(
         self,
@@ -745,13 +941,80 @@ class Orchestrator:
                         )
                     except Exception:
                         logger.debug("Viseme send failed; RMS lip sync still active")
-                # 残チャンクを転送
+
+                # FR-LIPSYNC-01: Streaming A2F — send first_chunk immediately, then each
+                # chunk as it arrives so A2F mouth moves in sync with audio playback.
+                _a2f_ok = True
+                _a2g_ok = True  # FR-GESTURE-AUTO-01: Option A – Audio2Gesture
+                # FR-A2E-01: Audio2Emotion — accumulate all chunks then infer at stream close
+                if self._a2e is not None:
+                    self._a2e.reset()
+                    self._a2e.push_audio(first_chunk, sample_rate=_result.sample_rate)
+                try:
+                    await self._avatar.send_a2f_chunk(
+                        first_chunk, sample_rate=_result.sample_rate, is_first=True
+                    )
+                except Exception:
+                    logger.debug("A2F chunk send failed; lip sync continues via RMS")
+                    _a2f_ok = False
+                if _a2g_ok:
+                    try:
+                        await self._avatar.send_a2g_chunk(
+                            first_chunk, sample_rate=_result.sample_rate, is_first=True
+                        )
+                    except Exception:
+                        logger.debug("A2G chunk send failed; gesture disabled for this utterance")
+                        _a2g_ok = False
+
+                # 残チャンクを収集しながら転送
                 while True:
                     chunk = await audio_queue.get()
                     await playback_queue.put(chunk)
                     await lip_queue.put(chunk)
                     if chunk is None:
                         break
+                    # FR-A2E-01: accumulate for emotion inference
+                    if self._a2e is not None:
+                        self._a2e.push_audio(chunk, sample_rate=_result.sample_rate)
+                    if _a2f_ok:
+                        try:
+                            await self._avatar.send_a2f_chunk(
+                                chunk, sample_rate=_result.sample_rate
+                            )
+                        except Exception:
+                            logger.debug("A2F chunk send failed")
+                            _a2f_ok = False
+                    if _a2g_ok:
+                        try:
+                            await self._avatar.send_a2g_chunk(
+                                chunk, sample_rate=_result.sample_rate
+                            )
+                        except Exception:
+                            logger.debug("A2G chunk send failed")
+                            _a2g_ok = False
+
+                if _a2f_ok:
+                    try:
+                        await self._avatar.send_a2f_stream_close()
+                    except Exception:
+                        logger.debug("A2F stream close failed")
+                if _a2g_ok:
+                    try:
+                        await self._avatar.send_a2g_stream_close()
+                    except Exception:
+                        logger.debug("A2G stream close failed")
+
+                # FR-A2E-01: run emotion inference after all audio is accumulated
+                if self._a2e is not None:
+                    try:
+                        result = self._a2e.infer()
+                        if result is not None:
+                            label, scores10 = result
+                            await self._avatar.send_a2e_emotion(scores10, label)
+                            logger.debug("A2E emotion: label=%s", label)
+                    except Exception:
+                        logger.debug("A2E emotion inference failed", exc_info=True)
+
                 return _result
 
             fwd_task = asyncio.create_task(_forward_and_send_viseme())
@@ -824,6 +1087,7 @@ class Orchestrator:
         logger.info("[SUMMARY] %d msgs → %s", len(messages), display)
 
         self._last_reply_time = time.monotonic()
+        self._is_replying = True  # FR-INTENT-PRIORITY-01
         try:
             await self._avatar.send_event(AvatarEventType.COMMENT_READ_START)
             await self._avatar.send_update(
@@ -843,6 +1107,7 @@ class Orchestrator:
             await self._avatar.send_update(emotion=Emotion.NEUTRAL, look_target=LookTarget.CAMERA)
         except Exception:
             logger.warning("Avatar WS send failed")
+        self._is_replying = False  # FR-INTENT-PRIORITY-01
 
 
 # ── Entry point ──────────────────────────────────────────────────────

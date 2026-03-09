@@ -1,6 +1,6 @@
 # PLANS.md — AITuber 実装計画トラッカー
 
-> **最終更新**: 2026-03-04 (M15 完了)  
+> **最終更新**: 2026-03-10 (M25: 優先度付き Intent キュー 完了)  
 > これは計画の索引です。詳細はリンク先の exec-plan を参照。  
 > 完了した計画は `exec-plans/completed/` に移動し、ここでは状態を「✅完了」に更新する。
 
@@ -16,10 +16,15 @@
 
 ## バックログ
 
-| 計画 | 優先度 | 依存 | 概要 |
-|---|---|---|---|
+> **方鉢**: バックログの詳細・进捗は [GitHub Issues](https://github.com/iijmiolumia939/aituber/issues) で管理する。ここには Issue 番号とタイトルのインデックスのみを記載する。
 
-*バックログは現在空です。*
+| Issue | 剿先 | 概要 |
+|---|---|---|
+| [#42](https://github.com/iijmiolumia939/aituber/issues/42) | FR-MEMORY-01 | コメント履歴の永続化（再起動で消失） |
+| [#40](https://github.com/iijmiolumia939/aituber/issues/40) | TD-008 | GapLogger 非同期 I/O 改善 |
+| [#31](https://github.com/iijmiolumia939/aituber/issues/31) | FR-LIFE-03 | 髪物理ボーン設定最適化（頭へのめり込み解消） |
+| [#29](https://github.com/iijmiolumia939/aituber/issues/29) | FR-APPEARANCE-01/02/03 | アバター衣装・髪型の動的変更 |
+| [#28](https://github.com/iijmiolumia939/aituber/issues/28) | FR-SHADER-01/02 | トゥーンシェーダー再適用 + Runtime 動的切替 |
 
 ---
 
@@ -42,6 +47,17 @@
 | M13: CI Unity ビルド自動化 | 2026-03-04 | .github/workflows/ci.yml + unity-ci.yml 新設 (EditMode/PlayMode) | — |
 | M14: Overlay 自動テスト | 2026-03-04 | 20/20テスト グリーン (Python), TC-OVL-01〜20, overlay_server.py バグ修正 | — |
 | M15: LLM バックエンド切替 | 2026-03-04 | 6/6テスト グリーン, FR-LLM-BACKEND-01, LLM_BASE_URL/LLM_MODEL 環境変数, 507 passed | — |
+| M16: LIVE_CHAT_ID 自動取得 | 2026-03-04 | 9/9テスト グリーン, FR-CHATID-AUTO-01, fetch_active_live_chat_id | — |
+| M17: YUI.A 世界観ブラッシュアップ | 2026-03-04 | 21/21テスト グリーン, behavior_policy +6 YUI.A intents, CHARACTER_NAME=yuia デフォルト | — |
+| M18: 配信前 Inspector/設定確認 | 2026-03-04 | BlendShape全設定(26項目), TTS=47確認, VRM+Animator+Room 全OK | — |
+| M19: 日常生活 Sims-like 行動シーケンス | 2026-03-05 | BehaviorSequenceRunner + behaviors.json (7シーケンス), FR-LIFE-01, FR-BEHAVIOR-SEQ-01 | — |
+| M20: 行動シーケンス完全統合 | 2026-03-05 | behavior_start cmd, BehaviorDefinitionLoader, ActionDispatcher 配線, behavior_policy M19 intents を behavior_start に移行 | — |
+| Issue #44: _life_loop avatar_intent 配線 | 2026-03-05 | send_avatar_intent() 新設, _ACTIVITY_TO_BEHAVIOR 削除, KNOWN_CMDS 更新, 690 passed | — |
+| M21: LipSync 統一化 | 2026-03-09 | LipSyncMode enum, 二重書込み競合解消, Issue #56 close | — |
+| M22: Procedural Body Gesture | 2026-03-09 | A2GPlugin.dll, SetEmotionGestureScale(), FR-GESTURE-PROC-01, Issue #57 close | — |
+| M23: Unity Sentis A2E on-device推論 | 2026-03-09 | Audio2EmotionInferer.cs, UNITY_AI_INFERENCE_ENABLED, Issue #58 close | — |
+| M24: AivisSpeech TTS 対応 | 2026-03-09 | 7/7テスト グリーン, FR-TTS-01, TTS_BACKEND=aivisspeech, Issue #59 close | — |
+| M25: 優先度付き Intent キュー | 2026-03-10 | 12/12テスト グリーン, FR-INTENT-PRIORITY-01, IntentItem + _intent_dispatcher, 744 passed, Issue #45 close | — |
 
 ---
 

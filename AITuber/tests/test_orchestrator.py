@@ -2,6 +2,8 @@
 
 TC-SAFE-01 (integration): NG-confirmed comments never reach Bandit/LLM.
 Verifies the ordering Safety → Bandit → LLM (FR-SAFE-01).
+
+TC-PERC-01~05: _on_perception_update behavior_completed routing (L-5/R3-2/R4).
 """
 
 from __future__ import annotations
@@ -41,13 +43,20 @@ class TestSafetyBlocksPipeline:
 
     @pytest.mark.asyncio
     async def test_ng_message_never_reaches_llm(self):
-        """NG message (personal info) → LLM.generate_reply NOT called."""
+        """NG message (personal info) → LLM.generate_reply_stream NOT called."""
         cfg = AppConfig(llm=LLMConfig(max_retries=0))
         orch = Orchestrator(config=cfg)
+        was_called = False
 
-        with patch.object(orch._llm, "generate_reply", new_callable=AsyncMock) as spy:
+        async def _spy_stream(text, *, avoidance_hint=None):
+            nonlocal was_called
+            was_called = True
+            yield  # pragma: no cover
+
+        with patch.object(orch._llm, "generate_reply_stream", new=_spy_stream):
             await orch._process_message(_make_msg("test@example.com"))
-            spy.assert_not_called()
+
+        assert not was_called, "generate_reply_stream must not be called for NG messages"
 
     @pytest.mark.asyncio
     async def test_ok_message_reaches_bandit(self):
@@ -55,15 +64,17 @@ class TestSafetyBlocksPipeline:
         cfg = AppConfig(llm=LLMConfig(max_retries=0))
         orch = Orchestrator(config=cfg)
 
+        from orchestrator.llm_client import LLMResult
+
+        async def _stub_stream(text, *, avoidance_hint=None):
+            yield LLMResult(text="返信です", is_template=False)
+
         with (
             patch.object(orch._bandit, "select_action", wraps=orch._bandit.select_action) as spy,
-            patch.object(orch._llm, "generate_reply", new_callable=AsyncMock) as _llm_spy,
+            patch.object(orch._llm, "generate_reply_stream", new=_stub_stream),
             patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
             patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
         ):
-            from orchestrator.llm_client import LLMResult
-
-            _llm_spy.return_value = LLMResult(text="返信です", is_template=False, retries_used=0)
             await orch._process_message(_make_msg("今日の配信楽しいね！"))
             spy.assert_called_once()
 
@@ -113,14 +124,14 @@ class TestPipelineOrdering:
 
         from orchestrator.llm_client import LLMResult
 
-        async def tracked_generate_reply(text, *, avoidance_hint=None):
+        async def tracked_generate_reply_stream(text, *, avoidance_hint=None):
             call_order.append("llm")
-            return LLMResult(text="返信", is_template=False, retries_used=0)
+            yield LLMResult(text="返信", is_template=False)
 
         with (
             patch.object(main_mod, "check_safety", side_effect=tracked_check_safety),
             patch.object(orch._bandit, "select_action", side_effect=tracked_select_action),
-            patch.object(orch._llm, "generate_reply", side_effect=tracked_generate_reply),
+            patch.object(orch._llm, "generate_reply_stream", new=tracked_generate_reply_stream),
             patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
             patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
         ):
@@ -147,12 +158,12 @@ class TestGrayZonePipeline:
 
         from orchestrator.llm_client import LLMResult
 
-        async def spy_generate(text, *, avoidance_hint=None):
+        async def spy_generate_stream(text, *, avoidance_hint=None):
             captured_kwargs.append({"avoidance_hint": avoidance_hint})
-            return LLMResult(text="別の話題にしよう！", is_template=False, retries_used=0)
+            yield LLMResult(text="別の話題にしよう！", is_template=False)
 
         with (
-            patch.object(orch._llm, "generate_reply", side_effect=spy_generate),
+            patch.object(orch._llm, "generate_reply_stream", new=spy_generate_stream),
             patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
             patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
         ):
@@ -207,35 +218,179 @@ class TestLifeLoopOnAirSkip:
 
     @pytest.mark.asyncio
     async def test_life_loop_sends_update_when_not_on_air(self):
-        """FR-LIFE-01: _is_live=False時はavatar_updateを正常送信する。"""
+        """FR-LIFE-01: _is_live=False時はintent queueにpushする (FR-INTENT-PRIORITY-01).
+
+        全アクティビティが _intent_queue 経由で _intent_dispatcher に渡るよう変更。
+        PONDER → IntentItem(intent="life_ponder", source="life") がキューに積まれる。
+        """
+        from orchestrator.life_activity import ActivityType, LifeActivity
+        from orchestrator.main import PRIORITY_LIFE
+
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._running = True
+        orch._is_live = False
+
+        fake_activity = LifeActivity(
+            activity_type=ActivityType.PONDER,
+            gesture="thinking",
+            emotion="thinking",
+            duration_sec=60.0,
+        )
+        orch._life.tick = lambda **_kw: fake_activity  # type: ignore[method-assign]
+
+        sleep_count = 0
+
+        async def fake_sleep(_n: float) -> None:
+            nonlocal sleep_count
+            sleep_count += 1
+            if sleep_count >= 1:
+                orch._running = False  # stop after first sleep at loop bottom
+
+        with patch("orchestrator.main.asyncio.sleep", side_effect=fake_sleep):
+            await orch._life_loop()
+
+        assert not orch._intent_queue.empty(), "intent must be queued"
+        item = orch._intent_queue.get_nowait()
+        assert item.intent == "life_ponder"
+        assert item.source == "life"
+        assert item.priority == PRIORITY_LIFE
+
+    @pytest.mark.asyncio
+    async def test_life_loop_sends_intent_for_locomotion_activity(self):
+        """FR-LIFE-01/FR-BEHAVIOR-SEQ-01: 歩行系もintent queue経由 (FR-INTENT-PRIORITY-01).
+
+        SLEEP → IntentItem(intent="life_sleep", source="life") がキューに積まれる。
+        _intent_dispatcher が ActionDispatcher → BehaviorPolicy 経由で実行する。
+        """
         from orchestrator.life_activity import ActivityType, LifeActivity
 
         cfg = AppConfig()
         orch = Orchestrator(config=cfg)
-        orch._running = True  # start() を呼ばずに直接テスト
-        orch._is_live = False  # NOT on air
+        orch._running = True
+        orch._is_live = False
 
         fake_activity = LifeActivity(
-            activity_type=ActivityType.READ,
-            gesture="idle",
-            emotion="neutral",
-            duration_sec=60.0,
+            activity_type=ActivityType.SLEEP,
+            gesture="sleep_idle",
+            emotion="sleepy",
+            duration_sec=360.0,
         )
+        orch._life.tick = lambda **_kw: fake_activity  # type: ignore[method-assign]
 
-        def fake_tick() -> LifeActivity:
-            orch._running = False
-            return fake_activity
+        sleep_count = 0
 
-        orch._life.tick = fake_tick  # type: ignore[method-assign]
+        async def fake_sleep(_n: float) -> None:
+            nonlocal sleep_count
+            sleep_count += 1
+            if sleep_count >= 1:
+                orch._running = False
 
-        with (
-            patch.object(orch._avatar, "send_update", new_callable=AsyncMock) as mock_update,
-            patch("orchestrator.main.asyncio.sleep", new_callable=AsyncMock),
-        ):
+        with patch("orchestrator.main.asyncio.sleep", side_effect=fake_sleep):
             await orch._life_loop()
 
-        # NOT on airならavatar_updateが呼ばれる
-        mock_update.assert_called_once()
+        assert not orch._intent_queue.empty(), "intent must be queued"
+        item = orch._intent_queue.get_nowait()
+        assert item.intent == "life_sleep"
+        assert item.source == "life"
+
+
+class TestOnPerceptionUpdateBehaviorCompleted:
+    """TC-PERC-01/02/03: _on_perception_update skips WorldContext on behavior_completed.
+
+    L-5 / Issue #50, R3-2: gap_category must reflect reason field, not hardcoded.
+    """
+
+    def test_behavior_completed_success_no_world_context_update(self, caplog):
+        """TC-PERC-01: success=True → info log, WorldContext NOT updated."""
+        import logging
+
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._world_context.update = MagicMock()  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.INFO, logger="orchestrator.main"):
+            orch._on_perception_update({"behavior_completed": "morning_routine", "success": True})
+
+        orch._world_context.update.assert_not_called()
+        assert "behavior=morning_routine" in caplog.text
+        assert "success=True" in caplog.text
+
+    def test_behavior_completed_failure_locomotion_blocked(self, caplog):
+        """TC-PERC-02: success=False, reason='locomotion_blocked'
+        → gap_category=locomotion_blocked."""
+        import logging
+
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._world_context.update = MagicMock()  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING, logger="orchestrator.main"):
+            orch._on_perception_update(
+                {
+                    "behavior_completed": "walk_to_desk",
+                    "success": False,
+                    "reason": "locomotion_blocked",
+                }
+            )
+
+        orch._world_context.update.assert_not_called()
+        assert "gap_category=locomotion_blocked" in caplog.text
+
+    def test_behavior_completed_failure_interrupted_not_locomotion_blocked(self, caplog):
+        """TC-PERC-03: success=False, reason='interrupted' → gap_category=interrupted (R3-2 fix).
+
+        Regression: must NOT emit gap_category=locomotion_blocked for interrupts.
+        """
+        import logging
+
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._world_context.update = MagicMock()  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING, logger="orchestrator.main"):
+            orch._on_perception_update(
+                {
+                    "behavior_completed": "morning_routine",
+                    "success": False,
+                    "reason": "interrupted",
+                }
+            )
+
+        orch._world_context.update.assert_not_called()
+        assert "gap_category=interrupted" in caplog.text
+        assert "gap_category=locomotion_blocked" not in caplog.text
+
+    def test_behavior_completed_failure_empty_reason_uses_unknown(self, caplog):
+        """TC-PERC-05: success=False, reason='' → gap_category=unknown (R4 empty-reason fallback).
+
+        Verifies `gap_cat = reason if reason else "unknown"` produces "unknown" for empty string.
+        """
+        import logging
+
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._world_context.update = MagicMock()  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING, logger="orchestrator.main"):
+            orch._on_perception_update(
+                {"behavior_completed": "go_sleep", "success": False, "reason": ""}
+            )
+
+        orch._world_context.update.assert_not_called()
+        assert "gap_category=unknown" in caplog.text
+
+    def test_non_behavior_completed_updates_world_context(self):
+        """TC-PERC-04: normal perception_update (no behavior_completed) → WorldContext updated."""
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._world_context.update = MagicMock()  # type: ignore[method-assign]
+
+        orch._on_perception_update({"current_zone": "desk_area", "time_of_day": "morning"})
+
+        orch._world_context.update.assert_called_once_with(
+            {"current_zone": "desk_area", "time_of_day": "morning"}
+        )
 
 
 class TestNarrativeLoop:
@@ -264,18 +419,23 @@ class TestNarrativeLoop:
 
         def fake_build(episodes, **kwargs):
             build_calls.append(episodes)
-            orch._running = False  # 1 反復後に停止
             return fake_entry
 
         orch._narrative.build = fake_build  # type: ignore[method-assign]
         orch._episodic.get_recent = MagicMock(return_value=[])  # type: ignore[method-assign]
 
-        with patch("orchestrator.main.asyncio.sleep", new_callable=AsyncMock):
+        sleep_count = 0
+
+        async def fake_sleep(_n: float) -> None:
+            nonlocal sleep_count
+            sleep_count += 1
+            if sleep_count >= 1:
+                orch._running = False  # stop after first sleep (= after one build)
+
+        with patch("orchestrator.main.asyncio.sleep", side_effect=fake_sleep):
             await orch._narrative_loop()
 
-        # build が呼ばれた
         assert len(build_calls) == 1
-        # narrative_hint が更新された
         assert orch._narrative_hint == fake_entry.narrative
 
     @pytest.mark.asyncio
@@ -289,12 +449,19 @@ class TestNarrativeLoop:
 
         def fake_build(episodes, **kwargs):
             error_count[0] += 1
-            orch._running = False
             raise RuntimeError("LLM timeout")
 
         orch._narrative.build = fake_build  # type: ignore[method-assign]
 
-        with patch("orchestrator.main.asyncio.sleep", new_callable=AsyncMock):
+        sleep_count = 0
+
+        async def fake_sleep(_n: float) -> None:
+            nonlocal sleep_count
+            sleep_count += 1
+            if sleep_count >= 1:
+                orch._running = False
+
+        with patch("orchestrator.main.asyncio.sleep", side_effect=fake_sleep):
             await orch._narrative_loop()  # should not raise
 
         assert error_count[0] == 1
