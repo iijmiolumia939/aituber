@@ -1,8 +1,9 @@
-"""TTS (Text-to-Speech) module – VOICEVOX / Style-BERT-VITS2 backend.
+"""TTS (Text-to-Speech) module – VOICEVOX / AivisSpeech / Style-BERT-VITS2 backend.
 
-SRS refs: FR-LIPSYNC-01, FR-LIPSYNC-02, NFR-LAT-01.
+SRS refs: FR-LIPSYNC-01, FR-LIPSYNC-02, FR-TTS-01, NFR-LAT-01.
 バックエンドを .env の TTS_BACKEND で切替可能:
   - "voicevox" (default): VOICEVOX HTTP API
+  - "aivisspeech":        AivisSpeech HTTP API (VOICEVOX 互換, FR-TTS-01)
   - "style_bert_vits2":   Style-BERT-VITS2 HTTP API
 """
 
@@ -197,6 +198,86 @@ class VoicevoxBackend:
         )
 
 
+# ── AivisSpeech Backend ──────────────────────────────────────────────
+
+
+class AivisSpeechBackend:
+    """AivisSpeech HTTP API を呼び出す TTS バックエンド。
+
+    AivisSpeech は VOICEVOX 互換 API を提供するため、
+    audio_query / synthesis フローは VoicevoxBackend と同一。
+    デフォルトポート: 10101 (AIVISSPEECH_URL 環境変数で変更可)。
+
+    SRS refs: FR-TTS-01.
+    """
+
+    def __init__(self, config: TTSConfig | None = None) -> None:
+        self._cfg = config or TTSConfig()
+        self._base_url = self._cfg.aivisspeech_url.rstrip("/")
+        self._speaker_id = self._cfg.aivisspeech_speaker_id
+        self._session = None
+
+    async def _ensure_session(self):
+        if self._session is None:
+            import aiohttp
+
+            timeout = aiohttp.ClientTimeout(total=self._cfg.timeout_sec)
+            self._session = aiohttp.ClientSession(timeout=timeout)
+
+    async def close(self) -> None:
+        if self._session:
+            await self._session.close()
+            self._session = None
+
+    async def synthesize(self, text: str) -> TTSResult:
+        """AivisSpeech でテキストを音声合成。
+
+        VOICEVOX 互換 API: audio_query → synthesis → WAV。
+        extract_visemes() で mora timing も取得 (FR-LIPSYNC-02 維持)。
+        """
+        await self._ensure_session()
+        assert self._session is not None
+
+        # Step 1: audio_query
+        async with self._session.post(
+            f"{self._base_url}/audio_query",
+            params={"text": text, "speaker": self._speaker_id},
+        ) as resp:
+            resp.raise_for_status()
+            query_json = await resp.json()
+
+        # Step 1.5: ビゼームタイムライン抽出 (VOICEVOX 互換形式)
+        viseme_events = extract_visemes(query_json)
+
+        # Step 2: synthesis
+        async with self._session.post(
+            f"{self._base_url}/synthesis",
+            params={"speaker": self._speaker_id},
+            json=query_json,
+        ) as resp:
+            resp.raise_for_status()
+            wav_bytes = await resp.read()
+
+        # WAV メタデータ
+        duration = 0.0
+        sample_rate = 24000
+        try:
+            with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+                sample_rate = wf.getframerate()
+                n_frames = wf.getnframes()
+                duration = n_frames / sample_rate if sample_rate > 0 else 0.0
+        except Exception:
+            logger.warning("AivisSpeech: Failed to parse WAV header")
+
+        return TTSResult(
+            audio_data=wav_bytes,
+            sample_rate=sample_rate,
+            duration_sec=duration,
+            text=text,
+            viseme_events=viseme_events,
+        )
+
+
 # ── Style-BERT-VITS2 Backend ─────────────────────────────────────────
 
 
@@ -367,6 +448,8 @@ class TTSClient:
         self._cfg = config or TTSConfig()
         if backend:
             self._backend = backend
+        elif self._cfg.backend == "aivisspeech":
+            self._backend = AivisSpeechBackend(self._cfg)
         elif self._cfg.backend == "style_bert_vits2":
             self._backend = StyleBertVits2Backend(self._cfg)
         else:

@@ -55,7 +55,7 @@ class LLMConfig:
     # OpenAI 互換エンドポイント。None = OpenAI デフォルト (FR-LLM-BACKEND-01)
     base_url: str | None = field(default_factory=lambda: os.environ.get("LLM_BASE_URL") or None)
     max_retries: int = 2
-    timeout_sec: float = 10.0
+    timeout_sec: float = 60.0  # Ollama local inference (mistral-nemo 7B) can take 20-30s
     cost_hard_limit_yen_per_hour: float = 300.0
     cost_target_yen_per_hour: float = 150.0
 
@@ -66,6 +66,7 @@ class TTSConfig:
 
     TTS_BACKEND でバックエンドを切替:
       - "voicevox" (default): VOICEVOX
+      - "aivisspeech":        AivisSpeech (VOICEVOX 互換, 高品質 TTS)  FR-TTS-01
       - "style_bert_vits2":   Style-BERT-VITS2
     """
 
@@ -78,6 +79,13 @@ class TTSConfig:
     # Style-BERT-VITS2 固有設定
     sbv2_model_id: int = field(default_factory=lambda: int(os.environ.get("SBV2_MODEL_ID", "0")))
     sbv2_style: str = field(default_factory=lambda: os.environ.get("SBV2_STYLE", "Neutral"))
+    # AivisSpeech 固有設定 (FR-TTS-01)
+    aivisspeech_url: str = field(
+        default_factory=lambda: os.environ.get("AIVISSPEECH_URL", "http://127.0.0.1:10101")
+    )
+    aivisspeech_speaker_id: int = field(
+        default_factory=lambda: int(os.environ.get("AIVISSPEECH_SPEAKER_ID", "888753760"))
+    )
 
 
 @dataclass(frozen=True)

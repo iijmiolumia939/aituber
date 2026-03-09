@@ -1,7 +1,7 @@
 """TTS/AudioPlayer テスト強化 — VOICEVOX モック・音素テーブル検証。
 
-SRS refs: FR-LIPSYNC-01, FR-LIPSYNC-02.
-TC-M10-01 〜 TC-M10-17
+SRS refs: FR-LIPSYNC-01, FR-LIPSYNC-02, FR-TTS-01.
+TC-M10-01 「 TC-M10-17 / TC-M24-01 「 TC-M24-07
 """
 
 from __future__ import annotations
@@ -14,8 +14,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.avatar_ws import VisemeEvent
+from orchestrator.config import TTSConfig
 from orchestrator.tts import (
+    AivisSpeechBackend,
     StyleBertVits2Backend,
+    TTSClient,
     TTSResult,
     VoicevoxBackend,
     extract_visemes,
@@ -391,3 +394,99 @@ class TestTTSResultDuration:
         # duration fallback = 0.0, no exception raised
         assert result.duration_sec == 0.0
         assert result.audio_data == bad_wav
+
+
+# ── TC-M24-01〜07: AivisSpeechBackend ──────────────────────────────────────────
+
+
+class TestAivisSpeechBackend:
+    """TC-M24-01 〜 TC-M24-07: AivisSpeech TTS バックエンド。 FR-TTS-01."""
+
+    def _simple_query_json(self) -> dict:
+        return _query(_phrase([_mora("a", 0.2), _mora("i", 0.1)]))
+
+    @pytest.mark.asyncio
+    async def test_synthesize_returns_tts_result(self) -> None:
+        """TC-M24-01: synthesize が TTSResult を返す。"""
+        wav = _make_wav([100, 200, 300], sample_rate=24000)
+        backend = AivisSpeechBackend()
+        backend._session = _make_voicevox_session(self._simple_query_json(), wav)
+
+        result = await backend.synthesize("テスト")
+
+        assert isinstance(result, TTSResult)
+        assert result.text == "テスト"
+        assert result.audio_data == wav
+
+    @pytest.mark.asyncio
+    async def test_synthesize_populates_viseme_events(self) -> None:
+        """TC-M24-02: viseme_events が audio_query mora timing から抽出される。"""
+        query_json = _query(_phrase([_mora("a", 0.1), _mora("i", 0.15)]))
+        wav = _make_wav([0] * 480, sample_rate=24000)
+        backend = AivisSpeechBackend()
+        backend._session = _make_voicevox_session(query_json, wav)
+
+        result = await backend.synthesize("あい")
+
+        assert len(result.viseme_events) > 0
+        assert result.viseme_events[0].v == "a"
+        assert result.viseme_events[1].v == "i"
+        assert result.viseme_events[-1].v == "sil"
+
+    @pytest.mark.asyncio
+    async def test_synthesize_extracts_wav_duration(self) -> None:
+        """TC-M24-03: WAV ヘッダから duration_sec が正確に算出される。"""
+        sr = 24000
+        n_samples = 2400  # 0.1 sec
+        wav = _make_wav(list(range(n_samples)), sample_rate=sr)
+        backend = AivisSpeechBackend()
+        backend._session = _make_voicevox_session(self._simple_query_json(), wav)
+
+        result = await backend.synthesize("テスト")
+
+        assert abs(result.duration_sec - 0.1) < 0.001
+        assert result.sample_rate == sr
+
+    @pytest.mark.asyncio
+    async def test_synthesize_http_error_raises(self) -> None:
+        """TC-M24-04: HTTP エラー時に例外が伝播する。"""
+        session = MagicMock()
+        session.post = MagicMock(return_value=_FakeResp(raise_on_status=True))
+        backend = AivisSpeechBackend()
+        backend._session = session
+
+        from aiohttp import ClientResponseError
+
+        with pytest.raises(ClientResponseError):
+            await backend.synthesize("エラー")
+
+    @pytest.mark.asyncio
+    async def test_synthesize_calls_audio_query_then_synthesis(self) -> None:
+        """TC-M24-05: VOICEVOX 互換: audio_query + synthesis の 2 回 POST 。"""
+        wav = _make_wav([0])
+        session = _make_voicevox_session(self._simple_query_json(), wav)
+        backend = AivisSpeechBackend()
+        backend._session = session
+
+        await backend.synthesize("テスト")
+
+        assert session.post.call_count == 2
+        first_url = session.post.call_args_list[0][0][0]
+        assert "audio_query" in first_url
+        second_url = session.post.call_args_list[1][0][0]
+        assert "synthesis" in second_url
+
+    def test_custom_url_used_in_requests(self) -> None:
+        """TC-M24-06: AIVISSPEECH_URL 環境変数が aivisspeech_url 機能に反映される。"""
+        cfg = TTSConfig()
+        # aivisspeech_url は frozen dataclass なのでクラス座標確認のみ
+        backend = AivisSpeechBackend(cfg)
+        assert backend._base_url == cfg.aivisspeech_url.rstrip("/")
+        # デフォルト URL に 10101 ポートが使われる
+        assert "10101" in backend._base_url
+
+    def test_tts_client_factory_creates_aivisspeech(self) -> None:
+        """TC-M24-07: TTS_BACKEND=aivisspeech のとき TTSClient が AivisSpeechBackend を使用。"""
+        cfg = TTSConfig(backend="aivisspeech")
+        client = TTSClient(config=cfg)
+        assert isinstance(client._backend, AivisSpeechBackend)
