@@ -4,6 +4,10 @@ Validates:
 - B1: AvatarWSSender runs as server, Unity connects as client
 - B2: audio_player drains queue gracefully when sounddevice unavailable
 - I4: QuotaExceededError in chat_poller
+
+Marked @pytest.mark.slow — these tests start real local network servers.
+Run with: pytest -m slow
+Excluded from default run to avoid port conflicts with running Unity Editor.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from orchestrator.config import AvatarWSConfig
 # ── B1: WS Server tests ──────────────────────────────────────────────
 
 
+@pytest.mark.slow
 class TestAvatarWSServer:
     """AvatarWSSender runs as a WS server."""
 
@@ -166,6 +171,63 @@ class TestAvatarWSServer:
         await asyncio.sleep(0.1)
         await sender.stop_server()
 
+    @pytest.mark.asyncio
+    async def test_send_avatar_intent_default_params(self):
+        """TC-INTENT-01: send_avatar_intent emits cmd=avatar_intent with intent + source.
+
+        Issue #44 / FR-BEHAVIOR-SEQ-01 / FR-LIFE-01.
+        """
+        import json
+
+        import websockets
+
+        cfg = AvatarWSConfig(host="127.0.0.1", port=39111)
+        sender = AvatarWSSender(cfg)
+        await sender.start_server()
+
+        ws = await websockets.connect("ws://127.0.0.1:39111")
+        await asyncio.sleep(0.1)
+        await asyncio.wait_for(ws.recv(), timeout=2.0)  # capabilities
+
+        await sender.send_avatar_intent("life_sleep")
+        msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
+        parsed = json.loads(msg)
+        assert parsed["cmd"] == "avatar_intent"
+        assert parsed["params"]["intent"] == "life_sleep"
+        assert parsed["params"]["source"] == "life"
+        assert "fallback" not in parsed["params"]
+        assert "context_json" not in parsed["params"]
+
+        await ws.close()
+        await asyncio.sleep(0.1)
+        await sender.stop_server()
+
+    @pytest.mark.asyncio
+    async def test_send_avatar_intent_with_fallback(self):
+        """TC-INTENT-02: send_avatar_intent includes fallback when explicitly set."""
+        import json
+
+        import websockets
+
+        cfg = AvatarWSConfig(host="127.0.0.1", port=39112)
+        sender = AvatarWSSender(cfg)
+        await sender.start_server()
+
+        ws = await websockets.connect("ws://127.0.0.1:39112")
+        await asyncio.sleep(0.1)
+        await asyncio.wait_for(ws.recv(), timeout=2.0)  # capabilities
+
+        await sender.send_avatar_intent("life_ponder", fallback="idle", source="life")
+        msg = await asyncio.wait_for(ws.recv(), timeout=2.0)
+        parsed = json.loads(msg)
+        assert parsed["cmd"] == "avatar_intent"
+        assert parsed["params"]["intent"] == "life_ponder"
+        assert parsed["params"]["fallback"] == "idle"
+
+        await ws.close()
+        await asyncio.sleep(0.1)
+        await sender.stop_server()
+
 
 # ── B2: Audio player tests ───────────────────────────────────────────
 
@@ -236,7 +298,11 @@ class TestQuotaExceeded:
         cfg = YouTubeConfig(api_key="test", live_chat_id="test_chat")
         poller = YouTubeChatPoller(cfg, api_client_factory=lambda: AsyncMock())
 
-        with patch.object(poller, "_do_list", side_effect=QuotaExceededError("429")):
+        # Patch asyncio.sleep so the 60 s backoff does not block the test.
+        with (
+            patch.object(poller, "_do_list", side_effect=QuotaExceededError("429")),
+            patch("orchestrator.chat_poller.asyncio.sleep", new_callable=AsyncMock),
+        ):
             messages, interval_ms = await poller.poll_once()
             assert messages == []
             assert interval_ms == 60000

@@ -385,9 +385,16 @@ class TestKnownCmds:
             "avatar_config",
             "avatar_reset",
             "avatar_viseme",
+            "avatar_intent",
             "capabilities",
             "room_change",
             "zone_change",
+            "behavior_start",
+            "a2f_audio",
+            "a2f_chunk",
+            "a2f_stream_close",
+            "a2g_chunk",
+            "a2g_stream_close",
         }
         assert expected == set(KNOWN_CMDS)
 
@@ -398,6 +405,33 @@ class TestKnownCmds:
     def test_zone_change_missing_zone_id(self, validator: WsSchemaValidator) -> None:
         result = validator.validate({"cmd": "zone_change", "params": {}})
         assert not result.ok
+
+    # ── a2g_chunk / a2g_stream_close (FR-GESTURE-AUTO-01) ─────────────
+
+    def test_a2g_chunk_valid(self, validator: WsSchemaValidator) -> None:
+        result = validator.validate({
+            "cmd": "a2g_chunk",
+            "params": {
+                "pcm_b64": "AAAA", "format": "int16", "sample_rate": 16000, "is_first": False
+            },
+        })
+        assert result.ok
+
+    def test_a2g_chunk_missing_pcm_b64(self, validator: WsSchemaValidator) -> None:
+        result = validator.validate({"cmd": "a2g_chunk", "params": {}})
+        assert not result.ok
+        assert result.error_code == "MISSING_PARAM"
+
+    def test_a2g_chunk_invalid_format(self, validator: WsSchemaValidator) -> None:
+        result = validator.validate({
+            "cmd": "a2g_chunk",
+            "params": {"pcm_b64": "AAAA", "format": "mp3"},
+        })
+        assert not result.ok
+
+    def test_a2g_stream_close_valid(self, validator: WsSchemaValidator) -> None:
+        result = validator.validate({"cmd": "a2g_stream_close", "params": {}})
+        assert result.ok
 
     def test_capabilities_is_valid(self, validator: WsSchemaValidator) -> None:
         result = validator.validate(

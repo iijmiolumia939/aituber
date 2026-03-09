@@ -1,17 +1,21 @@
 """Tests for life_scheduler module.
 
-TC-LIFE-06 .. TC-LIFE-15
+TC-LIFE-06 .. TC-LIFE-22
 FR-LIFE-01: Autonomous daily life scheduling with time-of-day + energy.
+FR-GOAL-01: GoalState (curiosity/social_drive/exploration) biases activity selection.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
 from orchestrator.life_activity import ActivityType
 from orchestrator.life_scheduler import (
     _CRITICAL_ENERGY,
     _MIN_ACTIVITY_DURATION_SEC,
+    GoalState,
     LifeScheduler,
 )
 
@@ -150,3 +154,71 @@ def test_energy_stays_within_bounds():
     mono2[0] += 86400.0
     scheduler2.tick()
     assert scheduler2.state.energy >= 0.0
+
+
+# ── FR-GOAL-01 tests ──────────────────────────────────────────────────
+
+
+# TC-LIFE-16: GoalState default values
+def test_goal_state_defaults():
+    gs = GoalState()
+    assert gs.curiosity == 0.5
+    assert gs.social_drive == 0.3
+    assert gs.exploration == 0.4
+
+
+# TC-LIFE-17: observe_comment raises social_drive
+def test_observe_comment_raises_social_drive():
+    scheduler, _ = _make_scheduler()
+    before = scheduler.state.goal.social_drive
+    scheduler.observe_comment()
+    assert scheduler.state.goal.social_drive > before
+
+
+# TC-LIFE-18: observe_intellectual_topic raises curiosity
+def test_observe_intellectual_topic_raises_curiosity():
+    scheduler, _ = _make_scheduler()
+    before = scheduler.state.goal.curiosity
+    scheduler.observe_intellectual_topic()
+    assert scheduler.state.goal.curiosity > before
+    # social_drive and exploration are untouched
+    assert scheduler.state.goal.social_drive == pytest.approx(0.3)
+    assert scheduler.state.goal.exploration == pytest.approx(0.4)
+
+
+# TC-LIFE-19: GoalState.decay() moves values toward 0.5
+def test_goal_state_decay_toward_midpoint():
+    gs = GoalState(curiosity=1.0, social_drive=0.0, exploration=1.0)
+    gs.decay()
+    assert gs.curiosity < 1.0
+    assert gs.social_drive > 0.0
+    assert gs.exploration < 1.0
+
+
+# TC-LIFE-20: social_drive capped at 1.0 after repeated observe_comment
+def test_observe_comment_capped_at_one():
+    scheduler, _ = _make_scheduler()
+    for _ in range(20):
+        scheduler.observe_comment()
+    assert scheduler.state.goal.social_drive <= 1.0
+
+
+# TC-LIFE-21: SLEEP is never overridden by GoalState even with max exploration
+def test_sleep_not_overridden_by_goal_state():
+    scheduler, _ = _make_scheduler(hour=2)  # 0-6 → SLEEP
+    # Push exploration to maximum
+    scheduler.state.goal.exploration = 1.0
+    scheduler.state.goal.curiosity = 1.0
+    assert scheduler._desired_activity(2) == ActivityType.SLEEP
+
+
+# TC-LIFE-22: high exploration overrides READ schedule with WALK
+def test_high_exploration_overrides_read_with_walk():
+    # hour=10 → READ (curiosity=0.5 default → sched_bonus = 0.8*0.5=0.4)
+    # WALK score with exploration=1.0 → 0.9*1.0=0.9; margin=0.5 > _GOAL_INFLUENCE(0.35)
+    scheduler, _ = _make_scheduler(hour=10)
+    scheduler.state.goal.curiosity = 0.01   # very low curiosity
+    scheduler.state.goal.exploration = 1.0  # very high exploration
+    result = scheduler._desired_activity(10)
+    assert result == ActivityType.WALK
+
