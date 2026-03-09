@@ -1,6 +1,6 @@
 // BehaviorPolicyLoaderTests.cs
 // EditMode tests for BehaviorPolicyLoader.ParseYamlLines / Lookup / InjectForTest.
-// TC-BPOL-01 ~ TC-BPOL-15
+// TC-BPOL-01 ~ TC-BPOL-20
 //
 // Coverage:
 //   BPOL-01  Valid single entry registered with correct fields
@@ -18,6 +18,11 @@
 //   BPOL-13  InjectForTest replaces policy completely
 //   BPOL-14  InjectForTest(null) clears policy
 //   BPOL-15  ParseYamlLines called twice overwrites previous policy
+//   BPOL-16  avatar_event without 'event' field is rejected (schema validation)
+//   BPOL-17  behavior_start without 'behavior_seq' field is rejected
+//   BPOL-18  Unknown cmd is rejected
+//   BPOL-19  Empty cmd is rejected
+//   BPOL-20  behavior_start with behavior_seq is accepted
 
 using System.Collections.Generic;
 using NUnit.Framework;
@@ -288,6 +293,71 @@ namespace AITuber.Tests
             Assert.IsNull(_loader.Lookup("first_intent"),     "First-parse entry removed");
             Assert.IsNotNull(_loader.Lookup("second_intent"), "Second entry present");
             Assert.IsNotNull(_loader.Lookup("third_intent"),  "Third entry present");
+        }
+
+        // [TC-BPOL-16] avatar_event で 'event' フィールドが未設定の場合はエントリが棄却される
+        [Test]
+        public void ParseYamlLines_AvatarEvent_MissingEventField_Skipped()
+        {
+            _loader.ParseYamlLines(L(
+                "- intent: bad_event_entry",
+                "  cmd: avatar_event"
+                // no 'event:' field
+            ));
+            Assert.AreEqual(0, _loader.Policy.Count, "avatar_event without event field must be rejected");
+            Assert.IsNull(_loader.Lookup("bad_event_entry"));
+        }
+
+        // [TC-BPOL-17] behavior_start で 'behavior_seq' フィールドが未設定の場合はエントリが棄却される
+        [Test]
+        public void ParseYamlLines_BehaviorStart_MissingBehaviorSeq_Skipped()
+        {
+            _loader.ParseYamlLines(L(
+                "- intent: bad_behavior",
+                "  cmd: behavior_start"
+                // no 'behavior_seq:' field
+            ));
+            Assert.AreEqual(0, _loader.Policy.Count, "behavior_start without behavior_seq must be rejected");
+            Assert.IsNull(_loader.Lookup("bad_behavior"));
+        }
+
+        // [TC-BPOL-18] 未知の cmd 値を持つエントリは棄却される
+        [Test]
+        public void ParseYamlLines_UnknownCmd_Skipped()
+        {
+            _loader.ParseYamlLines(L(
+                "- intent: unknown_cmd_entry",
+                "  cmd: totally_invalid_command"
+            ));
+            Assert.AreEqual(0, _loader.Policy.Count, "Unknown cmd must be rejected");
+            Assert.IsNull(_loader.Lookup("unknown_cmd_entry"));
+        }
+
+        // [TC-BPOL-19] cmd フィールドが空のエントリは棄却される
+        [Test]
+        public void ParseYamlLines_EmptyCmd_Skipped()
+        {
+            _loader.ParseYamlLines(L(
+                "- intent: empty_cmd_entry",
+                "  cmd:"
+            ));
+            Assert.AreEqual(0, _loader.Policy.Count, "Empty cmd must be rejected");
+            Assert.IsNull(_loader.Lookup("empty_cmd_entry"));
+        }
+
+        // [TC-BPOL-20] behavior_start で behavior_seq が設定済みなら登録される
+        [Test]
+        public void ParseYamlLines_BehaviorStart_WithBehaviorSeq_Accepted()
+        {
+            _loader.ParseYamlLines(L(
+                "- intent: go_sleep_intent",
+                "  cmd: behavior_start",
+                "  behavior_seq: go_sleep"
+            ));
+            var e = _loader.Lookup("go_sleep_intent");
+            Assert.IsNotNull(e, "Valid behavior_start entry must be registered");
+            Assert.AreEqual("behavior_start", e.cmd);
+            Assert.AreEqual("go_sleep",        e.behavior_seq);
         }
     }
 }
