@@ -1,7 +1,9 @@
 {
     "name": "AITuber.Runtime",
     "rootNamespace": "AITuber",
-    "references": [],
+    "references": [
+        "Unity.InferenceEngine"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
@@ -9,6 +11,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ai.inference",
+            "expression": "",
+            "define": "UNITY_AI_INFERENCE_ENABLED"
+        }
+    ],
     "noEngineReferences": false
 }
