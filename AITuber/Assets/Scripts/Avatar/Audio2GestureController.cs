@@ -81,10 +81,6 @@ namespace AITuber.Avatar
         private float _speakingEndTime = float.MaxValue;
         private bool _hasNewRotations;
 
-        // Neutral pose is captured lazily on the first ApplyToRig call (LateUpdate),
-        // which runs AFTER the Animator has evaluated. Capturing at Start() would get
-        // T-pose because the Animator hasn't played yet at that point.
-        private bool _neutralCaptured;
 
         // ── Properties ───────────────────────────────────────────────
 
@@ -163,7 +159,6 @@ namespace AITuber.Avatar
                 _handle = IntPtr.Zero;
             }
             _pluginReady       = false;
-            _neutralCaptured   = false;  // Re-capture on next enable so Animator pose is fresh
             _isSpeaking        = false;
         }
 

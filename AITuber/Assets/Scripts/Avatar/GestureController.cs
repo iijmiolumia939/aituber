@@ -355,3 +355,5 @@ namespace AITuber.Avatar
                 Debug.Log($"[GestureCtrl] Disabled conflicting self-Animator '{selfAnim.gameObject.name}'.");
             }
         }
+    }
+}
