@@ -131,3 +131,17 @@ AITuber/obj/
 # Temp scripts / test output
 _gitcommit.ps1
 test_out*.txt
+AITuber/test_results.txt
+AITuber/err.txt
+
+# Unity auto-generated crash recovery scenes
+AITuber/Assets/_Recovery/
+
+# Native plugin build artifacts (source is tracked, binary build is not)
+native/A2GPlugin/build/
+
+# Game build output
+AITuber/output/
+
+# Temp / local utility
+copilot-temp/
