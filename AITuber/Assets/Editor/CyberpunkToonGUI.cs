@@ -97,6 +97,36 @@ public class CyberpunkToonGUI : ShaderGUI
         }
         EditorGUILayout.Space(2);
 
+        // ── Hair Highlight ────────────────────────────────────────────────
+        if (Fold("hh", "💇 Hair Highlight"))
+        {
+            editor.ShaderProperty(Find("_UseHairHighlight",   props), "Use Hair Highlight");
+            if (mat.GetFloat("_UseHairHighlight") > 0.5f)
+            {
+                editor.ShaderProperty(Find("_HairHighlightColor",  props), "Color");
+                editor.ShaderProperty(Find("_HairHighlightPower",  props), "Power");
+                editor.ShaderProperty(Find("_HairHighlightSmooth", props), "Smooth");
+                editor.ShaderProperty(Find("_HairHighlightShift",  props), "Height Shift");
+                editor.ShaderProperty(Find("_HairHighlightMask",   props), "Mask (R=on)");
+            }
+        }
+        EditorGUILayout.Space(2);
+
+        // ── Ambient ───────────────────────────────────────────────────────
+        if (Fold("amb", "🌐 Ambient (SH)"))
+        {
+            editor.ShaderProperty(Find("_AmbientInfluence", props), "Ambient Influence");
+        }
+        EditorGUILayout.Space(2);
+
+        // ── Color Grading ─────────────────────────────────────────────────
+        if (Fold("cg", "🎨 Color Grading"))
+        {
+            editor.ShaderProperty(Find("_LitSaturation",    props), "Lit Saturation");
+            editor.ShaderProperty(Find("_ShadowSaturation", props), "Shadow Saturation");
+        }
+        EditorGUILayout.Space(2);
+
         // ── MatCap ────────────────────────────────────────────────────────
         if (Fold("mc", "🔮 MatCap"))
         {

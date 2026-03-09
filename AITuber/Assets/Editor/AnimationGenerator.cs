@@ -446,7 +446,8 @@ namespace AITuber.Editor
             AnimatorState idleState,
             string stateName,
             AnimationClip clip,
-            string triggerParam)
+            string triggerParam,
+            bool addExitTransition = true)
         {
             // 既存ステートを探す
             AnimatorState gestureState = null;
@@ -467,8 +468,9 @@ namespace AITuber.Editor
             gestureState.motion = clip;
 
             // Idle → Gesture 遷移（トリガー条件）: 既存の遷移がなければ追加
+            // gestureState == idleState（IdleAlt の自己遷移）は不要なのでスキップ
             bool hasTransitionFromIdle = false;
-            if (idleState != null)
+            if (idleState != null && idleState != gestureState)
             {
                 foreach (var t in idleState.transitions)
                 {
@@ -487,29 +489,85 @@ namespace AITuber.Editor
                 }
             }
 
-            // Gesture → Idle 遷移（Exit Time で自動戻り）: 既存なければ追加
-            bool hasTransitionToIdle = false;
-            foreach (var t in gestureState.transitions)
+            // Gesture → Idle 遷移（Exit Time で自動戻り）: addExitTransition=true のときのみ追加
+            // 既存の exitTime 遷移があれば宛先を idleState に更新（Idle→IdleAlt 移行対応）
+            if (addExitTransition && idleState != null)
             {
-                if (idleState != null && t.destinationState == idleState)
+                AnimatorStateTransition exitTransition = null;
+                foreach (var t in gestureState.transitions)
                 {
-                    hasTransitionToIdle = true;
-                    break;
+                    if (t.hasExitTime) { exitTransition = t; break; }
                 }
-            }
-            if (!hasTransitionToIdle && idleState != null)
-            {
-                var t = gestureState.AddTransition(idleState);
-                t.hasExitTime = true;
-                t.exitTime = 0.9f;
-                t.duration = 0.15f;
-                t.hasFixedDuration = true;
+                if (exitTransition == null)
+                {
+                    exitTransition = gestureState.AddTransition(idleState);
+                    exitTransition.hasExitTime    = true;
+                    exitTransition.exitTime       = 0.9f;
+                    exitTransition.duration       = 0.15f;
+                    exitTransition.hasFixedDuration = true;
+                }
+                else if (exitTransition.destinationState != idleState)
+                {
+                    // 宛先が古い Idle の場合は IdleAlt に更新
+                    exitTransition.destinationState = idleState;
+                }
             }
         }
 
         // ── Mixamo アニメーションをコントローラーに追加 ──────────────────
 
         private const string MixamoDir = "Assets/Clips/Mixamo";
+
+        /// <summary>FBX の avatarSetup を CopyFromOther→CreateFromThisModel に修正するヘルパー</summary>
+        private static void FixAvatarSetupForFbx(string fbxPath)
+        {
+            var imp = AssetImporter.GetAtPath(fbxPath) as ModelImporter;
+            if (imp == null) return;
+            if (imp.avatarSetup == ModelImporterAvatarSetup.CreateFromThisModel) return; // 既に正しい
+
+            Debug.Log($"[Mixamo] Fixing avatar setup for: {System.IO.Path.GetFileName(fbxPath)}");
+
+            // Step1: Generic → CopyFromOther の参照と humanDescription をクリア
+            imp.animationType = ModelImporterAnimationType.Generic;
+            imp.SaveAndReimport();
+
+            // Step2: Human + CreateFromThisModel → 正しいアバターを自動生成
+            imp.animationType = ModelImporterAnimationType.Human;
+            imp.avatarSetup   = ModelImporterAvatarSetup.CreateFromThisModel;
+            imp.SaveAndReimport();
+
+            Debug.Log($"[Mixamo] After fix: avatarSetup={imp.avatarSetup}");
+        }
+
+        /// <summary>Mixamo FBX の中身を診断するデバッグメニュー</summary>
+        [MenuItem("AITuber/Debug Mixamo FBX Assets")]
+        public static void DebugMixamoFbxAssets()
+        {
+            string testPath = $"{MixamoDir}/Bashful.fbx";
+            Debug.Log("[DebugMixamo] Testing 2-step approach (Generic first, then Human CreateFromThisModel)");
+
+            var imp = AssetImporter.GetAtPath(testPath) as ModelImporter;
+            if (imp == null) { Debug.LogError("[DebugMixamo] No ModelImporter!"); return; }
+
+            Debug.Log($"[DebugMixamo] Before: animationType={imp.animationType}, avatarSetup={imp.avatarSetup}");
+
+            // Step1: Generic に設定してimportすることで humanDescription と CopyFromOther 参照をクリア
+            imp.animationType = ModelImporterAnimationType.Generic;
+            imp.SaveAndReimport();
+            Debug.Log($"[DebugMixamo] After Generic: animationType={imp.animationType}");
+
+            // Step2: Human + CreateFromThisModel に設定
+            imp.animationType = ModelImporterAnimationType.Human;
+            imp.avatarSetup   = ModelImporterAvatarSetup.CreateFromThisModel;
+            imp.SaveAndReimport();
+            Debug.Log($"[DebugMixamo] After Human: animationType={imp.animationType}, avatarSetup={imp.avatarSetup}");
+
+            var all = AssetDatabase.LoadAllAssetsAtPath(testPath);
+            int clipCount = 0;
+            foreach (var a in all)
+                if (a is AnimationClip c && !c.name.Contains("__preview__")) { clipCount++; Debug.Log($"  Clip: {c.name}"); }
+            Debug.Log($"[DebugMixamo] AnimationClip count = {clipCount}");
+        }
 
         /// <summary>
         /// Mixamo FBX クリップ（shy/surprised/rejected/sigh 等）を
@@ -527,10 +585,13 @@ namespace AITuber.Editor
 
             var rootSM = controller.layers[0].stateMachine;
 
-            // Idle ステートを取得
+            // ジェスチャー終了後の戻り先は IdleAlt（全身ループ）を優先、なければ Idle
             AnimatorState idleState = null;
             foreach (var cs in rootSM.states)
-                if (cs.state.name == "Idle") { idleState = cs.state; break; }
+                if (cs.state.name == "IdleAlt") { idleState = cs.state; break; }
+            if (idleState == null)
+                foreach (var cs in rootSM.states)
+                    if (cs.state.name == "Idle") { idleState = cs.state; break; }
 
             // (FBX パス, トリガー名) のペアテーブル
             var entries = new (string fbx, string trigger)[]
@@ -551,12 +612,21 @@ namespace AITuber.Editor
                 ($"{MixamoDir}/Sitting And Pointing.fbx", "SitPoint"),
                 ($"{MixamoDir}/Sitting Disbelief.fbx",    "SitDisbelief"),
                 ($"{MixamoDir}/Sitting_kick.fbx",         "SitKick"),
+                // Walk system (FR-LIFE-01)
+                ($"{MixamoDir}/Female Walk.fbx",                  "Walk"),
+                ($"{MixamoDir}/Female Start Walking.fbx",         "WalkStart"),
+                ($"{MixamoDir}/Female Stop Walking.fbx",          "WalkStop"),
+                ($"{MixamoDir}/Female Stop And Start Walking.fbx","WalkStopStart"),
             };
+
+            // avatarSetup=CopyFromOther(破損状態) の FBX を先に修正する
+            foreach (var (fbxPath, _) in entries)
+                FixAvatarSetupForFbx(fbxPath);
 
             int added = 0;
             foreach (var (fbxPath, trigger) in entries)
             {
-                // FBXから AnimationClip を取得（LoadAllAssetsAt は埋め込みクリップも取れる）
+                // FBXから AnimationClip を取得
                 AnimationClip clip = null;
                 var allAssets = AssetDatabase.LoadAllAssetsAtPath(fbxPath);
                 foreach (var a in allAssets)
@@ -564,6 +634,7 @@ namespace AITuber.Editor
                     if (a is AnimationClip c && !c.name.Contains("__preview__"))
                     { clip = c; break; }
                 }
+
                 if (clip == null)
                 {
                     Debug.LogWarning($"[Mixamo] AnimationClip not found in: {fbxPath}");
@@ -571,7 +642,9 @@ namespace AITuber.Editor
                 }
 
                 EnsureTrigger(controller, trigger);
-                AddOrUpdateGestureState(rootSM, idleState, trigger, clip, trigger);
+                // IdleAlt 自身は exit 遷移不要（ループさせる）
+                AddOrUpdateGestureState(rootSM, idleState, trigger, clip, trigger,
+                    addExitTransition: trigger != "IdleAlt");
                 added++;
                 Debug.Log($"[Mixamo] Added state '{trigger}' with clip from {System.IO.Path.GetFileName(fbxPath)}");
             }

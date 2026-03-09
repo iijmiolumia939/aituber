@@ -1,13 +1,14 @@
-using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using System;
+using System.Collections.Generic;
 
 namespace AITuber.Editor
 {
     /// <summary>
     /// Assets/Clips/Mixamo/ 以下の FBX を自動的に
     ///   - Humanoid rig
-    ///   - Copy From Other Avatar (QuQu の UAvatar)
+    ///   - Create From This Model（元々は QuQu の UAvatar を使っていたが骨名不一致のため使用停止）
     ///   - Root motion を Bake Into Pose
     /// に設定する AssetPostprocessor。
     /// 既存ファイルは [AITuber/Reimport Mixamo FBXes] で再インポートできる。
@@ -15,7 +16,14 @@ namespace AITuber.Editor
     public class MixamoImporter : AssetPostprocessor
     {
         private const string MixamoFolder  = "Assets/Clips/Mixamo/";
-        private const string QuQuFbxGuid   = "bc8d4e374324bb74c8a5f0b9207c33f4";
+        private static readonly HashSet<string> LoopingClips = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Female Walk",
+            "Idle",
+            "Sitting Reading",
+            "Sitting Writing",
+            "Sleeping",
+        };
 
         // ── rig 設定 ─────────────────────────────────────────────────
         private void OnPreprocessModel()
@@ -26,23 +34,10 @@ namespace AITuber.Editor
             var mi = assetImporter as ModelImporter;
             if (mi == null) return;
 
+            // Mixamo FBX は mixamorig:* ボーン名を使うため、自身の骨からアバターを生成する
             mi.animationType = ModelImporterAnimationType.Human;
-            // sourceAvatar を設定すると自動的に "Copy From Other Avatar" モードになる
-
-            // QuQu の UAvatar を source に設定
-            string ququPath = AssetDatabase.GUIDToAssetPath(QuQuFbxGuid);
-            if (!string.IsNullOrEmpty(ququPath))
-            {
-                var srcAvatar = AssetDatabase.LoadAllAssetsAtPath(ququPath)
-                                             .OfType<UnityEngine.Avatar>()
-                                             .FirstOrDefault();
-                if (srcAvatar != null)
-                    mi.sourceAvatar = srcAvatar;
-                else
-                    Debug.LogWarning("[MixamoImporter] QuQu Avatar sub-asset not found.");
-            }
-            else
-                Debug.LogWarning("[MixamoImporter] QuQu FBX GUID not found in project.");
+            mi.sourceAvatar  = null;   // CopyFromOther を無効化
+            mi.avatarSetup   = ModelImporterAvatarSetup.CreateFromThisModel;
         }
 
         // ── clip 設定 (root motion bake) ─────────────────────────────
@@ -53,9 +48,10 @@ namespace AITuber.Editor
             var mi = assetImporter as ModelImporter;
             if (mi == null) return;
 
-            ModelImporterClipAnimation[] clips = mi.clipAnimations;
-            if (clips == null || clips.Length == 0)
-                clips = mi.defaultClipAnimations;
+            // defaultClipAnimations を常にベースとして使う
+            // （meta に保存された clipAnimations は firstFrame/lastFrame が 0 の場合があるため）
+            ModelImporterClipAnimation[] clips = mi.defaultClipAnimations;
+            if (clips == null || clips.Length == 0) return;
 
             foreach (var clip in clips)
             {
@@ -65,6 +61,9 @@ namespace AITuber.Editor
                 clip.keepOriginalOrientation  = true;
                 clip.keepOriginalPositionXZ   = false;
                 clip.keepOriginalPositionY    = false;
+                bool shouldLoop = LoopingClips.Contains(System.IO.Path.GetFileNameWithoutExtension(assetPath));
+                clip.loopTime = shouldLoop;
+                clip.loopPose = shouldLoop;
             }
             mi.clipAnimations = clips;
         }

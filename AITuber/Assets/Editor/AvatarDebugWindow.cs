@@ -71,6 +71,7 @@ namespace AITuber.Editor
         private string _voicevoxUrl  = "http://localhost:50021";
         private int    _speakerId    = 47;
         private bool   _ttsRunning   = false;
+        private bool   _useA2f       = true;
         private static readonly Dictionary<string, string> VowelToText = new Dictionary<string, string>
         {
             ["a"] = "あ", ["i"] = "い", ["u"] = "う",
@@ -89,6 +90,7 @@ namespace AITuber.Editor
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
 
             DrawStatus();
+            DrawA2FSection();
             DrawGestureSection();
             DrawEmotionSection();
             DrawLookTargetSection();
@@ -285,7 +287,105 @@ namespace AITuber.Editor
             EditorGUILayout.Space(6);
         }
 
-        // ── TTS + Lip Sync テスト ────────────────────────────────────
+        // ── A2F Neural Lip Sync テスト ─────────────────────────────
+        private void DrawA2FSection()
+        {
+            var a2f = Application.isPlaying
+                ? UnityEngine.Object.FindFirstObjectByType<Audio2FaceLipSync>()
+                : null;
+
+            string statusStr;
+            Color  statusColor;
+            if (!Application.isPlaying)  { statusStr = "Play Mode で起動してください";             statusColor = Color.gray; }
+            else if (a2f == null)        { statusStr = "⚠ Audio2FaceLipSync コンポーネント未設定"; statusColor = Color.red; }
+            else if (!a2f.IsReady)       { statusStr = "⏳ 初期化中...";                           statusColor = Color.yellow; }
+            else if (a2f.IsSpeaking)     { statusStr = "▶ Speaking";                              statusColor = Color.green; }
+            else                         { statusStr = "✔ Ready";                                 statusColor = new Color(0.5f, 1f, 0.5f); }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("■ Audio2Face-3D Neural Lip Sync テスト", EditorStyles.boldLabel, GUILayout.Width(310));
+                var sc = new GUIStyle(EditorStyles.miniLabel) { normal = { textColor = statusColor } };
+                EditorGUILayout.LabelField(statusStr, sc);
+            }
+
+            // VOICEVOX 設定行
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("VOICEVOX URL", GUILayout.Width(90));
+                _voicevoxUrl = EditorGUILayout.TextField(_voicevoxUrl, GUILayout.Width(180));
+                EditorGUILayout.LabelField("Spk", GUILayout.Width(26));
+                _speakerId   = EditorGUILayout.IntField(_speakerId, GUILayout.Width(40));
+            }
+
+            // テキスト入力 + TTS+A2F 再生ボタン（音声あり）
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                _ttsText = EditorGUILayout.TextField(_ttsText, GUILayout.ExpandWidth(true));
+                bool canPlay = Application.isPlaying && !_ttsRunning;
+                GUI.enabled = canPlay;
+                if (GUILayout.Button(_ttsRunning ? "合成中..." : "▶ TTS + A2F", GUILayout.Width(88), GUILayout.Height(22)))
+                {
+                    _useA2f = true;
+                    RunTTS(_ttsText);
+                }
+                GUI.enabled = true;
+            }
+
+            // プリセット
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                foreach (var p in new[] { "こんにちは！", "ありがとう", "おはようございます", "おやすみなさい" })
+                {
+                    if (GUILayout.Button(p))
+                    {
+                        _ttsText = p;
+                        if (Application.isPlaying && !_ttsRunning) { _useA2f = true; RunTTS(p); }
+                    }
+                }
+            }
+
+            // サイン波テスト（A2Fのみ、音声なし）
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("サイン波 (A2Fのみ)", EditorStyles.miniLabel, GUILayout.Width(130));
+                GUI.enabled = Application.isPlaying && a2f != null && a2f.IsReady;
+                if (GUILayout.Button("▶ 220Hz 4s", GUILayout.Width(90)))
+                {
+                    int sr  = 16000;
+                    int n   = sr * 4;
+                    var pcm = new float[n];
+                    for (int i = 0; i < n; i++)
+                        pcm[i] = Mathf.Sin(2f * Mathf.PI * 220f * i / sr) * 0.8f;
+                    a2f.ProcessAudio(pcm);
+                    SetStatus("▶ A2F: サイン波テスト送信 (4s)", Color.cyan);
+                }
+                if (GUILayout.Button("■ 停止", GUILayout.Width(60)))
+                {
+                    a2f?.StopSpeaking();
+                    SetStatus("■ A2F: 停止", Color.gray);
+                }
+                GUI.enabled = true;
+            }
+
+            // ストリーミングテスト（TTS音声をチャンク分割して送信）
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("ストリーミングテスト", EditorStyles.miniLabel, GUILayout.Width(130));
+                bool canStream = Application.isPlaying && !_ttsRunning;
+                GUI.enabled = canStream;
+                if (GUILayout.Button(_ttsRunning ? "合成中..." : "▶ TTS チャンク送信", GUILayout.Width(130), GUILayout.Height(22)))
+                    RunTTSStreaming(_ttsText);
+                GUI.enabled = true;
+            }
+
+            if (!Application.isPlaying)
+                EditorGUILayout.HelpBox("Play Mode で起動すると動作します。", MessageType.Info);
+
+            EditorGUILayout.Space(6);
+        }
+
+        // ── TTS + Lip Sync テスト ───────────────────────────────
         private void DrawTTSSection()
         {
             EditorGUILayout.LabelField("TTS + Lip Sync テスト (VOICEVOX)", EditorStyles.boldLabel);
@@ -297,6 +397,7 @@ namespace AITuber.Editor
                 EditorGUILayout.LabelField("Speaker", GUILayout.Width(52));
                 _speakerId   = EditorGUILayout.IntField(_speakerId, GUILayout.Width(44));
             }
+            _useA2f = EditorGUILayout.Toggle("A2F も同時に使用 (Audio2Face-3D)", _useA2f);
 
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -487,8 +588,143 @@ namespace AITuber.Editor
                 src.Play();
                 SendVisemeTimeline(ctrl, events);
 
-                SetStatus($"▶ 再生中: {text}  ({events.Count} visemes, {clip.length:F1}s)",
-                          new Color(0.2f, 1f, 0.5f));
+                // 7. A2F neural lip sync: WAV PCM を Audio2Face-3D に渡す
+                bool a2fActive = false;
+                if (_useA2f)
+                {
+                    var a2f = UnityEngine.Object.FindFirstObjectByType<Audio2FaceLipSync>();
+                    if (a2f != null && a2f.IsReady)
+                    {
+                        var pcm24k = WavToFloat32(wavBytes);
+                        var pcm16k = ResampleLinear(pcm24k, 24000, 16000);
+                        a2f.ProcessAudio(pcm16k);
+                        a2fActive = true;
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[AvatarDebug] A2F: Audio2FaceLipSync not ready (Editor limitation — TRT unavailable).");
+                    }
+                }
+
+                // 8. A2G upper-body gesture: WAV PCM を Audio2GestureController に渡す
+                //    A2G は Editor でも動作するため、TTS テスト時に上半身ジェスチャーを確認できる。
+                bool a2gActive = false;
+                {
+                    var a2g = UnityEngine.Object.FindFirstObjectByType<Audio2GestureController>();
+                    if (a2g != null && a2g.IsReady)
+                    {
+                        var pcm24k = WavToFloat32(wavBytes);
+                        var pcm16k = ResampleLinear(pcm24k, 24000, 16000);
+                        a2g.PushAudioChunk(pcm16k, isFirst: true);
+                        a2g.CloseStream();
+                        a2gActive = true;
+                        Debug.Log($"[AvatarDebug] A2G: sent {pcm16k.Length} samples to Audio2GestureController.");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[AvatarDebug] A2G: Audio2GestureController not ready.");
+                    }
+                }
+
+                string suffix = (a2fActive, a2gActive) switch
+                {
+                    (true,  true)  => "TTS+A2F+A2G",
+                    (false, true)  => "TTS+A2G (A2F未準備)",
+                    (true,  false) => "TTS+A2F",
+                    _              => "音声のみ",
+                };
+                SetStatus($"▶ 再生中 ({suffix}): {text}  ({clip.length:F1}s)",
+                          a2gActive ? new Color(0.2f, 1f, 0.5f) : new Color(1f, 0.8f, 0.2f));
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"❌ {ex.GetType().Name}: {ex.Message}", Color.red);
+                Debug.LogException(ex);
+            }
+            finally
+            {
+                _ttsRunning = false;
+                Repaint();
+            }
+        }
+
+        // ── ストリーミング A2F テスト: TTS 音声をチャンク分割して PushAudioChunk に渡す ──
+        // 実際の main.py と同じコードパス (PushAudioChunk + CloseStream) を Editor から検証できる。
+        private async void RunTTSStreaming(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var ctrl = FindController();
+            if (ctrl == null) return;
+
+            _ttsRunning = true;
+            SetStatus($"⏳ VOICEVOX 合成中 (ストリーミング): {text}", Color.yellow);
+
+            try
+            {
+                string queryJson = null;
+                byte[] wavBytes  = null;
+                var url          = _voicevoxUrl;
+                var spk          = _speakerId;
+
+                await System.Threading.Tasks.Task.Run(async () =>
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+                    var qResp = await client.PostAsync(
+                        $"{url}/audio_query?speaker={spk}&text={Uri.EscapeDataString(text)}", null);
+                    if (!qResp.IsSuccessStatusCode)
+                        throw new Exception($"audio_query 失敗: {qResp.StatusCode}");
+                    queryJson = await qResp.Content.ReadAsStringAsync();
+
+                    var sResp = await client.PostAsync(
+                        $"{url}/synthesis?speaker={spk}",
+                        new StringContent(queryJson, Encoding.UTF8, "application/json"));
+                    if (!sResp.IsSuccessStatusCode)
+                        throw new Exception($"synthesis 失敗: {sResp.StatusCode}");
+                    wavBytes = await sResp.Content.ReadAsByteArrayAsync();
+                });
+
+                var clip = WavToAudioClip(wavBytes, "tts_stream_debug");
+                if (clip == null) { SetStatus("❌ WAV 解析失敗", Color.red); return; }
+
+                // 音素タイムライン構築 (RunTTS と同様に viseme も送る)
+                var events = ParseMorasToVisemeEvents(queryJson);
+
+                // AudioSource 再生
+                var src = ctrl.gameObject.GetComponent<AudioSource>();
+                if (src == null) src = ctrl.gameObject.AddComponent<AudioSource>();
+                src.spatialBlend = 0f;
+                src.clip = clip;
+                src.Play();
+
+                // Play と同時に viseme タイムラインを開始 (TtsViseme / Hybrid モードで口を動かす)
+                SendVisemeTimeline(ctrl, events);
+
+                // A2F ストリーミング: 8192 サンプルずつチャンク送信
+                var a2fStream = UnityEngine.Object.FindFirstObjectByType<Audio2FaceLipSync>();
+                if (a2fStream != null && a2fStream.IsReady)
+                {
+                    const int chunkSamples = 8192;
+                    var pcm24k = WavToFloat32(wavBytes);
+                    var pcm16k = ResampleLinear(pcm24k, 24000, 16000);
+                    bool isFirst = true;
+                    for (int i = 0; i < pcm16k.Length; i += chunkSamples)
+                    {
+                        int len   = Mathf.Min(chunkSamples, pcm16k.Length - i);
+                        var chunk = new float[len];
+                        System.Array.Copy(pcm16k, i, chunk, 0, len);
+                        a2fStream.PushAudioChunk(chunk, isFirst);
+                        isFirst = false;
+                    }
+                    a2fStream.CloseStream();
+                    SetStatus($"▶ ストリーミング A2F 再生中: {text}  ({clip.length:F1}s, {pcm16k.Length / chunkSamples + 1} chunks)",
+                              new Color(0.2f, 1f, 0.8f));
+                }
+                else
+                {
+                    Debug.LogWarning("[AvatarDebug] Streaming A2F: Audio2FaceLipSync not ready.");
+                    SetStatus($"▶ 再生中 (A2F未準備): {text}  ({clip.length:F1}s)",
+                              new Color(1f, 0.8f, 0.2f));
+                }
             }
             catch (Exception ex)
             {
@@ -547,7 +783,7 @@ namespace AITuber.Editor
             return result;
         }
 
-        // ── VisemeEvent リスト → AvatarController.HandleViseme ───────
+        // ── VisemeEvent リスト → LipSyncController.HandleViseme ─────
         private static void SendVisemeTimeline(AvatarController ctrl, List<(int t_ms, string v)> events)
         {
             var evArray = new VisemeEvent[events.Count];
@@ -560,10 +796,19 @@ namespace AITuber.Editor
                 crossfade_ms = 60,
                 strength     = 1.0f,
             };
-            var method = typeof(AvatarController).GetMethod(
-                "HandleViseme",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            method?.Invoke(ctrl, new object[] { p });
+
+            // LipSyncController.HandleViseme は public なので直接呼ぶ。
+            // AvatarController に HandleViseme メソッドは存在しない（switch 内で委譲）。
+            var lipSync = ctrl.GetComponent<LipSyncController>();
+            if (lipSync != null)
+            {
+                lipSync.HandleViseme(p);
+                Debug.Log($"[AvatarDebug] SendVisemeTimeline → LipSyncController ({evArray.Length} events)");
+            }
+            else
+            {
+                Debug.LogWarning("[AvatarDebug] LipSyncController not found on AvatarController's GameObject.");
+            }
         }
 
         // ── WAV バイト列 → AudioClip ─────────────────────────────────
@@ -611,6 +856,47 @@ namespace AITuber.Editor
                 Debug.LogWarning($"[AvatarDebug] WavToAudioClip failed: {ex.Message}");
                 return null;
             }
+        }
+
+        // ── A2F ヘルパー (WAV→float32, リサンプル) ─────────────────────────
+
+        private static float[] WavToFloat32(byte[] wav)
+        {
+            int pos = 12;
+            while (pos < wav.Length - 8)
+            {
+                string id = Encoding.ASCII.GetString(wav, pos, 4);
+                int    sz = BitConverter.ToInt32(wav, pos + 4);
+                pos += 8;
+                if (id == "data") break;
+                pos += sz;
+            }
+            int count   = (wav.Length - pos) / 2;
+            var samples = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                short s = BitConverter.ToInt16(wav, pos + i * 2);
+                samples[i] = s / 32768f;
+            }
+            return samples;
+        }
+
+        private static float[] ResampleLinear(float[] src, int inRate, int outRate)
+        {
+            if (inRate == outRate) return src;
+            int   outLen = (int)((long)src.Length * outRate / inRate);
+            var   dst    = new float[outLen];
+            float step   = (float)inRate / outRate;
+            for (int i = 0; i < outLen; i++)
+            {
+                float pos  = i * step;
+                int   idx  = (int)pos;
+                float frac = pos - idx;
+                float a = idx     < src.Length ? src[idx]     : 0f;
+                float b = idx + 1 < src.Length ? src[idx + 1] : 0f;
+                dst[i] = a + frac * (b - a);
+            }
+            return dst;
         }
 
         private void SendAvatarEvent(string eventName, float intensity)
