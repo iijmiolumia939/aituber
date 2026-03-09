@@ -19,6 +19,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace AITuber.Room
 {
@@ -32,6 +33,10 @@ namespace AITuber.Room
         [Header("参照")]
         [SerializeField] private Transform  _avatarRoot;
         [SerializeField] private Camera     _mainCamera;
+
+        [Header("アバター配置補正")]
+        [Tooltip("room definition の avatarPosition 近傍から NavMesh 上の開始点を検索する半径")]
+        [SerializeField] private float _avatarSpawnNavMeshRadius = 3.0f;
 
         [Header("フェードオブジェクト（任意）")]
         [Tooltip("FadeCanvas など。なければスムーズ移動のみ")]
@@ -60,6 +65,17 @@ namespace AITuber.Room
                 return;
             }
             Instance = this;
+        }
+
+        private void OnDisable()
+        {
+            Debug.LogWarning($"[RoomManager] OnDisable! isActiveAndEnabled={isActiveAndEnabled} gameObject.activeSelf={gameObject.activeSelf}");
+        }
+
+        private void OnDestroy()
+        {
+            Debug.LogWarning("[RoomManager] OnDestroy! Coroutines will stop.");
+            if (Instance == this) Instance = null;
         }
 
         private void Start()
@@ -158,58 +174,10 @@ namespace AITuber.Room
         public void NextRoom() => SwitchRoom((_currentIndex + 1) % _rooms.Length);
         public void PrevRoom() => SwitchRoom((_currentIndex - 1 + _rooms.Length) % _rooms.Length);
 
-        /// <summary>現在の部屋内のゾーンに移動。ゾーン ID は RoomDefinition.zones[].zoneId と一致させる。</summary>
-        public void MoveToZone(string zoneId)
-        {
-            if (string.IsNullOrEmpty(zoneId)) return;
-            if (_currentIndex < 0 || _rooms[_currentIndex] == null) return;
-
-            var def = _rooms[_currentIndex];
-            foreach (var zone in def.zones)
-            {
-                if (zone.zoneId == zoneId)
-                {
-                    StartCoroutine(DoZoneMove(zone));
-                    return;
-                }
-            }
-            Debug.LogWarning($"[RoomManager] Zone '{zoneId}' not found in room '{def.roomId}'.");
-        }
-
         /// <summary>現在の部屋 ID（UI表示などに）。</summary>
         public string CurrentRoomId => _currentIndex >= 0 && _rooms[_currentIndex] != null
             ? _rooms[_currentIndex].roomId
             : string.Empty;
-
-        // ── Zone Move Coroutine ───────────────────────────────────────
-
-        private IEnumerator DoZoneMove(AvatarZone zone)
-        {
-            // アバター移動
-            if (_avatarRoot != null)
-            {
-                _avatarRoot.position    = zone.avatarPosition;
-                _avatarRoot.eulerAngles = zone.avatarEuler;
-            }
-
-            // カメラ移動
-            if (_mainCamera != null)
-            {
-                _mainCamera.transform.position    = zone.cameraPosition;
-                _mainCamera.transform.eulerAngles = zone.cameraEuler;
-                _mainCamera.fieldOfView           = zone.cameraFov;
-            }
-
-            // 床スナップ
-            if (_avatarRoot != null)
-            {
-                var grounding = _avatarRoot.GetComponent<AITuber.Avatar.AvatarGrounding>();
-                if (grounding != null)
-                    yield return StartCoroutine(grounding.SnapCoroutine());
-            }
-
-            Debug.Log($"[RoomManager] Moved to zone '{zone.zoneId}'");
-        }
 
         // ── Switch Coroutine ─────────────────────────────────────────
 
@@ -246,8 +214,12 @@ namespace AITuber.Room
             // ── アバター移動 ───────────────────────────────
             if (_avatarRoot != null)
             {
-                _avatarRoot.position    = def.avatarPosition;
+                var resolvedSpawnPosition = ResolveAvatarSpawnPosition(def.avatarPosition, def.roomId);
+                _avatarRoot.position    = resolvedSpawnPosition;
                 _avatarRoot.eulerAngles = def.avatarEuler;
+                Debug.Log(
+                    $"[RoomManager] room='{def.roomId}': avatar spawn final={resolvedSpawnPosition} " +
+                    $"desired={def.avatarPosition} euler={def.avatarEuler}");
             }
 
             // ── 床スナップ（AvatarGrounding コンポーネントがあれば）──
@@ -256,7 +228,9 @@ namespace AITuber.Room
             {
                 var grounding = _avatarRoot.GetComponent<AITuber.Avatar.AvatarGrounding>();
                 if (grounding != null)
-                    yield return StartCoroutine(grounding.SnapCoroutine());
+                    // BeginSnap は Update ステートマシンを開始する（コルーチン不使用）。
+                    // BehaviorSequenceRunner は grounding.IsSnapping が false になるまで待つ。
+                    grounding.BeginSnap();
             }
 
             // ── フェードイン ───────────────────────────────
@@ -282,6 +256,31 @@ namespace AITuber.Room
             }
             _fadeCanvas.alpha = to;
             if (to <= 0f) _fadeCanvas.gameObject.SetActive(false);
+        }
+
+        private Vector3 ResolveAvatarSpawnPosition(Vector3 desiredPosition, string roomId)
+        {
+            var sampleOrigin = desiredPosition + Vector3.up * 0.5f;
+            if (!NavMesh.SamplePosition(sampleOrigin, out NavMeshHit hit, _avatarSpawnNavMeshRadius, NavMesh.AllAreas))
+            {
+                Debug.LogWarning(
+                    $"[RoomManager] room='{roomId}': no NavMesh found near avatarPosition={desiredPosition} " +
+                    $"(radius={_avatarSpawnNavMeshRadius:F1}m). Using definition position.");
+                return desiredPosition;
+            }
+
+            float horizontalDrift = Vector2.Distance(
+                new Vector2(desiredPosition.x, desiredPosition.z),
+                new Vector2(hit.position.x, hit.position.z));
+
+            if (horizontalDrift > 0.01f)
+            {
+                Debug.Log(
+                    $"[RoomManager] room='{roomId}': avatar spawn projected to NavMesh. " +
+                    $"desired={desiredPosition} navMesh={hit.position} drift={horizontalDrift:F2}m");
+            }
+
+            return hit.position;
         }
 
         // ── Editor Gizmo ─────────────────────────────────────────────

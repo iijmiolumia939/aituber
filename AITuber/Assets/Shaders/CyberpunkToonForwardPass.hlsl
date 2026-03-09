@@ -79,27 +79,41 @@ half4 ToonFragment(Varyings IN) : SV_Target
     float3 H        = normalize(L + V);
     float  NdotL    = dot(N, L);
     float  shadowA  = mainLight.shadowAttenuation * mainLight.distanceAttenuation;
-    float  litValue = NdotL * shadowA;
 
-    // Toon step (base shadow)
-    float toonT = smoothstep(
-        _BaseStep - max(_StepSmooth, 0.001),
-        _BaseStep + max(_StepSmooth, 0.001),
-        litValue
+    // ── Half-Lambert (lilToon/PotaToon compatible) ──────────────────────
+    // Map NdotL from [-1,1] to [0,1] for soft anime shadows.
+    // Shadow attenuation dims the value so cast shadows still show.
+    float  hlLit    = (NdotL * 0.5 + 0.5) * saturate(shadowA);
+
+    // Toon step: _BaseStep is in [-1,1] space – remap to [0,1] to match hlLit.
+    float  stepC    = (_BaseStep + 1.0) * 0.5;  // e.g. _BaseStep=0 → stepC=0.5
+    float  toonT    = smoothstep(
+        stepC - max(_StepSmooth, 0.001),
+        stepC + max(_StepSmooth, 0.001),
+        hlLit
     );
 
-    // MidTone: a narrow band at the step boundary
-    half3 litCol = lerp(shadeColor, baseColor.rgb, toonT);
+    // SH Ambient: bleeds into shadow so dark areas are not pure flat colour
+    half3 ambient      = max(half3(0, 0, 0), SampleSH(N)) * _AmbientInfluence;
+    half3 shadeWithAmb = shadeColor + ambient * baseColor.rgb;
+
+    // Apply light color separately to direct/indirect (lilToon key technique).
+    // min() prevents shadow region from glowing brighter than the lit region.
+    half3 directCol   = baseColor.rgb   * mainLight.color;
+    half3 indirectCol = shadeWithAmb    * mainLight.color;
+    indirectCol       = min(indirectCol, directCol);
+
+    // MidTone boundary gradient (also in [0,1] space)
+    half3 litCol = lerp(indirectCol, directCol, toonT);
     if (_UseMidTone > 0.5)
     {
-        float hw = max(_MidToneThickness * 0.5, 0.001);
-        float mLo = smoothstep(_BaseStep - hw, _BaseStep,      litValue);
-        float mHi = smoothstep(_BaseStep,      _BaseStep + hw, litValue);
+        float hw  = max(_MidToneThickness * 0.5, 0.001);
+        float mLo = smoothstep(stepC - hw, stepC,      hlLit);
+        float mHi = smoothstep(stepC,      stepC + hw, hlLit);
         float mB  = mLo * (1.0 - mHi);   // peaks at the boundary
-        half3 midCol = _MidToneColor.rgb * baseColor.rgb;
+        half3 midCol = lerp(indirectCol, _MidToneColor.rgb * baseColor.rgb * mainLight.color, 0.5);
         litCol = lerp(litCol, midCol, mB);
     }
-    litCol *= mainLight.color;
 
     // HighLight (stylized specular) under main light
     half3 highlight = half3(0, 0, 0);
@@ -117,6 +131,24 @@ half4 ToonFragment(Varyings IN) : SV_Target
         highlight    += specT * _HighLightColor.rgb * mainLight.color * hlMask;
     }
 
+    // Hair Highlight (upward-shifted specular, camera-elevation modulated)
+    if (_UseHairHighlight > 0.5)
+    {
+        float3 shiftedN  = normalize(N + float3(0, _HairHighlightShift, 0));
+        float  NdotHhair = saturate(dot(shiftedN, H));
+        float  hairSpec  = pow(NdotHhair, max(_HairHighlightPower, 1.0));
+        float  hairT     = smoothstep(
+            0.5 - max(_HairHighlightSmooth, 0.001),
+            0.5 + max(_HairHighlightSmooth, 0.001),
+            hairSpec
+        );
+        hairT *= toonT; // only in lit area
+        // Stronger when camera is above (V.y→1), softer from front (V.y→0)
+        float viewUp = saturate(dot(normalize(V), float3(0, 1, 0)) * 0.5 + 0.75);
+        half  hhMask = SAMPLE_TEXTURE2D(_HairHighlightMask, sampler_HairHighlightMask, uv).r;
+        highlight += hairT * _HairHighlightColor.rgb * mainLight.color * hhMask * viewUp;
+    }
+
     // =========================================================
     // ADDITIONAL LIGHTS
     // =========================================================
@@ -131,14 +163,18 @@ half4 ToonFragment(Varyings IN) : SV_Target
         float3 Ha       = normalize(La + V);
         float  NdotLa   = dot(N, La);
         float  attA     = addLight.distanceAttenuation * addLight.shadowAttenuation;
-        float  litA     = NdotLa * attA;
+        // Half-Lambert for additional lights too
+        float  hlLitA   = (NdotLa * 0.5 + 0.5) * saturate(attA);
 
         float toonTA = smoothstep(
-            _BaseStep - max(_StepSmooth, 0.001),
-            _BaseStep + max(_StepSmooth, 0.001),
-            litA
+            stepC - max(_StepSmooth, 0.001),
+            stepC + max(_StepSmooth, 0.001),
+            hlLitA
         );
-        half3 diffA = lerp(shadeColor, baseColor.rgb, toonTA) * addLight.color;
+        half3 dirA   = baseColor.rgb   * addLight.color;
+        half3 indA   = shadeWithAmb    * addLight.color;
+        indA         = min(indA, dirA);
+        half3 diffA  = lerp(indA, dirA, toonTA);
         addCol += diffA * 0.5;
 
         if (_UseHighLight > 0.5)
@@ -204,6 +240,13 @@ half4 ToonFragment(Varyings IN) : SV_Target
         float2 mcUV  = MatCapUV(N);
         half3 mcSamp = SAMPLE_TEXTURE2D(_MatCapMap, sampler_MatCapMap, mcUV).rgb;
         col = lerp(col, col * mcSamp, _MatCapWeight);
+    }
+
+    // Color Grading: boost saturation in lit region, pull back in shadow
+    {
+        float satFactor = lerp(_ShadowSaturation, _LitSaturation, toonT);
+        float lum = dot(col, float3(0.299, 0.587, 0.114));
+        col = lerp(half3(lum, lum, lum), col, satFactor);
     }
 
     // Fog

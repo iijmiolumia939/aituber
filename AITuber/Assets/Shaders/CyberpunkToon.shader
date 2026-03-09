@@ -70,6 +70,24 @@ Shader "AITuber/CyberpunkToon"
         _OutlineWidth            ("Outline Width",    Range(0, 0.05)) = 0.003
         _OutlineLightingDimmer   ("Outline Light Dimmer", Range(0, 1)) = 0.0
 
+        // ── Hair Highlight (angle-dependent, stronger from above) ───────────
+        [Header(Hair Highlight)]
+        [Toggle] _UseHairHighlight  ("Use Hair Highlight",   Float) = 0
+        _HairHighlightColor         ("Hair Highlight Color", Color) = (1, 0.95, 0.85, 1)
+        _HairHighlightPower         ("Hair Highlight Power", Range(1, 512)) = 128
+        _HairHighlightSmooth        ("Hair Highlight Smooth",Range(0.001, 0.3)) = 0.02
+        _HairHighlightShift         ("Height Shift",         Range(-1, 1)) = 0.3
+        _HairHighlightMask          ("Hair Highlight Mask (R=on)", 2D) = "white" {}
+
+        // ── Ambient Influence (SH fills dark areas) ─────────────────────
+        [Header(Ambient)]
+        _AmbientInfluence           ("Ambient Influence",    Range(0, 1)) = 0.3
+
+        // ── Color Grading (per-region saturation) ───────────────────────
+        [Header(Color Grading)]
+        _LitSaturation              ("Lit Saturation",       Range(0, 2)) = 1.0
+        _ShadowSaturation           ("Shadow Saturation",    Range(0, 2)) = 0.85
+
         // ── Alpha / Cull ─────────────────────────────────────────────────────
         [Header(Alpha)]
         [Toggle] _UseAlphaCutoff ("Use Alpha Cutoff", Float) = 0

@@ -13,8 +13,9 @@
 TEXTURE2D(_ShadeMap);      SAMPLER(sampler_ShadeMap);
 TEXTURE2D(_NormalMap);     SAMPLER(sampler_NormalMap);
 TEXTURE2D(_MatCapMap);     SAMPLER(sampler_MatCapMap);
-TEXTURE2D(_HighLightMask); SAMPLER(sampler_HighLightMask);
-TEXTURE2D(_RimMask);       SAMPLER(sampler_RimMask);
+TEXTURE2D(_HighLightMask);     SAMPLER(sampler_HighLightMask);
+TEXTURE2D(_RimMask);           SAMPLER(sampler_RimMask);
+TEXTURE2D(_HairHighlightMask); SAMPLER(sampler_HairHighlightMask);
 
 // -------------------------------------------------------------------------
 // Per-Material CBUFFER  (must be IDENTICAL across every pass that uses SRP Batcher)
@@ -64,6 +65,20 @@ CBUFFER_START(UnityPerMaterial)
     float4 _OutlineColor;
     float  _OutlineWidth;
     float  _OutlineLightingDimmer;
+
+    // Hair Highlight
+    float  _UseHairHighlight;
+    float4 _HairHighlightColor;
+    float  _HairHighlightPower;
+    float  _HairHighlightSmooth;
+    float  _HairHighlightShift;
+
+    // Ambient
+    float  _AmbientInfluence;
+
+    // Color Grading
+    float  _LitSaturation;
+    float  _ShadowSaturation;
 
     // Alpha
     float  _AlphaCutoff;

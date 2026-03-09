@@ -18,26 +18,7 @@ MonoBehaviour:
   cameraPosition: {x: 0, y: 1.5, z: -3.5}
   cameraEuler: {x: 5, y: 0, z: 0}
   cameraFov: 50
-  avatarPosition: {x: 0, y: 0, z: 0}
+  avatarPosition: {x: 1.5, y: 0, z: 0}
   avatarEuler: {x: 0, y: 0, z: 0}
   useFadeTransition: 1
   transitionDuration: 0.5
-  zones:
-  - zoneId: pc_area
-    avatarPosition: {x: 1.2, y: 0, z: -0.5}
-    avatarEuler: {x: 0, y: -90, z: 0}
-    cameraPosition: {x: 0, y: 1.6, z: -1.8}
-    cameraEuler: {x: 5, y: 15, z: 0}
-    cameraFov: 45
-  - zoneId: sleep_area
-    avatarPosition: {x: -1.5, y: 0, z: 1.5}
-    avatarEuler: {x: 0, y: 90, z: 0}
-    cameraPosition: {x: -0.3, y: 1.4, z: 0.2}
-    cameraEuler: {x: 5, y: 100, z: 0}
-    cameraFov: 50
-  - zoneId: relax_area
-    avatarPosition: {x: 0, y: 0, z: 1}
-    avatarEuler: {x: 0, y: 180, z: 0}
-    cameraPosition: {x: 0, y: 1.5, z: -0.5}
-    cameraEuler: {x: 5, y: 0, z: 0}
-    cameraFov: 50
