@@ -30,10 +30,15 @@ namespace AITuber.Avatar
 
         private void OnAnimatorIK(int layerIndex)
         {
-            // Foot IK → AvatarGrounding へ転送
+            // IK application order — must be preserved (Phase 3):
+            //   1. Foot IK (AvatarGrounding)   — floor-contact corrections
+            //   2. LookAt IK (AvatarController) — head/eye gaze direction
+            // Note: A2G upper-body deltas are applied AFTER the IK pass in
+            //   AvatarController.LateUpdate() (not here), because additive bone
+            //   writes must run after Animator IK has fully settled.
+            // All Animator IK API calls (SetLookAtWeight, SetIKPosition, etc.) funnel
+            // through this single OnAnimatorIK receiver — do not add IK processing elsewhere.
             _grounding?.OnAnimatorIKFromProxy(layerIndex);
-
-            // Look-at IK → AvatarController へ転送
             _controller?.OnAnimatorIKFromProxy(layerIndex);
         }
     }

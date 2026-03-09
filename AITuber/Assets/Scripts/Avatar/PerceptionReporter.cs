@@ -26,6 +26,10 @@ namespace AITuber.Avatar
     /// </summary>
     public class PerceptionReporter : MonoBehaviour
     {
+        // ── Singleton ────────────────────────────────────────────────
+
+        /// <summary>Scene-wide singleton for BSR → PerceptionReporter access (L-5 / Issue #50).</summary>
+        public static PerceptionReporter Instance { get; private set; }
         // ── Inspector ────────────────────────────────────────────────
 
         [Header("Report interval")]
@@ -59,6 +63,13 @@ namespace AITuber.Avatar
 
         private void Awake()
         {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(this);
+                return;
+            }
+            Instance = this;
+
             _wsClient = GetComponentInParent<AvatarWSClient>()
                         ?? FindFirstObjectByType<AvatarWSClient>();
 
@@ -67,6 +78,11 @@ namespace AITuber.Avatar
                 Debug.LogWarning("[PerceptionReporter] AvatarWSClient not found; "
                                  + "perception_update will not be sent.");
             }
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
         }
 
         private void Update()
@@ -92,6 +108,31 @@ namespace AITuber.Avatar
             string json = BuildJson();
             _ = _wsClient.SendJsonAsync(json);
             Debug.Log($"[PerceptionReporter] sent perception_update: {json}");
+        }
+
+        /// <summary>
+        /// Report behavior sequence completion/failure to the Python orchestrator.
+        /// Sends a <c>perception_update</c> with <c>behavior_completed</c> field so
+        /// the GrowthSystem can observe locomotion outcomes.
+        /// L-5 / Issue #50 / Wang Survey (2023) Perception-Memory-Action loop closure.
+        /// </summary>
+        /// <param name="behaviorName">The behavior that completed (e.g. "go_stream").</param>
+        /// <param name="success">True if all steps succeeded; false if a step was skipped/failed.</param>
+        /// <param name="reason">Optional failure reason tag (e.g. "locomotion_blocked").</param>
+        public void ReportBehaviorCompleted(string behaviorName, bool success, string reason = "")
+        {
+            if (_wsClient == null || !_wsClient.IsConnected) return;
+
+            var sb = new StringBuilder();
+            sb.Append("{\"type\":\"perception_update\",");
+            sb.Append($"\"behavior_completed\":{Quote(behaviorName)},");
+            sb.Append($"\"success\":{(success ? "true" : "false")}");
+            if (!string.IsNullOrEmpty(reason))
+                sb.Append($",\"reason\":{Quote(reason)}");
+            sb.Append("}");
+            string json = sb.ToString();
+            _ = _wsClient.SendJsonAsync(json);
+            Debug.Log($"[PerceptionReporter] behavior_completed: behavior={behaviorName} success={success} reason={reason}");
         }
 
         // ── Helpers ──────────────────────────────────────────────────

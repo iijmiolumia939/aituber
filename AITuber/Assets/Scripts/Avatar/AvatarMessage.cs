@@ -85,10 +85,6 @@ namespace AITuber.Avatar
                         var room = JsonUtility.FromJson<RoomChangeEnvelope>(json);
                         typed = room?.@params;
                         break;
-                    case "zone_change":
-                        var zone = JsonUtility.FromJson<ZoneChangeEnvelope>(json);
-                        typed = zone?.@params;
-                        break;
                     case "avatar_intent":
                         var intent = JsonUtility.FromJson<AvatarIntentEnvelope>(json);
                         typed = intent?.@params;
@@ -96,6 +92,32 @@ namespace AITuber.Avatar
                     case "appearance_update":
                         var appearance = JsonUtility.FromJson<AppearanceUpdateEnvelope>(json);
                         typed = appearance?.@params;
+                        break;
+                    case "behavior_start":
+                        var bstart = JsonUtility.FromJson<BehaviorStartEnvelope>(json);
+                        typed = bstart?.@params;
+                        break;
+                    case "a2f_audio":
+                        var a2fAud = JsonUtility.FromJson<A2FAudioEnvelope>(json);
+                        typed = a2fAud?.@params;
+                        break;
+                    case "a2f_chunk":
+                        var a2fChunk = JsonUtility.FromJson<A2fChunkEnvelope>(json);
+                        typed = a2fChunk?.@params;
+                        break;
+                    case "a2f_stream_close":
+                        typed = new A2fStreamCloseParams();
+                        break;
+                    case "a2g_chunk":
+                        var a2gChunk = JsonUtility.FromJson<A2gChunkEnvelope>(json);
+                        typed = a2gChunk?.@params;
+                        break;
+                    case "a2g_stream_close":
+                        typed = new A2gStreamCloseParams();
+                        break;
+                    case "a2e_emotion":
+                        var a2eEmo = JsonUtility.FromJson<A2EEmotionEnvelope>(json);
+                        typed = a2eEmo?.@params;
                         break;
                     default:
                         // Unknown command – ignore (backward compatible)
@@ -238,26 +260,6 @@ namespace AITuber.Avatar
         public RoomChangeParams @params;
     }
 
-    // ── zone_change params ───────────────────────────────────────
-    // FR-ZONE-01
-    // Wire: { "cmd": "zone_change", "params": { "zone_id": "pc_area" } }
-
-    [Serializable]
-    public class ZoneChangeParams
-    {
-        /// <summary>RoomDefinition.zones[].zoneId と一致させる。</summary>
-        public string zone_id = "";
-    }
-
-    [Serializable]
-    internal class ZoneChangeEnvelope
-    {
-        public string id;
-        public string ts;
-        public string cmd;
-        public ZoneChangeParams @params;
-    }
-
     // ── avatar_intent params ─────────────────────────────────────────
     // Wire: { "cmd": "avatar_intent", "params": { "intent": "point_at_screen", "fallback": "nod" } }
     // The LLM brain sends what it *wants* to do. ActionDispatcher decides how to fulfil it.
@@ -323,6 +325,191 @@ namespace AITuber.Avatar
         public string ts;
         public string cmd;
         public AppearanceUpdateParams @params;
+    }
+
+    // ── behavior_start params ────────────────────────────────────────
+    // FR-BEHAVIOR-SEQ-01
+    // Wire: { "cmd": "behavior_start", "params": { "behavior": "go_sleep" } }
+
+    /// <summary>
+    /// Parameters for the "behavior_start" command.
+    /// Triggers a multi-step BehaviorSequence by name in BehaviorSequenceRunner.
+    /// </summary>
+    [Serializable]
+    public class BehaviorStartParams
+    {
+        /// <summary>Behavior sequence name from behaviors.json (e.g. "go_sleep").</summary>
+        public string behavior = "";
+    }
+
+    [Serializable]
+    internal class BehaviorStartEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public BehaviorStartParams @params;
+    }
+
+    // ── a2f_audio params ─────────────────────────────────────────────
+    // Audio2Face-3D neural lip-sync audio push.
+    // Wire: { "cmd": "a2f_audio", "params": {
+    //   "utterance_id": "...",
+    //   "pcm_b64": "<base64>",
+    //   "format": "float32" | "int16",
+    //   "sample_rate": 16000
+    // } }
+
+    /// <summary>Parameters for the "a2f_audio" command.</summary>
+    [Serializable]
+    public class A2FAudioParams
+    {
+        /// <summary>Optional utterance ID for debugging / dedup.</summary>
+        public string utterance_id = "";
+
+        /// <summary>Base64-encoded PCM audio bytes.</summary>
+        public string pcm_b64 = "";
+
+        /// <summary>Sample encoding: "float32" (default) or "int16".</summary>
+        public string format = "float32";
+
+        /// <summary>Sample rate in Hz (must be 16000 for A2F-3D).</summary>
+        public int sample_rate = 16000;
+    }
+
+    [Serializable]
+    internal class A2FAudioEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public A2FAudioParams @params;
+    }
+
+    // ── a2f_chunk params ─────────────────────────────────────────────
+    // Streaming Audio2Face-3D audio push. Send chunks as TTS produces them,
+    // then close the stream with a2f_stream_close.
+    // Wire: { "cmd": "a2f_chunk", "params": {
+    //   "pcm_b64": "<base64>",
+    //   "format": "int16" | "float32",
+    //   "sample_rate": 16000,
+    //   "is_first": false
+    // } }
+
+    /// <summary>Parameters for the "a2f_chunk" streaming command.</summary>
+    [Serializable]
+    public class A2fChunkParams
+    {
+        /// <summary>Base64-encoded PCM audio bytes for this chunk.</summary>
+        public string pcm_b64 = "";
+
+        /// <summary>Sample encoding: "float32" (default) or "int16".</summary>
+        public string format = "int16";
+
+        /// <summary>Sample rate in Hz (must be 16000 for A2F-3D).</summary>
+        public int sample_rate = 16000;
+
+        /// <summary>True for the first chunk of a new utterance (resets plugin state).</summary>
+        public bool is_first = false;
+    }
+
+    [Serializable]
+    internal class A2fChunkEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public A2fChunkParams @params;
+    }
+
+    // ── a2f_stream_close params ──────────────────────────────────────
+    // Signals the end of a streaming utterance (calls CloseStream on the plugin).
+    // Wire: { "cmd": "a2f_stream_close", "params": {} }
+
+    /// <summary>Parameters for the "a2f_stream_close" command. No fields required.</summary>
+    [Serializable]
+    public class A2fStreamCloseParams { }
+
+    [Serializable]
+    internal class A2fStreamCloseEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public A2fStreamCloseParams @params;
+    }
+
+    // ── a2g_chunk params ─────────────────────────────────────────────
+    // Option A: Audio2Gesture streaming audio push. Send alongside a2f_chunk so
+    // A2G generates upper-body bone rotations in sync with lip sync.
+    // Wire: { "cmd": "a2g_chunk", "params": {
+    //   "pcm_b64": "<base64>",
+    //   "format": "int16" | "float32",
+    //   "sample_rate": 16000,
+    //   "is_first": false
+    // } }
+
+    /// <summary>Parameters for the "a2g_chunk" streaming command. Same schema as a2f_chunk.</summary>
+    [Serializable]
+    public class A2gChunkParams
+    {
+        public string pcm_b64    = "";
+        public string format     = "int16";
+        public int    sample_rate = 16000;
+        public bool   is_first   = false;
+    }
+
+    [Serializable]
+    internal class A2gChunkEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public A2gChunkParams @params;
+    }
+
+    // ── a2g_stream_close params ──────────────────────────────────────
+    // Signals end of streaming utterance for Audio2Gesture.
+    // Wire: { "cmd": "a2g_stream_close", "params": {} }
+
+    /// <summary>Parameters for the "a2g_stream_close" command. No fields required.</summary>
+    [Serializable]
+    public class A2gStreamCloseParams { }
+
+    [Serializable]
+    internal class A2gStreamCloseEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public A2gStreamCloseParams @params;
+    }
+
+    // ── a2e_emotion params ───────────────────────────────────────────
+    // Audio2Emotion ONNX inference result from the Python orchestrator.
+    // Wire: { "cmd": "a2e_emotion", "params": { "scores": [10 floats], "label": "happy" } }
+    // scores: 10-dim A2F emotion vector (indices: 1=angry, 3=disgust, 4=fear, 6=happy, 9=sad).
+    // label:  dominant emotion string matching EmotionController.Apply() values.
+    // SRS refs: FR-A2E-01
+
+    /// <summary>Parameters for the "a2e_emotion" command.</summary>
+    [Serializable]
+    public class A2EEmotionParams
+    {
+        /// <summary>10-dim A2F emotion vector (float values 0..1). See FR-A2E-01.</summary>
+        public float[] scores;
+
+        /// <summary>Dominant emotion label: "neutral"|"happy"|"angry"|"sad"|"fear"|"disgust".</summary>
+        public string label = "neutral";
+    }
+
+    [Serializable]
+    internal class A2EEmotionEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public A2EEmotionParams @params;
     }
 
 }
