@@ -1,0 +1,79 @@
+{
+  "behaviors": [
+    {
+      "behavior": "go_sleep",
+      "display_name": "就寝",
+      "steps": [
+        { "type": "face_toward", "slot_id": "sleep_area", "duration": 0.4 },
+        { "type": "walk_to", "slot_id": "sleep_area", "duration": 2.5 },
+        { "type": "gesture", "gesture": "walk_stop", "emotion": "sleepy", "look_target": "down" },
+        { "type": "wait", "duration": 0.6 },
+        { "type": "gesture", "gesture": "sleep_idle", "emotion": "sleepy", "look_target": "down" }
+      ]
+    },
+    {
+      "behavior": "go_stream",
+      "display_name": "配信開始",
+      "steps": [
+        { "type": "face_toward", "slot_id": "sit_work", "duration": 0.4 },
+        { "type": "walk_to", "slot_id": "sit_work", "duration": 2.0 },
+        { "type": "gesture", "gesture": "walk_stop", "emotion": "neutral", "look_target": "camera" },
+        { "type": "wait", "duration": 0.5 },
+        { "type": "gesture", "gesture": "sit_write", "emotion": "neutral", "look_target": "camera" }
+      ]
+    },
+    {
+      "behavior": "go_eat",
+      "display_name": "食事",
+      "steps": [
+        { "type": "face_toward", "slot_id": "sofa", "duration": 0.4 },
+        { "type": "walk_to", "slot_id": "sofa", "duration": 1.8 },
+        { "type": "gesture", "gesture": "walk_stop", "emotion": "neutral", "look_target": "down" },
+        { "type": "wait", "duration": 0.5 },
+        { "type": "zone_snap", "slot_id": "sofa" },
+        { "type": "gesture", "gesture": "sit_eat", "emotion": "neutral", "look_target": "down" },
+        { "type": "sit_settle" }
+      ]
+    },
+    {
+      "behavior": "go_read",
+      "display_name": "読書",
+      "steps": [
+        { "type": "face_toward", "slot_id": "sofa", "duration": 0.4 },
+        { "type": "walk_to", "slot_id": "sofa", "duration": 1.8 },
+        { "type": "gesture", "gesture": "walk_stop", "emotion": "thinking", "look_target": "down" },
+        { "type": "wait", "duration": 0.5 },
+        { "type": "zone_snap", "slot_id": "sofa" },
+        { "type": "gesture", "gesture": "sit_read", "emotion": "thinking", "look_target": "down" },
+        { "type": "sit_settle" }
+      ]
+    },
+    {
+      "behavior": "go_walk",
+      "display_name": "室内散歩",
+      "steps": [
+        { "type": "gesture", "gesture": "walk", "emotion": "neutral", "look_target": "random" },
+        { "type": "wait", "duration": 4.0 },
+        { "type": "gesture", "gesture": "walk_stop", "emotion": "neutral", "look_target": "camera" }
+      ]
+    },
+    {
+      "behavior": "go_stretch",
+      "display_name": "ストレッチ",
+      "steps": [
+        { "type": "gesture", "gesture": "stretch", "emotion": "neutral", "look_target": "camera" }
+      ]
+    },
+    {
+      "behavior": "go_wake",
+      "display_name": "起床",
+      "steps": [
+        { "type": "gesture", "gesture": "stretch", "emotion": "neutral", "look_target": "camera" },
+        { "type": "wait", "duration": 1.5 },
+        { "type": "face_toward", "slot_id": "sit_work", "duration": 0.4 },
+        { "type": "walk_to", "slot_id": "sit_work", "duration": 2.0 },
+        { "type": "gesture", "gesture": "walk_stop", "emotion": "neutral", "look_target": "camera" }
+      ]
+    }
+  ]
+}

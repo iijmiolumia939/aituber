@@ -180,6 +180,8 @@ namespace AITuber.Growth
                     current.costume = ParseValue(line, "costume:");
                 else if (line.StartsWith("hair:"))
                     current.hair = ParseValue(line, "hair:");
+                else if (line.StartsWith("behavior_seq:"))
+                    current.behavior_seq = ParseValue(line, "behavior_seq:");
                 // Unknown keys are silently ignored (forward compatible)
             }
 
@@ -197,8 +199,78 @@ namespace AITuber.Growth
                 Debug.Log("[BehaviorPolicyLoader] Skipping entry with empty intent.");
                 return;
             }
+            if (!ValidateEntry(entry))
+                return; // warning already logged inside ValidateEntry
             // Last-write wins for duplicate intents (same as Map.put)
             _policy[entry.intent] = entry;
+        }
+
+        /// <summary>
+        /// Validates a parsed BehaviorEntry against the known command schema.
+        /// Logs a warning and returns false for any schema violation. FR-WS-SCHEMA-01
+        /// </summary>
+        private static bool ValidateEntry(BehaviorEntry e)
+        {
+            // cmd must be a recognised value
+            switch (e.cmd)
+            {
+                case "avatar_update":
+                    // at least one field required; warn if all empty (harmless but pointless)
+                    if (string.IsNullOrEmpty(e.emotion) &&
+                        string.IsNullOrEmpty(e.gesture) &&
+                        string.IsNullOrEmpty(e.look_target))
+                    {
+                        Debug.LogWarning(
+                            $"[BehaviorPolicyLoader] intent='{e.intent}': cmd='avatar_update' but emotion/gesture/look_target are all empty.");
+                    }
+                    break;
+
+                case "avatar_event":
+                    if (string.IsNullOrEmpty(e.@event))
+                    {
+                        Debug.LogWarning(
+                            $"[BehaviorPolicyLoader] intent='{e.intent}': cmd='avatar_event' requires 'event' field – skipping.");
+                        return false;
+                    }
+                    if (e.intensity < 0f || e.intensity > 1f)
+                    {
+                        Debug.LogWarning(
+                            $"[BehaviorPolicyLoader] intent='{e.intent}': intensity={e.intensity} out of [0,1] – clamped.");
+                        e.intensity = UnityEngine.Mathf.Clamp01(e.intensity);
+                    }
+                    break;
+
+                case "appearance_update":
+                    if (string.IsNullOrEmpty(e.shader_mode) &&
+                        string.IsNullOrEmpty(e.costume) &&
+                        string.IsNullOrEmpty(e.hair))
+                    {
+                        Debug.LogWarning(
+                            $"[BehaviorPolicyLoader] intent='{e.intent}': cmd='appearance_update' but shader_mode/costume/hair are all empty.");
+                    }
+                    break;
+
+                case "behavior_start":
+                    if (string.IsNullOrEmpty(e.behavior_seq))
+                    {
+                        Debug.LogWarning(
+                            $"[BehaviorPolicyLoader] intent='{e.intent}': cmd='behavior_start' requires 'behavior_seq' field – skipping.");
+                        return false;
+                    }
+                    break;
+
+                case "":
+                    Debug.LogWarning(
+                        $"[BehaviorPolicyLoader] intent='{e.intent}': 'cmd' field is empty – skipping.");
+                    return false;
+
+                default:
+                    Debug.LogWarning(
+                        $"[BehaviorPolicyLoader] intent='{e.intent}': unknown cmd='{e.cmd}' – skipping.");
+                    return false;
+            }
+
+            return true;
         }
 
         private static string ParseValue(string line, string prefix)

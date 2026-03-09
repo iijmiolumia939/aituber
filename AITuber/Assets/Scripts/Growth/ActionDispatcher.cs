@@ -180,6 +180,14 @@ namespace AITuber.Growth
                         if (!string.IsNullOrEmpty(entry.hair))    appearCtrl.ApplyHair(entry.hair);
                     }
                     break;
+                case "behavior_start":
+                    // FR-BEHAVIOR-SEQ-01: Trigger multi-step behavior sequence
+                    var runner = AITuber.Behavior.BehaviorSequenceRunner.Instance;
+                    if (runner != null && !string.IsNullOrEmpty(entry.behavior_seq))
+                        runner.StartBehavior(entry.behavior_seq);
+                    else
+                        Debug.LogWarning($"[ActionDispatcher] behavior_start: runner={runner != null} seq='{entry.behavior_seq}'");
+                    break;
                 default:
                     Debug.LogWarning($"[ActionDispatcher] Unknown cmd in policy entry: '{entry.cmd}'");
                     break;

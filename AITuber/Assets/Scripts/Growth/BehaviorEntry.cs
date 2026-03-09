@@ -59,7 +59,10 @@ namespace AITuber.Growth
 
         /// <summary>Hairstyle preset ID (e.g. "ponytail", "short"). FR-APPEARANCE-02.</summary>
         public string hair = "";
+        // ── behavior_start fields (optional) FR-BEHAVIOR-SEQ-01 ─────────────
 
+        /// <summary>Behavior sequence name from behaviors.json (e.g. "go_sleep"). Used when cmd="behavior_start".</summary>
+        public string behavior_seq = "";
         // ── Metadata ──────────────────────────────────────────────────────────
 
         /// <summary>
