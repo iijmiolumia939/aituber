@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -17,6 +18,9 @@ from orchestrator.config import LLMConfig
 
 logger = logging.getLogger(__name__)
 
+
+# Sentence boundary characters used by generate_reply_stream() to split LLM output.
+_SENTENCE_ENDS = frozenset("。！？\n")
 
 # ── Template-mode responses ───────────────────────────────────────────
 
@@ -139,6 +143,26 @@ class OpenAIBackend:
         cost_yen = cost_usd * 150  # approximate USD→JPY
         return text, cost_yen
 
+    async def chat_stream(self, system: str, user: str) -> AsyncGenerator[str, None]:
+        """FR-LLM-STREAM-01: Stream token chunks from OpenAI-compatible API.
+
+        Yields raw token strings as they arrive. The caller is responsible
+        for sentence-boundary splitting.
+        """
+        self._ensure_client()
+        stream = await self._client.chat.completions.create(
+            model=self._cfg.model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            max_tokens=256,
+            stream=True,
+        )
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
 
 # ── Result ────────────────────────────────────────────────────────────
 
@@ -213,6 +237,19 @@ class LLMClient:
         """
         self._world_context_fragment = fragment
 
+    async def warmup(self) -> None:
+        """GPU へのモデルロードを事前に完了させる (初回レイテンシ回避).
+
+        ローカル LLM (Ollama 等) は初回推論時にモデルを VRAM へロードするため
+        数秒かかる。起動時にダミーリクエストを投げておくことで、配信中の
+        初回コメント応答を高速化する。
+        """
+        try:
+            await self._backend.chat(self._system_prompt, "起動テスト")
+            logger.info("[LLM] warmup complete.")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[LLM] warmup failed (non-fatal): %s", exc)
+
     async def generate_reply(
         self, user_text: str, *, avoidance_hint: str | None = None
     ) -> LLMResult:
@@ -260,6 +297,91 @@ class LLMClient:
         # All retries exhausted → template mode
         logger.error("LLM API exhausted retries; switching to template mode.")
         return LLMResult(text=_next_template(), is_template=True, retries_used=retries)
+
+    async def generate_reply_stream(
+        self,
+        user_text: str,
+        *,
+        avoidance_hint: str | None = None,
+    ) -> AsyncGenerator[LLMResult, None]:
+        """FR-LLM-STREAM-01: Stream reply as sentence-level LLMResult chunks.
+
+        Yields one LLMResult per sentence boundary (。！？) so callers can
+        pipeline TTS and audio playback while the LLM is still generating.
+        Falls back to a single ``generate_reply()`` yield when the backend
+        does not expose ``chat_stream()``.
+
+        Cost is recorded in _cost_tracker after the full stream completes.
+        History is appended with the concatenated full text.
+        """
+        # Cost guard-rails (same as generate_reply)
+        if self._cost_tracker.is_over_hard_limit():
+            logger.warning("LLM cost hard limit exceeded; using template mode.")
+            yield LLMResult(text=_next_template(), is_template=True)
+            return
+
+        ratio = self._cost_tracker.template_ratio
+        if ratio > 0 and random.random() < ratio:
+            logger.info("NFR-COST-01 soft limit: template_ratio=%.2f; using template.", ratio)
+            yield LLMResult(text=_next_template(), is_template=True)
+            return
+
+        # Fallback: backend without streaming support
+        if not hasattr(self._backend, "chat_stream"):
+            result = await self.generate_reply(user_text, avoidance_hint=avoidance_hint)
+            yield result
+            return
+
+        system = self._system_prompt
+        if self._world_context_fragment:
+            system = f"{system}\n\n{self._world_context_fragment}"
+        if avoidance_hint:
+            system = f"{system}\n\n【注意】{avoidance_hint}"
+
+        user_msg = self._build_user_message(user_text)
+        buf = ""
+        all_tokens: list[str] = []
+
+        try:
+            async for token in self._backend.chat_stream(system, user_msg):
+                buf += token
+                all_tokens.append(token)
+                # Flush complete sentences from the front of the buffer
+                while True:
+                    idx = next(
+                        (i for i, ch in enumerate(buf) if ch in _SENTENCE_ENDS), -1
+                    )
+                    if idx < 0:
+                        break
+                    sentence = buf[: idx + 1].strip()
+                    buf = buf[idx + 1 :]
+                    if sentence:
+                        yield LLMResult(text=sentence)
+        except Exception as exc:
+            logger.warning(
+                "LLM stream error: %s; yielding template. "
+                "Check LLM_BASE_URL / OPENAI_API_KEY in .env.",
+                exc,
+            )
+            yield LLMResult(text=_next_template(), is_template=True)
+            return
+
+        # Yield any trailing text without sentence-end punctuation
+        remainder = buf.strip()
+        if remainder:
+            yield LLMResult(text=remainder)
+
+        # Record accumulated cost + history
+        full_text = "".join(all_tokens).strip()
+        if full_text:
+            prompt_tokens = (len(system) + len(user_msg)) // 2
+            completion_tokens = len(full_text) // 2
+            cost_usd = (prompt_tokens * 0.15 + completion_tokens * 0.60) / 1_000_000
+            cost_yen = cost_usd * 150
+            self._cost_tracker.record(cost_yen)
+            self._history.append((user_text, full_text))
+            if len(self._history) > self.MAX_HISTORY_TURNS:
+                self._history = self._history[-self.MAX_HISTORY_TURNS :]
 
     async def generate_idle_talk(self, hints: list[str] | None = None) -> LLMResult:
         """LLMでアイドルトークを動的に生成する。

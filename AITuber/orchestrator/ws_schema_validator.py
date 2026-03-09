@@ -66,9 +66,16 @@ KNOWN_CMDS: frozenset[str] = frozenset(
         "avatar_config",
         "avatar_reset",
         "avatar_viseme",
+        "avatar_intent",
         "capabilities",
         "room_change",
         "zone_change",
+        "behavior_start",
+        "a2f_audio",
+        "a2f_chunk",
+        "a2f_stream_close",
+        "a2g_chunk",
+        "a2g_stream_close",
     ]
 )
 
@@ -245,6 +252,62 @@ def _validate_zone_change(params: dict) -> WsValidationResult:
     return check if check is not None else WsValidationResult.valid()
 
 
+def _validate_avatar_intent(params: dict) -> WsValidationResult:
+    check = _check_required_str(params, "intent")
+    return check if check is not None else WsValidationResult.valid()
+
+
+def _validate_behavior_start(params: dict) -> WsValidationResult:
+    check = _check_required_str(params, "behavior")
+    return check if check is not None else WsValidationResult.valid()
+
+
+def _validate_a2f_audio(params: dict) -> WsValidationResult:
+    check = _check_required_str(params, "pcm_b64")
+    if check is not None:
+        return check
+    fmt = params.get("format")
+    if fmt is not None and fmt not in ("int16", "float32"):
+        return WsValidationResult.error(
+            "INVALID_PARAM_VALUE", f"'format' must be 'int16' or 'float32', got '{fmt}'"
+        )
+    return WsValidationResult.valid()
+
+
+def _validate_a2f_chunk(params: dict) -> WsValidationResult:
+    check = _check_required_str(params, "pcm_b64")
+    if check is not None:
+        return check
+    fmt = params.get("format")
+    if fmt is not None and fmt not in ("int16", "float32"):
+        return WsValidationResult.error(
+            "INVALID_PARAM_VALUE", f"'format' must be 'int16' or 'float32', got '{fmt}'"
+        )
+    return WsValidationResult.valid()
+
+
+def _validate_a2f_stream_close(params: dict) -> WsValidationResult:
+    return WsValidationResult.valid()
+
+
+def _validate_a2g_chunk(params: dict) -> WsValidationResult:
+    """Validate a2g_chunk params (same schema as a2f_chunk). FR-GESTURE-AUTO-01."""
+    check = _check_required_str(params, "pcm_b64")
+    if check is not None:
+        return check
+    fmt = params.get("format")
+    if fmt is not None and fmt not in ("int16", "float32"):
+        return WsValidationResult.error(
+            "INVALID_PARAM_VALUE", f"'format' must be 'int16' or 'float32', got '{fmt}'"
+        )
+    return WsValidationResult.valid()
+
+
+def _validate_a2g_stream_close(params: dict) -> WsValidationResult:  # noqa: ARG001
+    """Validate a2g_stream_close params (no fields required). FR-GESTURE-AUTO-01."""
+    return WsValidationResult.valid()
+
+
 _CMD_VALIDATORS: dict[str, Any] = {
     "avatar_update": _validate_avatar_update,
     "avatar_event": _validate_avatar_event,
@@ -254,6 +317,13 @@ _CMD_VALIDATORS: dict[str, Any] = {
     "capabilities": _validate_capabilities,
     "room_change": _validate_room_change,
     "zone_change": _validate_zone_change,
+    "avatar_intent": _validate_avatar_intent,
+    "behavior_start": _validate_behavior_start,
+    "a2f_audio": _validate_a2f_audio,
+    "a2f_chunk": _validate_a2f_chunk,
+    "a2f_stream_close": _validate_a2f_stream_close,
+    "a2g_chunk": _validate_a2g_chunk,
+    "a2g_stream_close": _validate_a2g_stream_close,
 }
 
 

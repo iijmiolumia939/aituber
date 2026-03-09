@@ -169,50 +169,70 @@ class LocalTestSession:
         except Exception:
             pass
 
-        # LLM 応答生成
+        # LLM ストリーミング → 文単位で TTS → 音声再生
+        # FR-LLM-STREAM-01: 第1文到着時点で音声開始 (TTFA 測定)
         t0 = time.monotonic()
-        result = await self._llm.generate_reply(text)
-        llm_time = time.monotonic() - t0
+        sentence_queue: asyncio.Queue = asyncio.Queue()
+        full_reply_parts: list[str] = []
 
-        reply = result.text
-        mode = "テンプレート" if result.is_template else "LLM"
-        print(f"   [BOT/{mode}] ({llm_time:.1f}s) {reply}")
+        async def _generate() -> None:
+            async for sr in self._llm.generate_reply_stream(text):
+                full_reply_parts.append(sr.text)
+                await sentence_queue.put(sr)
+            await sentence_queue.put(None)  # sentinel
 
-        # TTS → 音声再生 + リップシンク
-        try:
-            audio_queue: asyncio.Queue = asyncio.Queue()
-            tts_result = await self._tts.synthesize_and_stream(reply, audio_queue)
-            print(f"   [TTS] 音声合成完了 ({tts_result.duration_sec:.1f}s)")
+        async def _speak_all() -> None:
+            sentence_idx = 0
+            while True:
+                sr = await sentence_queue.get()
+                if sr is None:
+                    break
+                sentence_idx += 1
+                mode = "テンプレート" if sr.is_template else "LLM"
+                if sentence_idx == 1:
+                    ttfa = time.monotonic() - t0
+                    print(f"   [BOT/{mode}] TTFA={ttfa:.2f}s  第1文: {sr.text}")
+                else:
+                    print(f"   [BOT/{mode}] 第{sentence_idx}文: {sr.text}")
 
-            # ビゼーム送信
-            if tts_result.viseme_events:
-                with contextlib.suppress(Exception):
-                    await self._avatar.send_viseme(
-                        utterance_id=msg.message_id,
-                        events=tts_result.viseme_events,
+                try:
+                    audio_queue: asyncio.Queue = asyncio.Queue()
+                    tts_result = await self._tts.synthesize_and_stream(sr.text, audio_queue)
+
+                    if tts_result.viseme_events:
+                        with contextlib.suppress(Exception):
+                            await self._avatar.send_viseme(
+                                utterance_id=f"{msg.message_id}-{sentence_idx}",
+                                events=tts_result.viseme_events,
+                            )
+
+                    playback_queue: asyncio.Queue = asyncio.Queue()
+                    lip_queue: asyncio.Queue = asyncio.Queue()
+
+                    async def _fan_out(aq=audio_queue, pq=playback_queue, lq=lip_queue):
+                        while True:
+                            chunk = await aq.get()
+                            await pq.put(chunk)
+                            await lq.put(chunk)
+                            if chunk is None:
+                                break
+
+                    await asyncio.gather(
+                        _fan_out(),
+                        self._avatar.run_lip_sync_loop(lip_queue),
+                        play_audio_chunks(playback_queue, sample_rate=tts_result.sample_rate),
                     )
+                except Exception as e:
+                    print(f"   [ERR] TTS/再生エラー: {type(e).__name__}: {e}")
+                    logger.debug("TTS/playback error", exc_info=True)
 
-            # 音声再生 + リップシンクを並行実行
-            playback_queue: asyncio.Queue = asyncio.Queue()
-            lip_queue: asyncio.Queue = asyncio.Queue()
+        gen_task = asyncio.create_task(_generate())
+        await _speak_all()
+        await gen_task
 
-            async def _fan_out():
-                while True:
-                    chunk = await audio_queue.get()
-                    await playback_queue.put(chunk)
-                    await lip_queue.put(chunk)
-                    if chunk is None:
-                        break
-
-            await asyncio.gather(
-                _fan_out(),
-                self._avatar.run_lip_sync_loop(lip_queue),
-                play_audio_chunks(playback_queue, sample_rate=tts_result.sample_rate),
-            )
-            print("   [OK] 再生完了")
-        except Exception as e:
-            print(f"   [ERR] TTS/再生エラー: {type(e).__name__}: {e}")
-            logger.debug("TTS/playback error", exc_info=True)
+        total_time = time.monotonic() - t0
+        full_reply = "".join(full_reply_parts)
+        print(f"   [OK] 再生完了 (合計{total_time:.1f}s) 全文: {full_reply}")
 
         # アバター: コメント読み終了
         try:

@@ -401,6 +401,46 @@ class AvatarWSSender:
         )
         await self._send(msg)
 
+    async def send_behavior_start(self, behavior: str) -> None:
+        """Send behavior_start command to Unity BehaviorSequenceRunner.
+
+        FR-BEHAVIOR-SEQ-01: Triggers a named behavior sequence (e.g. "go_stream",
+        "go_sleep").  The sequence owns movement + gesture for its duration;
+        the orchestrator must not send conflicting avatar_update gestures while
+        it is running.
+        """
+        msg = AvatarMessage(
+            cmd="behavior_start",
+            params={"behavior": behavior},
+        )
+        await self._send(msg)
+
+    async def send_avatar_intent(
+        self,
+        intent: str,
+        *,
+        source: str = "life",
+        fallback: str = "none",
+        context_json: str = "",
+    ) -> None:
+        """Send avatar_intent command to Unity ActionDispatcher.
+
+        Routes through ActionDispatcher → BehaviorPolicyLoader → action.
+        Unrecognised intents are recorded as GapEntries for the Growth system,
+        enabling ReflectionRunner to autonomously expand the policy.
+
+        FR-BEHAVIOR-SEQ-01, FR-LIFE-01: used by _life_loop to route ALL life
+        activities via the intent pipeline instead of direct behavior_start,
+        closing the Perception-Memory-Action loop (Issue #44).
+        """
+        params: dict[str, Any] = {"intent": intent, "source": source}
+        if fallback and fallback != "none":
+            params["fallback"] = fallback
+        if context_json:
+            params["context_json"] = context_json
+        msg = AvatarMessage(cmd="avatar_intent", params=params)
+        await self._send(msg)
+
     async def send_appearance_update(
         self,
         shader_mode: str | None = None,
@@ -452,6 +492,198 @@ class AvatarWSSender:
                 "events": [{"t_ms": e.t_ms + offset, "v": e.v} for e in sorted_events],
                 "crossfade_ms": max(40, min(80, crossfade_ms)),
                 "strength": round(max(0.0, min(1.0, strength)), 3),
+            },
+        )
+        await self._send(msg)
+
+    async def send_a2f_audio(
+        self,
+        pcm_int16: np.ndarray,
+        *,
+        sample_rate: int = 24000,
+    ) -> None:
+        """Send a2f_audio command with full-utterance PCM for Audio2Face-3D neural lip sync.
+
+        FR-LIPSYNC-01: Resamples *pcm_int16* from *sample_rate* to 16 kHz (A2F requirement),
+        base64-encodes it, and sends via WebSocket so Unity's Audio2FaceLipSync can drive
+        blendshapes.
+
+        Args:
+            pcm_int16: int16 mono PCM array at *sample_rate*.
+            sample_rate: originating sample rate (VOICEVOX=24000, SBERT-VITS2=44100).
+        """
+        import base64
+
+        a2f_sr = 16000
+        if sample_rate != a2f_sr:
+            # Simple linear (polyphase) downsample via numpy slicing for integer ratios,
+            # or scipy if available; fall back to naive decimation otherwise.
+            try:
+                from math import gcd
+
+                from scipy.signal import resample_poly  # type: ignore[import-untyped]
+
+                g = gcd(a2f_sr, sample_rate)
+                up, down = a2f_sr // g, sample_rate // g
+                pcm_f = pcm_int16.astype(np.float32)
+                resampled_f = resample_poly(pcm_f, up, down).astype(np.float32)
+                pcm_int16 = np.clip(resampled_f, -32768, 32767).astype(np.int16)
+            except ImportError:
+                # Naive decimation (acceptable quality for speech)
+                ratio = sample_rate / a2f_sr
+                indices = np.round(np.arange(0, len(pcm_int16), ratio)).astype(np.int64)
+                indices = indices[indices < len(pcm_int16)]
+                pcm_int16 = pcm_int16[indices]
+
+        pcm_b64 = base64.b64encode(pcm_int16.tobytes()).decode("ascii")
+        msg = AvatarMessage(
+            cmd="a2f_audio",
+            params={
+                "pcm_b64": pcm_b64,
+                "format": "int16",
+                "sample_rate": a2f_sr,
+            },
+        )
+        await self._send(msg)
+
+    async def send_a2f_chunk(
+        self,
+        pcm_chunk: np.ndarray,
+        *,
+        sample_rate: int = 24000,
+        is_first: bool = False,
+    ) -> None:
+        """Send a2f_chunk command for streaming Audio2Face-3D lip sync.
+
+        FR-LIPSYNC-01: Sends a single audio chunk as it arrives from TTS so that
+        A2F mouth movement is synchronised with audio playback rather than starting
+        only after the entire utterance has been synthesised.
+
+        Args:
+            pcm_chunk: int16 mono PCM chunk at *sample_rate*.
+            sample_rate: originating sample rate (VOICEVOX=24000).
+            is_first: True for the first chunk of a new utterance (resets plugin state).
+        """
+        import base64
+
+        a2f_sr = 16000
+        if sample_rate != a2f_sr:
+            try:
+                from math import gcd
+
+                from scipy.signal import resample_poly  # type: ignore[import-untyped]
+
+                g = gcd(a2f_sr, sample_rate)
+                up, down = a2f_sr // g, sample_rate // g
+                pcm_f = pcm_chunk.astype(np.float32)
+                resampled_f = resample_poly(pcm_f, up, down).astype(np.float32)
+                pcm_chunk = np.clip(resampled_f, -32768, 32767).astype(np.int16)
+            except ImportError:
+                ratio = sample_rate / a2f_sr
+                indices = np.round(np.arange(0, len(pcm_chunk), ratio)).astype(np.int64)
+                indices = indices[indices < len(pcm_chunk)]
+                pcm_chunk = pcm_chunk[indices]
+
+        pcm_b64 = base64.b64encode(pcm_chunk.tobytes()).decode("ascii")
+        msg = AvatarMessage(
+            cmd="a2f_chunk",
+            params={
+                "pcm_b64": pcm_b64,
+                "format": "int16",
+                "sample_rate": a2f_sr,
+                "is_first": is_first,
+            },
+        )
+        await self._send(msg)
+
+    async def send_a2f_stream_close(self) -> None:
+        """Send a2f_stream_close to signal the end of a streaming utterance.
+
+        FR-LIPSYNC-01: Triggers Audio2FaceLipSync.CloseStream() on the Unity side,
+        finalising the blendshape animation for the current utterance.
+        """
+        msg = AvatarMessage(cmd="a2f_stream_close", params={})
+        await self._send(msg)
+
+    async def send_a2g_chunk(
+        self,
+        pcm_chunk: np.ndarray,
+        *,
+        sample_rate: int = 24000,
+        is_first: bool = False,
+    ) -> None:
+        """Send a2g_chunk for Option A Audio2Gesture neural upper-body gesture generation.
+
+        FR-GESTURE-AUTO-01: Mirrors send_a2f_chunk; the same audio is routed to the
+        Audio2Gesture plugin so body gestures stay in sync with speech.  When
+        A2GPlugin.dll is absent Unity silently ignores the command.
+
+        Args:
+            pcm_chunk: int16 mono PCM chunk at *sample_rate*.
+            sample_rate: originating sample rate (VOICEVOX=24000).
+            is_first: True for the first chunk of a new utterance.
+        """
+        import base64
+
+        a2g_sr = 16000
+        if sample_rate != a2g_sr:
+            try:
+                from math import gcd
+
+                from scipy.signal import resample_poly  # type: ignore[import-untyped]
+
+                g = gcd(a2g_sr, sample_rate)
+                up, down = a2g_sr // g, sample_rate // g
+                pcm_f = pcm_chunk.astype(np.float32)
+                resampled_f = resample_poly(pcm_f, up, down).astype(np.float32)
+                pcm_chunk = np.clip(resampled_f, -32768, 32767).astype(np.int16)
+            except ImportError:
+                ratio = sample_rate / a2g_sr
+                indices = np.round(np.arange(0, len(pcm_chunk), ratio)).astype(np.int64)
+                indices = indices[indices < len(pcm_chunk)]
+                pcm_chunk = pcm_chunk[indices]
+
+        pcm_b64 = base64.b64encode(pcm_chunk.tobytes()).decode("ascii")
+        msg = AvatarMessage(
+            cmd="a2g_chunk",
+            params={
+                "pcm_b64": pcm_b64,
+                "format": "int16",
+                "sample_rate": a2g_sr,
+                "is_first": is_first,
+            },
+        )
+        await self._send(msg)
+
+    async def send_a2g_stream_close(self) -> None:
+        """Send a2g_stream_close to signal end of streaming for Audio2Gesture.
+
+        FR-GESTURE-AUTO-01: Triggers Audio2GestureController.CloseStream() on the
+        Unity side, finalising the gesture animation for the current utterance.
+        """
+        msg = AvatarMessage(cmd="a2g_stream_close", params={})
+        await self._send(msg)
+
+    async def send_a2e_emotion(
+        self,
+        scores: list[float],
+        label: str,
+    ) -> None:
+        """Send a2e_emotion command with Audio2Emotion ONNX inference result.
+
+        FR-A2E-01: Sends the 10-dim A2F emotion vector and dominant label so Unity
+        EmotionController can drive face blendshapes and Audio2GestureController
+        can adjust gesture intensity based on detected emotion.
+
+        Args:
+            scores: 10-dim A2F emotion vector (float values 0..1).
+            label: dominant emotion label ("neutral"|"happy"|"angry"|"sad"|"fear"|"disgust").
+        """
+        msg = AvatarMessage(
+            cmd="a2e_emotion",
+            params={
+                "scores": [round(float(s), 4) for s in scores],
+                "label": label,
             },
         )
         await self._send(msg)

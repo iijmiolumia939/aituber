@@ -23,6 +23,7 @@ dependencies = [
 dev = [
     "pytest>=8,<9",
     "pytest-asyncio>=0.23,<1",
+    "pytest-timeout>=2.3,<3",
     "ruff>=0.4,<1",
     "black>=24,<26",
 ]
@@ -46,7 +47,15 @@ line-length = 99
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "module"
+# Fail any test that runs longer than 30 seconds.
+# Catches infinite loops caused by asyncio.sleep mocked with AsyncMock.
+timeout = 30
 testpaths = ["tests"]
+# Memory-safe execution: use run_tests.ps1 (sequential batch processes)
+#   .\run_tests.ps1                <- default (4 files/batch)
+#   .\run_tests.ps1 -BatchSize 2   <- most conservative
 markers = [
     "e2e: end-to-end dryrun tests that require live services (VOICEVOX, Unity WS, overlay WS)",
+    "slow: tests that start real network servers or take >5s (excluded from default run)",
 ]
