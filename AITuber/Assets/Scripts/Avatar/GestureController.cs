@@ -299,5 +299,59 @@ namespace AITuber.Avatar
         /// </summary>
         public void SimulateDedupTransitionForTest(bool animatorLooping)
             => ProcessDedupTransition(!animatorLooping);
-    }
-}
+
+        // ── Animator setup (moved from AvatarController.Start, Issue #52) ──
+
+        /// <summary>
+        /// Assign AvatarAnimatorController and disable conflicting child Animators.
+        /// Called from AvatarController.Start() after _animator is resolved. FR-A7-01.
+        /// </summary>
+        public void InitializeAnimator(Animator mainAnimator)
+        {
+            if (mainAnimator == null) return;
+            _animator = mainAnimator;
+
+            RuntimeAnimatorController ourCtrl = null;
+            if (mainAnimator.runtimeAnimatorController != null
+                && mainAnimator.runtimeAnimatorController.name == "AvatarAnimatorController")
+            {
+                ourCtrl = mainAnimator.runtimeAnimatorController;
+                Debug.Log($"[GestureCtrl] Animator '{mainAnimator.gameObject.name}' already uses AvatarAnimatorController.");
+            }
+            else
+            {
+                var allCtrl = Resources.FindObjectsOfTypeAll<RuntimeAnimatorController>();
+                foreach (var c in allCtrl)
+                    if (c.name == "AvatarAnimatorController") { ourCtrl = c; break; }
+                if (ourCtrl != null)
+                {
+                    var prev = mainAnimator.runtimeAnimatorController?.name ?? "none";
+                    mainAnimator.runtimeAnimatorController = ourCtrl;
+                    Debug.Log($"[GestureCtrl] Replaced controller '{prev}' -> 'AvatarAnimatorController' on '{mainAnimator.gameObject.name}'");
+                }
+                else
+                    Debug.LogError("[GestureCtrl] AvatarAnimatorController not found! Gestures will not work.");
+            }
+
+            mainAnimator.applyRootMotion = false;
+
+            // Disable conflicting child Animators (VRC HandsLayer/SittingLayer etc.)
+            foreach (var a in GetComponentsInChildren<Animator>(true))
+            {
+                if (a == mainAnimator) continue;
+                if (a.avatar != null && (a.runtimeAnimatorController == null
+                    || a.runtimeAnimatorController.name != "AvatarAnimatorController"))
+                {
+                    a.enabled = false;
+                    Debug.Log($"[GestureCtrl] Disabled conflicting Animator '{a.gameObject.name}' (ctrl='{a.runtimeAnimatorController?.name ?? "none"}').");
+                }
+            }
+            var selfAnim = GetComponent<Animator>();
+            if (selfAnim != null && selfAnim != mainAnimator && selfAnim.avatar != null
+                && (selfAnim.runtimeAnimatorController == null
+                    || selfAnim.runtimeAnimatorController.name != "AvatarAnimatorController"))
+            {
+                selfAnim.enabled = false;
+                Debug.Log($"[GestureCtrl] Disabled conflicting self-Animator '{selfAnim.gameObject.name}'.");
+            }
+        }

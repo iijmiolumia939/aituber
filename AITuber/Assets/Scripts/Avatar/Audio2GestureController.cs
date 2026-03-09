@@ -378,5 +378,21 @@ namespace AITuber.Avatar
         public void SetEmotionGestureScale(float scale) =>
             _emotionGestureScale = Mathf.Clamp(scale, 0f, 2f);
 
+        // FR-GESTURE-AUTO-01: WS a2g_chunk helpers (moved from AvatarController, Issue #52)
+        public void HandleA2GChunk(A2gChunkParams p)
+        {
+            if (p == null || string.IsNullOrEmpty(p.pcm_b64) || !IsReady) return;
+            byte[] bytes;
+            try { bytes = Convert.FromBase64String(p.pcm_b64); } catch { return; }
+            float[] pcm;
+            if (string.Equals(p.format, "int16", StringComparison.OrdinalIgnoreCase))
+            {
+                int n = bytes.Length / 2; pcm = new float[n];
+                for (int i = 0; i < n; i++) pcm[i] = (short)(bytes[i * 2] | (bytes[i * 2 + 1] << 8)) / 32768f;
+            }
+            else { int n = bytes.Length / 4; pcm = new float[n]; Buffer.BlockCopy(bytes, 0, pcm, 0, bytes.Length); }
+            PushAudioChunk(pcm, p.is_first);
+        }
+        public void HandleA2GStreamClose() => CloseStream();
     }
 }

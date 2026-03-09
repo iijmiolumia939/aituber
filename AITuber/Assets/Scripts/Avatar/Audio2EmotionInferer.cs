@@ -140,6 +140,40 @@ namespace AITuber.Avatar
         }
 
         /// <summary>
+        /// Decode base64 PCM from an a2f_chunk WS message and push to the emotion buffer.
+        /// No-op when not ready. Moved from AvatarController.FeedA2EChunk() (Issue #52). FR-A2E-01
+        /// </summary>
+        public void FeedA2FChunk(A2fChunkParams p)
+        {
+            if (!_isReady) return;
+            if (p == null || string.IsNullOrEmpty(p.pcm_b64)) return;
+
+            byte[] bytes;
+            try   { bytes = Convert.FromBase64String(p.pcm_b64); }
+            catch { return; }
+
+            float[] pcm;
+            if (string.Equals(p.format, "int16", StringComparison.OrdinalIgnoreCase))
+            {
+                int n = bytes.Length / 2;
+                pcm = new float[n];
+                for (int i = 0; i < n; i++)
+                {
+                    short s = (short)(bytes[i * 2] | (bytes[i * 2 + 1] << 8));
+                    pcm[i] = s / 32768f;
+                }
+            }
+            else
+            {
+                int n = bytes.Length / 4;
+                pcm = new float[n];
+                Buffer.BlockCopy(bytes, 0, pcm, 0, n * 4);
+            }
+
+            PushPcmChunk(pcm, p.is_first);
+        }
+
+        /// <summary>
         /// Run ONNX inference on the accumulated PCM and drive EmotionController + A2G scale.
         /// Called by AvatarController on a2f_stream_close.
         /// No-op if buffer is too short or model is not ready.
