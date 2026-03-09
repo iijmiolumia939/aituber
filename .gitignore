@@ -136,6 +136,7 @@ AITuber/err.txt
 
 # Unity auto-generated crash recovery scenes
 AITuber/Assets/_Recovery/
+AITuber/Assets/_Recovery.meta
 
 # Native plugin build artifacts (source is tracked, binary build is not)
 native/A2GPlugin/build/
