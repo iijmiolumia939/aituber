@@ -2,7 +2,8 @@
 
 FR-LIPSYNC-01: RMS lip sync 連携
 FR-LIPSYNC-02: Viseme 連携準備
-TTSClient / wav_to_pcm_array / split_into_chunks のユニットテスト。
+TTSClient / wav_to_pcm_array / split_into_chunks / extract_visemes /
+VoicevoxBackend のユニットテスト。
 """
 
 from __future__ import annotations
@@ -20,7 +21,9 @@ from orchestrator.tts import (
     TTSClient,
     TTSConfig,
     TTSResult,
+    VoicevoxBackend,
     _estimate_visemes_from_text,
+    extract_visemes,
     split_into_chunks,
     wav_to_pcm_array,
 )
@@ -243,3 +246,270 @@ class TestEstimateVisemesFromText:
         events = _estimate_visemes_from_text("テスト")
         for e in events:
             assert isinstance(e, VisemeEvent)
+
+
+# ── Helpers for VoicevoxBackend mock ────────────────────────────────
+
+def _make_query_json(vowels: list[str]) -> dict:
+    """accent_phrases を持つ minimal audio_query JSON を作る。"""
+    moras = [
+        {"consonant": "", "consonant_length": 0.0, "vowel": v, "vowel_length": 0.1}
+        for v in vowels
+    ]
+    return {"accent_phrases": [{"moras": moras}]}
+
+
+class _FakeResponse:
+    """aiohttp.ClientResponse の最小モック。"""
+
+    def __init__(self, *, json_data=None, content: bytes = b""):
+        self._json_data = json_data
+        self._content = content
+
+    async def json(self) -> dict:
+        return self._json_data  # type: ignore[return-value]
+
+    async def read(self) -> bytes:
+        return self._content
+
+    def raise_for_status(self) -> None:
+        pass  # success by default
+
+    async def __aenter__(self) -> _FakeResponse:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        pass
+
+
+class _FakeSession:
+    """VoicevoxBackend._session の最小モック。"""
+
+    def __init__(self, query_json: dict, wav_bytes: bytes) -> None:
+        self._query_json = query_json
+        self._wav_bytes = wav_bytes
+        self.post_calls: list[str] = []
+
+    def post(self, url: str, **_kwargs: object) -> _FakeResponse:
+        self.post_calls.append(url)
+        if "audio_query" in url:
+            return _FakeResponse(json_data=self._query_json)
+        return _FakeResponse(content=self._wav_bytes)
+
+    async def close(self) -> None:
+        pass
+
+
+# ── TestExtractVisemes ───────────────────────────────────────────────
+
+
+class TestExtractVisemes:
+    """extract_visemes() のテスト。FR-LIPSYNC-02"""
+
+    def test_empty_query_returns_sil(self) -> None:
+        """accent_phrases が空なら [sil] 1イベントのみ。"""
+        events = extract_visemes({})
+        assert len(events) == 1
+        assert events[0] == VisemeEvent(t_ms=0, v="sil")
+
+    def test_single_vowel_a(self) -> None:
+        """母音 'a' の mora → a ビゼーム + 末尾 sil。"""
+        q = _make_query_json(["a"])
+        events = extract_visemes(q)
+        assert events[0].v == "a"
+        assert events[0].t_ms == 0
+        assert events[-1].v == "sil"
+
+    def test_vowels_iueo(self) -> None:
+        """母音 i/u/e/o がそれぞれ対応ビゼームにマップされる。"""
+        for vowel in ("i", "u", "e", "o"):
+            events = extract_visemes(_make_query_json([vowel]))
+            assert events[0].v == vowel, f"vowel={vowel}"
+
+    def test_consonant_m_generates_m_viseme(self) -> None:
+        """子音 m → m ビゼーム at t=0; 母音は consonant_length 後。"""
+        q = {
+            "accent_phrases": [
+                {
+                    "moras": [
+                        {
+                            "consonant": "m",
+                            "consonant_length": 0.1,
+                            "vowel": "a",
+                            "vowel_length": 0.2,
+                        }
+                    ]
+                }
+            ]
+        }
+        events = extract_visemes(q)
+        assert events[0].v == "m"
+        assert events[0].t_ms == 0
+        assert events[1].v == "a"
+        assert events[1].t_ms == 100  # 0.1 s * 1000
+
+    def test_consonant_f_generates_fv_viseme(self) -> None:
+        """子音 f → fv ビゼーム。"""
+        q = {
+            "accent_phrases": [
+                {
+                    "moras": [
+                        {
+                            "consonant": "f", "consonant_length": 0.05,
+                            "vowel": "u", "vowel_length": 0.1,
+                        }
+                    ]
+                }
+            ]
+        }
+        events = extract_visemes(q)
+        assert events[0].v == "fv"
+
+    def test_n_vowel_maps_to_m(self) -> None:
+        """撥音 'n' → m ビゼーム。"""
+        q = _make_query_json(["N"])
+        events = extract_visemes(q)
+        assert events[0].v == "m"
+
+    def test_cl_vowel_maps_to_sil(self) -> None:
+        """促音 'cl' → sil ビゼーム。"""
+        q = _make_query_json(["cl"])
+        events = extract_visemes(q)
+        assert events[0].v == "sil"
+
+    def test_pause_mora_generates_sil(self) -> None:
+        """pause_mora が存在する場合 sil イベントが先頭に挿入される。"""
+        q = {
+            "accent_phrases": [
+                {
+                    "pause_mora": {"vowel_length": 0.3},
+                    "moras": [
+                        {"consonant": "", "consonant_length": 0.0,
+                         "vowel": "a", "vowel_length": 0.1},
+                    ],
+                }
+            ]
+        }
+        events = extract_visemes(q)
+        assert events[0].v == "sil"
+        assert events[0].t_ms == 0
+        # 'a' comes after 300 ms pause
+        assert events[1].v == "a"
+        assert events[1].t_ms == 300
+
+    def test_timing_accumulates_across_moras(self) -> None:
+        """複数 mora を連続させた場合タイミングが正しく累積する。"""
+        q = {
+            "accent_phrases": [
+                {
+                    "moras": [
+                        {"consonant": "", "consonant_length": 0.0,
+                         "vowel": "a", "vowel_length": 0.1},
+                        {"consonant": "", "consonant_length": 0.0,
+                         "vowel": "i", "vowel_length": 0.2},
+                    ]
+                }
+            ]
+        }
+        events = extract_visemes(q)
+        assert events[0].t_ms == 0    # 'a' starts at 0
+        assert events[1].t_ms == 100  # 'i' starts after 0.1 s
+        assert events[-1].t_ms == 300  # sil at 0.1 + 0.2 = 0.3 s
+
+    def test_always_ends_with_sil(self) -> None:
+        """どの入力でも末尾は sil になる。"""
+        for q in ({}, _make_query_json(["a"]), _make_query_json(["a", "i"])):
+            events = extract_visemes(q)
+            assert events[-1].v == "sil"
+
+    def test_uppercase_vowel_lowercase_matched(self) -> None:
+        """母音フィールドが大文字でも正しくマップされる (N など)。"""
+        q = _make_query_json(["N"])
+        events = extract_visemes(q)
+        assert events[0].v == "m"
+
+
+# ── TestVoicevoxBackend ──────────────────────────────────────────────
+
+
+class TestVoicevoxBackend:
+    """VoicevoxBackend.synthesize() のテスト。FR-LIPSYNC-02, FR-TTS-01"""
+
+    def _make_backend(
+        self, query_json: dict, wav_bytes: bytes
+    ) -> tuple[VoicevoxBackend, _FakeSession]:
+        """テスト用 backend + fake session を構築して返す。"""
+        backend = VoicevoxBackend(config=TTSConfig())
+        session = _FakeSession(query_json, wav_bytes)
+        backend._session = session  # type: ignore[attr-defined]
+        return backend, session
+
+    @pytest.mark.asyncio
+    async def test_synthesize_returns_tts_result(self) -> None:
+        """synthesize() は TTSResult を返す。"""
+        q_json = _make_query_json(["a"])
+        wav = _make_wav([100, 200, 300])
+        backend, _ = self._make_backend(q_json, wav)
+
+        result = await backend.synthesize("テスト")
+
+        assert isinstance(result, TTSResult)
+        assert result.audio_data == wav
+        assert result.text == "テスト"
+
+    @pytest.mark.asyncio
+    async def test_synthesize_calls_audio_query_then_synthesis(self) -> None:
+        """audio_query → synthesis の順で 2 回 POST が呼ばれる。"""
+        q_json = _make_query_json(["a"])
+        backend, session = self._make_backend(q_json, _make_wav([0]))
+
+        await backend.synthesize("あ")
+
+        assert len(session.post_calls) == 2
+        assert "audio_query" in session.post_calls[0]
+        assert "synthesis" in session.post_calls[1]
+
+    @pytest.mark.asyncio
+    async def test_synthesize_extracts_viseme_events(self) -> None:
+        """合成結果に viseme_events が格納される。"""
+        q_json = _make_query_json(["a", "i"])
+        backend, _ = self._make_backend(q_json, _make_wav([0]))
+
+        result = await backend.synthesize("あい")
+
+        assert len(result.viseme_events) > 0
+        viseme_labels = [e.v for e in result.viseme_events]
+        assert "a" in viseme_labels
+        assert "i" in viseme_labels
+        assert result.viseme_events[-1].v == "sil"
+
+    @pytest.mark.asyncio
+    async def test_synthesize_parses_wav_duration(self) -> None:
+        """WAV ヘッダから duration_sec が計算される。"""
+        # 24000 samples @ 24000 Hz = 1.0 s
+        samples = [0] * 24000
+        wav = _make_wav(samples, sample_rate=24000)
+        backend, _ = self._make_backend(_make_query_json(["a"]), wav)
+
+        result = await backend.synthesize("テスト")
+
+        assert abs(result.duration_sec - 1.0) < 0.01
+
+    @pytest.mark.asyncio
+    async def test_synthesize_raises_on_error_response(self) -> None:
+        """HTTP エラー時は raise_for_status() 経由で例外が伝播する。"""
+
+        class _ErrorResponse(_FakeResponse):
+            def raise_for_status(self) -> None:
+                raise RuntimeError("HTTP 500")
+
+        backend = VoicevoxBackend(config=TTSConfig())
+
+        class _ErrorSession:
+            def post(self, url: str, **_kw: object) -> _ErrorResponse:
+                return _ErrorResponse()
+
+        backend._session = _ErrorSession()  # type: ignore[attr-defined]
+
+        with pytest.raises(RuntimeError, match="HTTP 500"):
+            await backend.synthesize("エラー")

@@ -7,7 +7,9 @@
 // SRS refs: autonomous-growth.md M1
 
 using System;
+using System.Collections.Concurrent;
 using System.IO;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace AITuber.Growth
@@ -34,6 +36,12 @@ namespace AITuber.Growth
         // ── State ─────────────────────────────────────────────────────────────
         private string _logPath;
         private int    _gapCountThisSession;
+
+        // Async write queue: Log() enqueues; background Task drains.
+        // This keeps file I/O off the Unity main thread (TD-002).
+        private readonly ConcurrentQueue<string> _writeQueue = new ConcurrentQueue<string>();
+        private readonly object _drainLock = new object();
+        private Task _drainTask = Task.CompletedTask;
 
         // ── Public read-only surface ──────────────────────────────────────────
 
@@ -62,6 +70,7 @@ namespace AITuber.Growth
 
         private void OnDestroy()
         {
+            FlushSync();
             if (Instance == this)
                 Instance = null;
         }
@@ -71,7 +80,7 @@ namespace AITuber.Growth
         /// <summary>
         /// Appends a gap entry to the session log file.
         /// Automatically sets <c>stream_id</c> and <c>timestamp</c> if they are empty.
-        /// Safe to call from the main thread only (synchronous file I/O).
+        /// Safe to call from the main thread; file I/O is offloaded to a background Task (TD-002).
         /// Silently no-ops on null input or when logging is disabled.
         /// </summary>
         public void Log(GapEntry entry)
@@ -95,17 +104,21 @@ namespace AITuber.Growth
                 return;
             }
 
-            try
-            {
-                File.AppendAllText(_logPath, json + "\n");
-                _gapCountThisSession++;
-                Debug.Log($"[GapLogger] Gap #{_gapCountThisSession}: intent={entry.intended_action?.name} → fallback={entry.fallback_used} cat={entry.gap_category}");
-            }
-            catch (Exception ex)
-            {
-                // Logging must never crash the application
-                Debug.LogWarning($"[GapLogger] File write failed: {ex.Message}");
-            }
+            _gapCountThisSession++;
+            Debug.Log($"[GapLogger] Gap #{_gapCountThisSession}: intent={entry.intended_action?.name} → fallback={entry.fallback_used} cat={entry.gap_category}");
+
+            _writeQueue.Enqueue(json + "\n");
+            ScheduleDrain();
+        }
+
+        /// <summary>
+        /// Blocks until all queued writes are flushed to disk.
+        /// Call this in tests before asserting file content, and from OnDestroy/OnApplicationQuit.
+        /// </summary>
+        public void FlushSync()
+        {
+            _drainTask?.Wait();
+            DrainQueueToFile();  // drain any items enqueued after the last Task started
         }
 
         // ── Test helpers ──────────────────────────────────────────────────────
@@ -130,6 +143,31 @@ namespace AITuber.Growth
         public static void ClearInstanceForTest() => Instance = null;
 
         // ── Internal ─────────────────────────────────────────────────────────
+
+        private void ScheduleDrain()
+        {
+            lock (_drainLock)
+            {
+                if (_drainTask.IsCompleted)
+                    _drainTask = Task.Run((Action)DrainQueueToFile);
+            }
+        }
+
+        private void DrainQueueToFile()
+        {
+            while (_writeQueue.TryDequeue(out var line))
+            {
+                try
+                {
+                    File.AppendAllText(_logPath, line);
+                }
+                catch (Exception ex)
+                {
+                    // Logging must never crash the application
+                    Debug.LogWarning($"[GapLogger] File write failed: {ex.Message}");
+                }
+            }
+        }
 
         private void InitSession()
         {

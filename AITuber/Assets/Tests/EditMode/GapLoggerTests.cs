@@ -87,6 +87,7 @@ namespace AITuber.Tests
         public void Log_ValidEntry_WritesJsonLine()
         {
             _logger.Log(MakeEntry("point_at_screen", "nod"));
+            _logger.FlushSync();
 
             Assert.IsTrue(File.Exists(_tempPath), "Log file must be created after Log()");
             string content = File.ReadAllText(_tempPath);
@@ -101,6 +102,7 @@ namespace AITuber.Tests
         {
             for (int i = 0; i < 3; i++)
                 _logger.Log(MakeEntry($"intent_{i}"));
+            _logger.FlushSync();
 
             string[] lines = File.ReadAllLines(_tempPath);
             Assert.AreEqual(3, lines.Length,               "3 lines in file");
@@ -112,6 +114,7 @@ namespace AITuber.Tests
         public void Log_TimestampAutoSet_IsUTCISO8601()
         {
             _logger.Log(MakeEntry("test_intent"));
+            _logger.FlushSync();
 
             string content = File.ReadAllText(_tempPath);
             // Expect e.g. "timestamp":"2026-03-03T14:30:00Z"
@@ -144,6 +147,7 @@ namespace AITuber.Tests
         {
             const string fixedTs = "2025-01-01T00:00:00Z";
             _logger.Log(MakeEntry("ts_test", timestamp: fixedTs));
+            _logger.FlushSync();
 
             string content = File.ReadAllText(_tempPath);
             StringAssert.Contains(fixedTs, content, "Pre-set timestamp must be preserved");
@@ -155,6 +159,7 @@ namespace AITuber.Tests
         {
             const string fixedId = "custom_stream_xyz";
             _logger.Log(MakeEntry("sid_test", streamId: fixedId));
+            _logger.FlushSync();
 
             string content = File.ReadAllText(_tempPath);
             StringAssert.Contains(fixedId, content, "Pre-set stream_id must be preserved");
@@ -166,6 +171,7 @@ namespace AITuber.Tests
         {
             // stream_id is not set → auto-fill expected
             _logger.Log(MakeEntry("auto_sid_test")); // streamId param omitted → ""
+            _logger.FlushSync();
 
             string content = File.ReadAllText(_tempPath);
             // _logger.StreamId must appear in the entry
@@ -194,6 +200,7 @@ namespace AITuber.Tests
 
             _logger.SetEnabled(true);
             _logger.Log(MakeEntry("resumed_intent"));
+            _logger.FlushSync();
 
             Assert.IsTrue(File.Exists(_tempPath), "File must exist after re-enable");
             string content = File.ReadAllText(_tempPath);
@@ -218,6 +225,7 @@ namespace AITuber.Tests
             File.WriteAllText(_tempPath, "{\"pre_existing\":true}\n");
 
             _logger.Log(MakeEntry("new_entry"));
+            _logger.FlushSync();
 
             string[] lines = File.ReadAllLines(_tempPath);
             Assert.AreEqual(2, lines.Length, "Must have pre-existing + new line");

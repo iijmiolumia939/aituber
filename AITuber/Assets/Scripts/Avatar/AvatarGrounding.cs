@@ -130,7 +130,10 @@ namespace AITuber.Avatar
         {
             if (_anim != null && _anim.gameObject != gameObject
                 && _anim.gameObject.GetComponent<AvatarIKProxy>() == null)
+            {
                 _anim.gameObject.AddComponent<AvatarIKProxy>();
+                Debug.Log($"[AvatarGrounding] AvatarIKProxy を {_anim.gameObject.name} に自動追加しました。Inspector の Component リストで確認できます。");
+            }
 
             // Phase 1: Trigger initial grounding at startup.
             // BeginSnap handles pivot fix (FBX hip-origin → sole-origin) + floor-drop via CC gravity.
