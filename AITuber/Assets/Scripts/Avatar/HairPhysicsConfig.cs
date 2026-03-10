@@ -33,6 +33,9 @@ namespace AITuber.Avatar
 
         [Tooltip("DynamicBone.m_Radius — ボーンの當たり判定半径 [m]")]
         [Range(0f, 0.2f)] public float radius;
+
+        [Tooltip("DynamicBone.m_Force の -Y 成分 — 休止重力キャンセルに依存しない常時下向き力 (浮きぐせがある場合に増やす)")]
+        [Range(0f, 1f)] public float forceY;
     }
 
     /// <summary>
@@ -68,6 +71,7 @@ namespace AITuber.Avatar
             damping    = 0.65f,
             gravityY   = 0.60f,
             radius     = 0.03f,
+            forceY     = 0.20f,  // 常時下向き力: 休止重力キャンセルを補正
         };
 
         [Header("サイド/ロング髪 (SpringBone_HairSide: Side_L, Side_R)")]
@@ -78,6 +82,7 @@ namespace AITuber.Avatar
             damping    = 0.65f,
             gravityY   = 0.70f,
             radius     = 0.03f,
+            forceY     = 0.15f,
         };
 
         [Header("リボン (SpringBone_Ribbon: ribon, ribon1_L, ribon1_R)")]
@@ -88,6 +93,7 @@ namespace AITuber.Avatar
             damping    = 0.55f,
             gravityY   = 0.40f,
             radius     = 0.02f,
+            forceY     = 0.10f,
         };
 
         [Header("ボディ (SpringBone_Body: 胸・お尻)")]

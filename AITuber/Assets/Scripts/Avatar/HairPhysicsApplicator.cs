@@ -26,6 +26,13 @@ namespace AITuber.Avatar
                 Apply();
         }
 
+        // Editor / Inspector でパラメータを変更したとき即時反映する
+        private void OnValidate()
+        {
+            if (_config != null)
+                Apply();
+        }
+
         /// <summary>
         /// 設定値を DynamicBone / DynamicBoneCollider に書き込む。
         /// Inspector の ContextMenu からも呼び出せる。
@@ -58,7 +65,11 @@ namespace AITuber.Avatar
         private void ApplyGroupParams(string relativePath, HairGroupParams p)
         {
             var t = transform.Find(relativePath);
-            if (t == null) return;
+            if (t == null)
+            {
+                Debug.LogWarning($"[HairPhysicsApplicator] GameObject not found at path: {relativePath} (relative to {name})");
+                return;
+            }
             var db = t.GetComponent<DynamicBone>();
             if (db == null) return;
 
@@ -67,6 +78,11 @@ namespace AITuber.Avatar
             db.m_Damping    = p.damping;
             db.m_Gravity    = new Vector3(0f, -p.gravityY, 0f);
             db.m_Radius     = p.radius;
+            // m_Force は DynamicBone の「休止重力キャンセル」機構に依存しない常時力。
+            // 静止中でも前髪の浮きを抑制するために -Y 方向に加える。
+            db.m_Force      = new Vector3(0f, -p.forceY, 0f);
+            // シミュレーション中のパーティクルキャッシュ (m_LocalGravity 等) に反映
+            db.UpdateParameters();
         }
 
         private void ApplyCollider(ColliderBoneParams p)

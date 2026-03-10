@@ -18,24 +18,28 @@ MonoBehaviour:
     damping: 0.65
     gravityY: 0.6
     radius: 0.03
+    forceY: 0.2
   side:
     stiffness: 0.02
     elasticity: 0.05
     damping: 0.65
     gravityY: 0.7
     radius: 0.03
+    forceY: 0.15
   ribbon:
     stiffness: 0.08
     elasticity: 0.05
     damping: 0.55
     gravityY: 0.4
     radius: 0.02
+    forceY: 0.1
   body:
     stiffness: 0.15
     elasticity: 0.05
     damping: 0.8
     gravityY: 0.05
     radius: 0.04
+    forceY: 0
   head:
     boneName: Head
     center: {x: 0, y: 0.03, z: 0}
