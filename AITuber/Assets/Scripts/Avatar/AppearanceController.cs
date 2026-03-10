@@ -19,6 +19,8 @@ namespace AITuber.Avatar
         Toon,
         /// <summary>Universal Render Pipeline/Lit — PBR リアル</summary>
         Lit,
+        /// <summary>Silent's Cel Shading/Lightramp (Outline) — SCSS セルシェーダー (FR-SHADER-02)</summary>
+        Scss,
     }
 
     /// <summary>
@@ -39,6 +41,9 @@ namespace AITuber.Avatar
         [Header("Shader Settings  (FR-SHADER-02)")]
         [SerializeField] private string _toonShaderName = "AITuber/CyberpunkToon";
         [SerializeField] private string _litShaderName  = "Universal Render Pipeline/Lit";
+        [Tooltip("Silent's Cel Shading Shader のバリアント名。\n"
+               + "Lightramp / Lightramp (Outline) / Crosstone / Crosstone (Outline) から選択。")]
+        [SerializeField] private string _scssShaderName = "Silent's Cel Shading/Lightramp (Outline)";
 
         [Tooltip("管理対象レンダラー。空の場合は Awake で GetComponentsInChildren<Renderer>() を使用。")]
         [SerializeField] private Renderer[] _targetRenderers;
@@ -157,10 +162,16 @@ namespace AITuber.Avatar
         {
             if (_shaderCache.TryGetValue(mode, out var cached)) return cached;
 
-            string name = mode == ShaderMode.Toon ? _toonShaderName : _litShaderName;
+            string name = mode switch
+            {
+                ShaderMode.Toon => _toonShaderName,
+                ShaderMode.Lit  => _litShaderName,
+                ShaderMode.Scss => _scssShaderName,
+                _               => _litShaderName,
+            };
             var shader = Shader.Find(name);
             if (shader == null)
-                Debug.LogWarning($"[AppearanceCtrl] Shader not found: '{name}'");
+                Debug.LogWarning($"[AppearanceCtrl] Shader not found: '{name}'. SCSS の場合は Assets へ unitypackage をインポートしてください。");
             else
                 _shaderCache[mode] = shader;
             return shader;

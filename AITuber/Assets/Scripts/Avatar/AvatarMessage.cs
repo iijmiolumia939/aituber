@@ -308,7 +308,7 @@ namespace AITuber.Avatar
     [Serializable]
     public class AppearanceUpdateParams
     {
-        /// <summary>"toon" | "lit"  (case-insensitive → ShaderMode enum). FR-SHADER-02.</summary>
+        /// <summary>"toon" | "lit" | "scss"  (case-insensitive → ShaderMode enum). FR-SHADER-02.</summary>
         public string shader_mode = "";
 
         /// <summary>Costume preset ID (e.g. "default", "casual", "formal"). FR-APPEARANCE-01.</summary>

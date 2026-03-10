@@ -449,7 +449,10 @@ class AvatarWSSender:
     ) -> None:
         """Send appearance_update command to Unity AppearanceController.
 
-        FR-SHADER-02: shader_mode "toon" | "lit"
+        FR-SHADER-02: shader_mode "toon" | "lit" | "scss"
+          - "toon"  → AITuber/CyberpunkToon
+          - "lit"   → Universal Render Pipeline/Lit (PBR)
+          - "scss"  → Silent's Cel Shading/Lightramp (Outline) (要 unitypackage インポート)
         FR-APPEARANCE-01: costume preset ID (e.g. "default", "casual", "formal", "pajama")
         FR-APPEARANCE-02: hair preset ID (e.g. "default", "ponytail", "short")
 
