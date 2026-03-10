@@ -149,5 +149,18 @@ namespace AITuber.Avatar
             center   = new Vector3(-0.06f, 0f, 0f),
             radius   = 0.07f,
         };
+
+#if UNITY_EDITOR
+        // Inspector でこのアセットのスライダーを変更したとき、
+        // シーン内の全 HairPhysicsApplicator へ即時伝播する。
+        // (MonoBehaviour.OnValidate はアセット側の変更では発火しないため、
+        //  ScriptableObject 側でグローバルに通知する必要がある)
+        private void OnValidate()
+        {
+            var applicators = FindObjectsByType<HairPhysicsApplicator>(FindObjectsSortMode.None);
+            foreach (var a in applicators)
+                a.Apply();
+        }
+#endif
     }
 }
