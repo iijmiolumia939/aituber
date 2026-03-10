@@ -2,7 +2,8 @@
     "name": "AITuber.Runtime",
     "rootNamespace": "AITuber",
     "references": [
-        "Unity.InferenceEngine"
+        "Unity.InferenceEngine",
+        "DynamicBone"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
