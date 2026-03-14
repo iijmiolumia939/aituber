@@ -14,6 +14,7 @@ import pytest
 
 from orchestrator.chat_poller import ChatMessage
 from orchestrator.config import AppConfig, LLMConfig
+from orchestrator.episodic_store import EpisodeEntry
 from orchestrator.main import Orchestrator
 
 
@@ -392,6 +393,102 @@ class TestOnPerceptionUpdateBehaviorCompleted:
             {"current_zone": "desk_area", "time_of_day": "morning"}
         )
 
+    def test_behavior_completed_is_recorded_in_episodic_memory(self):
+        """TC-PERC-06: behavior completion events are written to episodic memory metadata."""
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._episodic.append = MagicMock()  # type: ignore[method-assign]
+        orch._goals.observe_behavior_result = MagicMock()  # type: ignore[method-assign]
+        orch._goals.to_idle_hint = MagicMock(  # type: ignore[method-assign]
+            return_value="最近は 会話と配信の流れ をもう少し深めたい"
+        )
+        orch._goals.get_scheduler_focus = MagicMock(  # type: ignore[method-assign]
+            return_value=("会話と配信の流れ を深めたい", "social")
+        )
+        orch._life.set_goal_focus = MagicMock()  # type: ignore[method-assign]
+        orch._world_context.state.scene_name = "yuia_home"
+        orch._world_context.state.room_name = "desk_area"
+        orch._world_context.state.objects_nearby = ["desk", "monitor"]
+        orch._world_context.state.time_of_day = "morning"
+
+        orch._on_perception_update(
+            {"behavior_completed": "go_stream", "success": True, "reason": ""}
+        )
+
+        orch._episodic.append.assert_called_once_with(
+            author="system",
+            user_text="behavior_completed: go_stream",
+            ai_response="success",
+            importance=4,
+            source_type="behavior",
+            scene_name="yuia_home",
+            room_name="desk_area",
+            nearby_objects=["desk", "monitor"],
+            activity_type="go_stream",
+            outcome="success",
+            time_bucket="morning",
+        )
+        orch._goals.observe_behavior_result.assert_called_once_with(
+            behavior="go_stream",
+            success=True,
+            reason="",
+            room_name="desk_area",
+        )
+        orch._life.set_goal_focus.assert_called_once_with(
+            "会話と配信の流れ を深めたい",
+            focus_type="social",
+        )
+
+    def test_behavior_failure_reason_is_recorded_in_episodic_memory(self):
+        """TC-PERC-07: behavior failure reason is preserved in episodic memory outcome."""
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._episodic.append = MagicMock()  # type: ignore[method-assign]
+        orch._goals.observe_behavior_result = MagicMock()  # type: ignore[method-assign]
+        orch._goals.to_idle_hint = MagicMock(  # type: ignore[method-assign]
+            return_value="今は 移動の安定性 をもう少し深めたい"
+        )
+        orch._goals.get_scheduler_focus = MagicMock(  # type: ignore[method-assign]
+            return_value=("移動の安定性 を深めたい", "exploration")
+        )
+        orch._life.set_goal_focus = MagicMock()  # type: ignore[method-assign]
+        orch._world_context.state.scene_name = "yuia_home"
+        orch._world_context.state.room_name = "hallway"
+        orch._world_context.state.objects_nearby = ["door", "plant"]
+        orch._world_context.state.time_of_day = "night"
+
+        orch._on_perception_update(
+            {
+                "behavior_completed": "walk_to_bed",
+                "success": False,
+                "reason": "locomotion_blocked",
+            }
+        )
+
+        orch._episodic.append.assert_called_once_with(
+            author="system",
+            user_text="behavior_completed: walk_to_bed",
+            ai_response="failure: locomotion_blocked",
+            importance=7,
+            source_type="behavior",
+            scene_name="yuia_home",
+            room_name="hallway",
+            nearby_objects=["door", "plant"],
+            activity_type="walk_to_bed",
+            outcome="locomotion_blocked",
+            time_bucket="night",
+        )
+        orch._goals.observe_behavior_result.assert_called_once_with(
+            behavior="walk_to_bed",
+            success=False,
+            reason="locomotion_blocked",
+            room_name="hallway",
+        )
+        orch._life.set_goal_focus.assert_called_once_with(
+            "移動の安定性 を深めたい",
+            focus_type="exploration",
+        )
+
 
 class TestNarrativeLoop:
     """TC-NARR-01/02: _narrative_loop が定期的に NarrativeBuilder を呼び出す。
@@ -419,10 +516,24 @@ class TestNarrativeLoop:
 
         def fake_build(episodes, **kwargs):
             build_calls.append(episodes)
+            build_calls.append(kwargs)
             return fake_entry
 
         orch._narrative.build = fake_build  # type: ignore[method-assign]
         orch._episodic.get_recent = MagicMock(return_value=[])  # type: ignore[method-assign]
+        orch._episodic.get_relevant = MagicMock(return_value=[])  # type: ignore[method-assign]
+        orch._semantic.to_overview_fragment = MagicMock(  # type: ignore[method-assign]
+            return_value="[FACTS]\nshader"
+        )
+        orch._goals.current_goal = MagicMock(return_value=MagicMock(subject="Alice"))  # type: ignore[method-assign]
+        orch._goals.top_goal_values = MagicMock(return_value=["shader", "room"])  # type: ignore[method-assign]
+        orch._goals.to_prompt_fragment = MagicMock(  # type: ignore[method-assign]
+            return_value="[GOALS]\n今は shader をもう少し深めたい"
+        )
+        orch._world_context.state.scene_name = "yuia_home"
+        orch._world_context.state.time_of_day = "night"
+        orch._world_context.state.room_name = "desk_area"
+        orch._world_context.state.objects_nearby = ["desk", "monitor"]
 
         sleep_count = 0
 
@@ -435,8 +546,19 @@ class TestNarrativeLoop:
         with patch("orchestrator.main.asyncio.sleep", side_effect=fake_sleep):
             await orch._narrative_loop()
 
-        assert len(build_calls) == 1
+        assert len(build_calls) == 2
         assert orch._narrative_hint == fake_entry.narrative
+        assert build_calls[1]["semantic_fragment"].startswith("[FACTS]")
+        assert build_calls[1]["goal_fragment"].startswith("[GOALS]")
+        orch._episodic.get_relevant.assert_called_once_with(
+            "shader room",
+            top_k=8,
+            author="Alice",
+            time_bucket="night",
+            scene_name="yuia_home",
+            room_name="desk_area",
+            nearby_objects=["desk", "monitor"],
+        )
 
     @pytest.mark.asyncio
     async def test_narrative_loop_does_not_raise_on_build_error(self):
@@ -467,3 +589,352 @@ class TestNarrativeLoop:
         assert error_count[0] == 1
         assert orch._narrative_hint == ""  # unchanged on error
 
+
+class TestReplyEpisodeMetadata:
+    """TC-MEM-17: conversation replies record richer episodic metadata."""
+
+    @pytest.mark.asyncio
+    async def test_reply_records_viewer_and_world_metadata(self):
+        cfg = AppConfig(llm=LLMConfig(max_retries=0))
+        orch = Orchestrator(config=cfg)
+        orch._world_context.state.scene_name = "yuia_home"
+        orch._world_context.state.room_name = "living_room"
+        orch._world_context.state.objects_nearby = ["sofa", "window"]
+        orch._world_context.state.time_of_day = "evening"
+        orch._episodic.append = MagicMock()  # type: ignore[method-assign]
+
+        from orchestrator.llm_client import LLMResult
+
+        async def _stub_stream(text, *, avoidance_hint=None):
+            yield LLMResult(text="こんばんは、続きを話そう。", is_template=False)
+
+        with (
+            patch.object(orch._llm, "generate_reply_stream", new=_stub_stream),
+            patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
+            patch.object(orch, "_speak", new_callable=AsyncMock),
+        ):
+            await orch._reply_to(_make_msg("昨日の話の続きして"))
+
+        orch._episodic.append.assert_called_once_with(
+            author="テストユーザー",
+            user_text="昨日の話の続きして",
+            ai_response="こんばんは、続きを話そう。",
+            source_type="conversation",
+            scene_name="yuia_home",
+            room_name="living_room",
+            nearby_objects=["sofa", "window"],
+            time_bucket="evening",
+            related_viewer="テストユーザー",
+        )
+
+    @pytest.mark.asyncio
+    async def test_reply_observes_semantic_memory(self):
+        """TC-MEM-18: reply path promotes durable facts into semantic memory."""
+        cfg = AppConfig(llm=LLMConfig(max_retries=0))
+        orch = Orchestrator(config=cfg)
+        orch._semantic.observe_conversation = MagicMock()  # type: ignore[method-assign]
+
+        from orchestrator.llm_client import LLMResult
+
+        async def _stub_stream(text, *, avoidance_hint=None):
+            yield LLMResult(text="shader の続きを話そう。", is_template=False)
+
+        with (
+            patch.object(orch._llm, "generate_reply_stream", new=_stub_stream),
+            patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
+            patch.object(orch, "_speak", new_callable=AsyncMock),
+        ):
+            await orch._reply_to(_make_msg("shader の続きを教えて"))
+
+        orch._semantic.observe_conversation.assert_called_once_with(
+            author="テストユーザー",
+            user_text="shader の続きを教えて",
+            ai_response="shader の続きを話そう。",
+        )
+
+    @pytest.mark.asyncio
+    async def test_reply_observes_goal_memory(self):
+        """TC-MEM-20: reply path updates medium-horizon goal memory."""
+        cfg = AppConfig(llm=LLMConfig(max_retries=0))
+        orch = Orchestrator(config=cfg)
+        orch._goals.observe_conversation = MagicMock()  # type: ignore[method-assign]
+        orch._goals.to_idle_hint = MagicMock(return_value="今は shader をもう少し深めたい")  # type: ignore[method-assign]
+        orch._goals.get_scheduler_focus = MagicMock(return_value=("shader を深めたい", "learning"))  # type: ignore[method-assign]
+        orch._life.set_goal_focus = MagicMock()  # type: ignore[method-assign]
+
+        from orchestrator.llm_client import LLMResult
+
+        async def _stub_stream(text, *, avoidance_hint=None):
+            yield LLMResult(text="shader の続きを話そう。", is_template=False)
+
+        with (
+            patch.object(orch._llm, "generate_reply_stream", new=_stub_stream),
+            patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
+            patch.object(orch, "_speak", new_callable=AsyncMock),
+        ):
+            await orch._reply_to(_make_msg("shader の続きを教えて"))
+
+        orch._goals.observe_conversation.assert_called_once_with(
+            author="テストユーザー",
+            user_text="shader の続きを教えて",
+            ai_response="shader の続きを話そう。",
+        )
+        orch._life.set_goal_focus.assert_called_once_with(
+            "shader を深めたい",
+            focus_type="learning",
+        )
+
+    @pytest.mark.asyncio
+    async def test_reply_goal_fragment_uses_familiarity_score(self):
+        """TC-MEM-23: reply goal prompt passes semantic familiarity into goal selection."""
+        cfg = AppConfig(llm=LLMConfig(max_retries=0))
+        orch = Orchestrator(config=cfg)
+        orch._semantic.familiarity_score = MagicMock(return_value=1)  # type: ignore[method-assign]
+        orch._episodic.to_prompt_fragment = MagicMock(return_value="")  # type: ignore[method-assign]
+        orch._semantic.to_prompt_fragment = MagicMock(return_value="[FACTS]\n常連視聴者")  # type: ignore[method-assign]
+        orch._goals.top_goal_values = MagicMock(return_value=["shader の続き"])  # type: ignore[method-assign]
+        orch._goals.to_prompt_fragment = MagicMock(  # type: ignore[method-assign]
+            return_value="[GOALS]\n今は shader の続き を拾い直したい"
+        )
+        orch._world_context.state.scene_name = "yuia_home"
+        orch._world_context.state.time_of_day = "evening"
+        orch._world_context.state.room_name = "living_room"
+        orch._world_context.state.objects_nearby = ["sofa", "window"]
+
+        from orchestrator.llm_client import LLMResult
+
+        async def _stub_stream(text, *, avoidance_hint=None):
+            yield LLMResult(text="了解です。", is_template=False)
+
+        with (
+            patch.object(orch._llm, "generate_reply_stream", new=_stub_stream),
+            patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
+            patch.object(orch, "_speak", new_callable=AsyncMock),
+        ):
+            await orch._reply_to(_make_msg("shader の続きを教えて"))
+
+        orch._goals.to_prompt_fragment.assert_any_call(
+            author="テストユーザー",
+            query="shader の続きを教えて",
+            familiarity_score=1,
+        )
+        orch._goals.top_goal_values.assert_any_call(
+            author="テストユーザー",
+            familiarity_score=1,
+        )
+        orch._semantic.to_prompt_fragment.assert_any_call(
+            author="テストユーザー",
+            query="shader の続きを教えて",
+            exclude_topics=["shader の続き"],
+        )
+        orch._episodic.to_prompt_fragment.assert_any_call(
+            "shader の続きを教えて",
+            author="テストユーザー",
+            time_bucket="evening",
+            scene_name="yuia_home",
+            room_name="living_room",
+            nearby_objects=["sofa", "window"],
+        )
+
+    @pytest.mark.asyncio
+    async def test_narrative_loop_excludes_current_goal_topics_from_semantic_overview(self):
+        """TC-NARR-04: narrative semantic overview omits themes already represented as goals."""
+        from orchestrator.narrative_builder import NarrativeEntry
+
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._running = True
+        orch._narrative.build = MagicMock(
+            return_value=NarrativeEntry(
+                narrative_id="abc123",
+                timestamp=0.0,
+                narrative="最近は文脈が整理されている。",
+                episode_count=2,
+            )
+        )  # type: ignore[method-assign]
+        orch._episodic.get_recent = MagicMock(return_value=[])  # type: ignore[method-assign]
+        orch._episodic.get_relevant = MagicMock(return_value=[])  # type: ignore[method-assign]
+        orch._semantic.to_overview_fragment = MagicMock(return_value="[FACTS]\ntea")  # type: ignore[method-assign]
+        orch._goals.current_goal = MagicMock(return_value=MagicMock(subject="Alice"))  # type: ignore[method-assign]
+        orch._goals.top_goal_values = MagicMock(return_value=["shader の続き", "room"])  # type: ignore[method-assign]
+        orch._goals.to_prompt_fragment = MagicMock(  # type: ignore[method-assign]
+            return_value="[GOALS]\n今は shader の続き を拾い直したい"
+        )
+        orch._world_context.state.scene_name = "yuia_home"
+        orch._world_context.state.objects_nearby = ["desk", "monitor"]
+
+        sleep_count = 0
+
+        async def fake_sleep(_n: float) -> None:
+            nonlocal sleep_count
+            sleep_count += 1
+            if sleep_count >= 1:
+                orch._running = False
+
+        with patch("orchestrator.main.asyncio.sleep", side_effect=fake_sleep):
+            await orch._narrative_loop()
+
+        orch._semantic.to_overview_fragment.assert_called_once_with(
+            exclude_topics=["shader の続き", "room"]
+        )
+
+
+class TestNarrativeEpisodeSelection:
+    def test_select_narrative_episodes_blends_relevant_and_recent(self):
+        """TC-NARR-03: narrative episode selection mixes goal-relevant recall with recency."""
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+
+        recent = [
+            EpisodeEntry(
+                episode_id="recent001",
+                timestamp=1.0,
+                author="Alice",
+                user_text="recent",
+                ai_response="recent-reply",
+            )
+        ]
+        relevant = [
+            EpisodeEntry(
+                episode_id="goal001",
+                timestamp=2.0,
+                author="Bob",
+                user_text="shader",
+                ai_response="goal-reply",
+            ),
+            EpisodeEntry(
+                episode_id="recent001",
+                timestamp=1.0,
+                author="Alice",
+                user_text="recent",
+                ai_response="recent-reply",
+            ),
+        ]
+        orch._episodic.get_recent = MagicMock(return_value=recent)  # type: ignore[method-assign]
+        orch._episodic.get_relevant = MagicMock(return_value=relevant)  # type: ignore[method-assign]
+
+        selected = orch._select_narrative_episodes(
+            "shader",
+            author="Alice",
+            time_bucket="evening",
+            scene_name="yuia_home",
+            room_name="desk_area",
+            nearby_objects=["desk", "monitor"],
+        )
+
+        assert [ep.episode_id for ep in selected] == ["goal001", "recent001"]
+        orch._episodic.get_relevant.assert_called_once_with(
+            "shader",
+            top_k=8,
+            author="Alice",
+            time_bucket="evening",
+            scene_name="yuia_home",
+            room_name="desk_area",
+            nearby_objects=["desk", "monitor"],
+        )
+
+    def test_dedupe_semantic_goal_overlap_removes_redundant_topic_line(self):
+        """TC-MEM-24: semantic topic lines already covered by goals are dropped."""
+        semantic_fragment = (
+            "[FACTS]\n"
+            "テストユーザー は regular 寄りの視聴者で、会話の連続性を期待できる\n"
+            "テストユーザー は shader の話題を繰り返し持ち込みやすい"
+        )
+
+        trimmed = Orchestrator._dedupe_semantic_goal_overlap(
+            semantic_fragment,
+            ["shader の続き"],
+        )
+
+        assert "regular" in trimmed
+        assert "shader の話題" not in trimmed
+
+    @pytest.mark.asyncio
+    async def test_reply_injects_semantic_fragment_into_llm_context(self):
+        """TC-MEM-19: semantic facts are combined with world and episodic context."""
+        cfg = AppConfig(llm=LLMConfig(max_retries=0))
+        orch = Orchestrator(config=cfg)
+        orch._world_context.state.scene_name = "yuia_home"
+        orch._world_context.state.room_name = "living_room"
+        orch._episodic.to_prompt_fragment = MagicMock(return_value="[MEMORY]\n過去の会話")  # type: ignore[method-assign]
+        orch._semantic.to_prompt_fragment = MagicMock(return_value="[FACTS]\n常連視聴者")  # type: ignore[method-assign]
+        orch._goals.to_prompt_fragment = MagicMock(  # type: ignore[method-assign]
+            return_value="[GOALS]\n今は shader をもう少し深めたい"
+        )
+
+        from orchestrator.llm_client import LLMResult
+
+        async def _stub_stream(text, *, avoidance_hint=None):
+            yield LLMResult(text="了解です。", is_template=False)
+
+        with (
+            patch.object(orch._llm, "generate_reply_stream", new=_stub_stream),
+            patch.object(orch._llm, "set_world_context_fragment") as mock_set_ctx,
+            patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
+            patch.object(orch, "_speak", new_callable=AsyncMock),
+        ):
+            await orch._reply_to(_make_msg("今日のこと覚えてる？"))
+
+        injected = mock_set_ctx.call_args.args[0]
+        assert "[WORLD]" in injected
+        assert "[FACTS]" in injected
+        assert "[GOALS]" in injected
+        assert "[MEMORY]" in injected
+
+
+class TestIdleHintSelection:
+    def test_select_idle_hints_prioritizes_goal_and_life(self):
+        """TC-MEM-21: idle hints stay compact and prioritize current continuity."""
+        cfg = AppConfig()
+        orch = Orchestrator(config=cfg)
+        orch._goal_hint = "今は shader の続き を拾い直したい"
+        orch._life_hint = "机で考え事を続けている"
+        orch._narrative_hint = "最近の会話からとても多くを学び、これからも成長していきたいです。"
+
+        hints = orch._select_idle_hints()
+
+        assert hints == [
+            "今は shader の続き を拾い直したい",
+            "机で考え事を続けている",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_idle_talk_loop_passes_trimmed_hints(self):
+        """TC-MEM-22: idle talk injects only the selected compact hint set."""
+        orch = Orchestrator(config=AppConfig())
+        orch._running = True
+        orch._start_time = 0.0
+        orch._last_reply_time = 0.0
+        orch._IDLE_TIMEOUT_SEC = 0.0
+        orch._goal_hint = "今は shader の続き を拾い直したい"
+        orch._life_hint = "机で考え事を続けている"
+        orch._narrative_hint = "最近の会話からとても多くを学び、これからも成長していきたいです。"
+        orch._idle_topics = ["ambient-topic"]
+
+        captured_hints: list[str] = []
+
+        async def _stub_idle(*, hints=None):
+            from orchestrator.llm_client import LLMResult
+
+            captured_hints.extend(hints or [])
+            orch._running = False
+            return LLMResult(text="静かに考えてみよう。", is_template=False)
+
+        with (
+            patch.object(orch._llm, "generate_idle_talk", new=_stub_idle),
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
+            patch.object(orch, "_speak", new_callable=AsyncMock),
+            patch("orchestrator.main.asyncio.sleep", new=AsyncMock()),
+        ):
+            await orch._idle_talk_loop()
+
+        assert captured_hints == [
+            "今は shader の続き を拾い直したい",
+            "机で考え事を続けている",
+            "ambient-topic",
+        ]

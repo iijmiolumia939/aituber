@@ -390,6 +390,7 @@ class TestKnownCmds:
             "room_change",
             "zone_change",
             "behavior_start",
+            "appearance_update",
             "a2f_audio",
             "a2f_chunk",
             "a2f_stream_close",
@@ -409,12 +410,17 @@ class TestKnownCmds:
     # ── a2g_chunk / a2g_stream_close (FR-GESTURE-AUTO-01) ─────────────
 
     def test_a2g_chunk_valid(self, validator: WsSchemaValidator) -> None:
-        result = validator.validate({
-            "cmd": "a2g_chunk",
-            "params": {
-                "pcm_b64": "AAAA", "format": "int16", "sample_rate": 16000, "is_first": False
-            },
-        })
+        result = validator.validate(
+            {
+                "cmd": "a2g_chunk",
+                "params": {
+                    "pcm_b64": "AAAA",
+                    "format": "int16",
+                    "sample_rate": 16000,
+                    "is_first": False,
+                },
+            }
+        )
         assert result.ok
 
     def test_a2g_chunk_missing_pcm_b64(self, validator: WsSchemaValidator) -> None:
@@ -423,10 +429,12 @@ class TestKnownCmds:
         assert result.error_code == "MISSING_PARAM"
 
     def test_a2g_chunk_invalid_format(self, validator: WsSchemaValidator) -> None:
-        result = validator.validate({
-            "cmd": "a2g_chunk",
-            "params": {"pcm_b64": "AAAA", "format": "mp3"},
-        })
+        result = validator.validate(
+            {
+                "cmd": "a2g_chunk",
+                "params": {"pcm_b64": "AAAA", "format": "mp3"},
+            }
+        )
         assert not result.ok
 
     def test_a2g_stream_close_valid(self, validator: WsSchemaValidator) -> None:
@@ -445,4 +453,54 @@ class TestKnownCmds:
     def test_capabilities_empty_params_is_valid(self, validator: WsSchemaValidator) -> None:
         """capabilities: all fields optional"""
         result = validator.validate({"cmd": "capabilities", "params": {}})
+        assert result.ok
+
+    # ── appearance_update (FR-SHADER-02) ───────────────────────────────
+
+    def test_appearance_update_shader_mode_scss(self, validator: WsSchemaValidator) -> None:
+        """TC-APPEARANCE-01: appearance_update shader_mode=scss 正常系"""
+        result = validator.validate(
+            {"cmd": "appearance_update", "params": {"shader_mode": "scss"}}
+        )
+        assert result.ok
+
+    def test_appearance_update_all_shader_modes(self, validator: WsSchemaValidator) -> None:
+        """TC-APPEARANCE-02: 全shader_mode 正常系.
+
+        Covers toon/lit/scss/crt/sketch/watercolor/wireframe/manga.
+        """
+        for mode in (
+            "toon",
+            "lit",
+            "scss",
+            "crt",
+            "sketch",
+            "watercolor",
+            "wireframe",
+            "manga",
+        ):
+            result = validator.validate(
+                {"cmd": "appearance_update", "params": {"shader_mode": mode}}
+            )
+            assert result.ok, f"Expected ok for shader_mode={mode}"
+
+    def test_appearance_update_invalid_shader_mode(self, validator: WsSchemaValidator) -> None:
+        """TC-APPEARANCE-03: 未知の shader_mode → INVALID_PARAM_VALUE"""
+        result = validator.validate(
+            {"cmd": "appearance_update", "params": {"shader_mode": "mtoon"}}
+        )
+        assert not result.ok
+        assert result.error_code == "INVALID_PARAM_VALUE"
+
+    def test_appearance_update_no_fields(self, validator: WsSchemaValidator) -> None:
+        """TC-APPEARANCE-04: パラメータが一つもない → MISSING_PARAM"""
+        result = validator.validate({"cmd": "appearance_update", "params": {}})
+        assert not result.ok
+        assert result.error_code == "MISSING_PARAM"
+
+    def test_appearance_update_costume_and_hair(self, validator: WsSchemaValidator) -> None:
+        """TC-APPEARANCE-05: costume + hair のみも OK (shader_mode なし)"""
+        result = validator.validate(
+            {"cmd": "appearance_update", "params": {"costume": "casual", "hair": "ponytail"}}
+        )
         assert result.ok

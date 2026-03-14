@@ -74,20 +74,36 @@ class GoalState:
 # LifeScheduler._goal_bonus() で参照する。
 
 _GOAL_WEIGHTS: dict[ActivityType, dict[str, float]] = {
-    ActivityType.READ:    {"curiosity": 0.8, "social_drive": 0.0, "exploration": 0.0},
-    ActivityType.TINKER:  {"curiosity": 0.7, "social_drive": 0.0, "exploration": 0.1},
-    ActivityType.PONDER:  {"curiosity": 0.6, "social_drive": 0.1, "exploration": 0.0},
-    ActivityType.WALK:    {"curiosity": 0.0, "social_drive": 0.1, "exploration": 0.9},
+    ActivityType.READ: {"curiosity": 0.8, "social_drive": 0.0, "exploration": 0.0},
+    ActivityType.TINKER: {"curiosity": 0.7, "social_drive": 0.0, "exploration": 0.1},
+    ActivityType.PONDER: {"curiosity": 0.6, "social_drive": 0.1, "exploration": 0.0},
+    ActivityType.WALK: {"curiosity": 0.0, "social_drive": 0.1, "exploration": 0.9},
     ActivityType.STRETCH: {"curiosity": 0.0, "social_drive": 0.0, "exploration": 0.2},
-    ActivityType.EAT:     {"curiosity": 0.0, "social_drive": 0.2, "exploration": 0.0},
-    ActivityType.SLEEP:   {"curiosity": 0.0, "social_drive": 0.0, "exploration": 0.0},
-    ActivityType.WAKE:    {"curiosity": 0.0, "social_drive": 0.0, "exploration": 0.0},
-    ActivityType.IDLE:    {"curiosity": 0.0, "social_drive": 0.0, "exploration": 0.0},
+    ActivityType.EAT: {"curiosity": 0.0, "social_drive": 0.2, "exploration": 0.0},
+    ActivityType.SLEEP: {"curiosity": 0.0, "social_drive": 0.0, "exploration": 0.0},
+    ActivityType.WAKE: {"curiosity": 0.0, "social_drive": 0.0, "exploration": 0.0},
+    ActivityType.IDLE: {"curiosity": 0.0, "social_drive": 0.0, "exploration": 0.0},
 }
 
 # GoalState が足元のスケジュールを覆せる最大ボーナス(0.0〜1.0)。
 # 小さいほど時刻スケジュール優先; 大きいほど目標優先。
 _GOAL_INFLUENCE = 0.35
+
+_LONG_TERM_GOAL_BONUS: dict[str, dict[ActivityType, float]] = {
+    "learning": {
+        ActivityType.READ: 0.18,
+        ActivityType.TINKER: 0.16,
+        ActivityType.PONDER: 0.14,
+    },
+    "exploration": {
+        ActivityType.WALK: 0.18,
+        ActivityType.READ: 0.05,
+    },
+    "social": {
+        ActivityType.PONDER: 0.12,
+        ActivityType.EAT: 0.08,
+    },
+}
 
 
 # ── Life state ────────────────────────────────────────────────────────
@@ -116,6 +132,8 @@ class LifeState:
     activity_started_at: float = field(default_factory=time.monotonic)
     activities_done_today: list[ActivityType] = field(default_factory=list)
     current_zone: str | None = None
+    goal_focus: str = ""
+    goal_focus_type: str | None = None
 
 
 # ── Time-of-day schedule ──────────────────────────────────────────────
@@ -216,6 +234,16 @@ class LifeScheduler:
         """配信開始: social_drive を上昇させる (FR-GOAL-01)."""
         self._state.goal.observe_on_air()
 
+    def set_goal_focus(self, goal_text: str = "", *, focus_type: str | None = None) -> None:
+        """Set medium-horizon goal focus supplied by GoalMemory.
+
+        FR-GOAL-MEM-01: persistent goals bias scheduler choices without
+        replacing short-horizon GoalState.
+        """
+
+        self._state.goal_focus = goal_text
+        self._state.goal_focus_type = focus_type
+
     def tick(self, *, current_zone: str | None = None) -> LifeActivity | None:
         """Poll for activity change. Call roughly every 60s real-time.
 
@@ -235,8 +263,9 @@ class LifeScheduler:
         """
         # Store current zone for downstream consumers (closes BDI Beliefs loop)
         if current_zone is not None and current_zone != self._state.current_zone:
-            logger.debug("[LifeScheduler] zone updated: %s → %s",
-                         self._state.current_zone, current_zone)
+            logger.debug(
+                "[LifeScheduler] zone updated: %s → %s", self._state.current_zone, current_zone
+            )
         self._state.current_zone = current_zone
         now_mono = self._mono_fn()
         now_dt = self._time_fn()
@@ -306,7 +335,10 @@ class LifeScheduler:
         best_bonus = sched_bonus
         for candidate in _GOAL_WEIGHTS:
             if candidate in (
-                schedule_act, ActivityType.SLEEP, ActivityType.WAKE, ActivityType.IDLE
+                schedule_act,
+                ActivityType.SLEEP,
+                ActivityType.WAKE,
+                ActivityType.IDLE,
             ):
                 continue
             bonus = self._goal_bonus(candidate)
@@ -317,7 +349,10 @@ class LifeScheduler:
         if best_act != schedule_act:
             logger.debug(
                 "[LifeScheduler] GoalState override: %s → %s (score %.2f → %.2f)",
-                schedule_act, best_act, sched_bonus, best_bonus,
+                schedule_act,
+                best_act,
+                sched_bonus,
+                best_bonus,
             )
         return best_act
 
@@ -329,11 +364,15 @@ class LifeScheduler:
         """
         weights = _GOAL_WEIGHTS.get(activity_type, {})
         gs = self._state.goal
-        return (
+        bonus = (
             weights.get("curiosity", 0.0) * gs.curiosity
             + weights.get("social_drive", 0.0) * gs.social_drive
             + weights.get("exploration", 0.0) * gs.exploration
         )
+        focus_type = self._state.goal_focus_type
+        if focus_type:
+            bonus += _LONG_TERM_GOAL_BONUS.get(focus_type, {}).get(activity_type, 0.0)
+        return bonus
 
     def _switch_to(self, activity_type: ActivityType) -> LifeActivity:
         self._state.current_activity = activity_type

@@ -30,6 +30,7 @@ dev = [
 
 [project.scripts]
 aituber = "orchestrator.main:main"
+aituber-memory-maintain = "orchestrator.memory_maintenance_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["orchestrator*"]

@@ -53,6 +53,32 @@ class TestNarrativeBuilderFallback:
         assert isinstance(entry, NarrativeEntry)
         assert len(entry.narrative) > 0
 
+    def test_build_fallback_uses_goal_context(self, builder: NarrativeBuilder) -> None:
+        """TC-NARR-02b: fallback narrative reflects current goal continuity."""
+        episodes = _make_episodes(3)
+        entry = builder.build(
+            episodes,
+            semantic_fragment="[FACTS]\nuser2 は shader の話題を継続している",
+            goal_fragment="[GOALS]\n今は shader をもう少し深めたい",
+        )
+
+        assert "shader" in entry.narrative
+
+    def test_build_fallback_uses_multiple_goal_lines(self, builder: NarrativeBuilder) -> None:
+        """TC-NARR-02c: fallback narrative can reflect the top two goals."""
+        episodes = _make_episodes(3)
+        entry = builder.build(
+            episodes,
+            goal_fragment=(
+                "[GOALS]\n"
+                "今は shader の続き を拾い直したい\n"
+                "最近は 部屋の移動と探索 をもう少し深めたい"
+            ),
+        )
+
+        assert "shader の続き" in entry.narrative
+        assert "部屋の移動と探索" in entry.narrative
+
     def test_build_writes_jsonl(self, builder: NarrativeBuilder, tmp_path: Path) -> None:
         """TC-NARR-05: build() appends a line to the JSONL log."""
         episodes = _make_episodes(2)
@@ -103,6 +129,12 @@ class TestNarrativeBuilderWithLLM:
             log_path=str(tmp_path / "narr.jsonl"),
             llm_fn=capture_llm,
         )
-        builder.build(_make_episodes(3))
+        builder.build(
+            _make_episodes(3),
+            semantic_fragment="[FACTS]\nuser2 は shader の話題を継続している",
+            goal_fragment="[GOALS]\n今は shader をもう少し深めたい",
+        )
         assert len(received_prompts) == 1
         assert len(received_prompts[0]) > 10  # non-trivial prompt
+        assert "継続して覚えている事実" in received_prompts[0]
+        assert "今の中期目標" in received_prompts[0]

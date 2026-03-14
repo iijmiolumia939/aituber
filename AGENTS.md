@@ -22,7 +22,7 @@ Unity Avatar Client (C#)       ← Renderer: AITuber/Assets/Scripts/
   AvatarController (Emotion/Gesture/IK/Room/BehaviorSeq)
       │ Capability Gap 未知Intent
       ▼
-Growth System (C#/Python)      ← M1〜M20 全完了 (2026-03-05)
+Growth System (C#/Python)      ← M1〜M29 全完了 (2026-03-14)
   ActionDispatcher → GapLogger → ReflectionRunner
   BehaviorSequenceRunner → behaviors.json (walk_to/gesture/wait)
 ```
@@ -46,6 +46,14 @@ Growth System (C#/Python)      ← M1〜M20 全完了 (2026-03-05)
 | ドキュメント同期ルール | [.github/instructions/sync-docs.instructions.md](.github/instructions/sync-docs.instructions.md) |
 | コード変更後の MCP 手順 (Unity) | [.github/instructions/unity-mcp.instructions.md](.github/instructions/unity-mcp.instructions.md) |
 | ゴールデン原則（ゴミ収集ルール） | [.github/instructions/golden-principles.instructions.md](.github/instructions/golden-principles.instructions.md) |
+| GitHub Copilot ハーネス方針 | [AITuber/docs/adr/0001-github-copilot-harness.md](AITuber/docs/adr/0001-github-copilot-harness.md) |
+
+## GitHub Copilot Harness
+
+- セッション開始時は `Harness: Startup Routine` を実行する
+- 変更完了前は `Harness: Quality Gate (changed files)` を通す
+- 一度だけ `Harness: Install Git Hooks` を実行し、tracked pre-commit を有効化する
+- ハーネスの設計判断は `AITuber/docs/adr/` を真実のソースにする
 | Python orchestrator セットアップ | [AITuber/README.md](AITuber/README.md) |
 
 ---
@@ -103,6 +111,10 @@ Growth System (C#/Python)      ← M1〜M20 全完了 (2026-03-05)
 | M23: Unity Sentis A2E on-device推論 | ✅ 完了 (2026-03-09) | Audio2EmotionInferer.cs, UNITY_AI_INFERENCE_ENABLED, Issue #58 close |
 | M24: AivisSpeech TTS 対応 | ✅ 完了 (2026-03-09) | 7/7テスト グリーン, FR-TTS-01, TTS_BACKEND=aivisspeech, Issue #59 close |
 | M25: 優先度付き Intent キュー | ✅ 完了 (2026-03-10) | 12/12テスト グリーン, FR-INTENT-PRIORITY-01, IntentItem + _intent_dispatcher, Issue #45 close |
+| M26: Episodic Recall Engine | ✅ 完了 (2026-03-14) | metadata-aware recall, behavior completion ingestion, context-aware ranking |
+| M27: Semantic Memory Layer | ✅ 完了 (2026-03-14) | viewer familiarity/repeated topics durable facts, semantic overview, `[FACTS]` prompt |
+| M28: Narrative and Goal Continuity | ✅ 完了 (2026-03-14) | goal memory, viewer-aware continuity, ambient/scene/object grounded recall |
+| M29: Runtime Memory Maintenance | ✅ 完了 (2026-03-14) | post-stream maintenance CLI, duplicate merge, stale archive, conservative semantic/goal backfill |
 
 ---
 

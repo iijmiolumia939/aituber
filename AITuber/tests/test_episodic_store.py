@@ -20,6 +20,17 @@ def store(tmp_path: Path) -> EpisodicStore:
     return EpisodicStore(path=tmp_path / "ep.jsonl", capacity=50)
 
 
+@pytest.fixture()
+def timed_store(tmp_path: Path) -> tuple[EpisodicStore, list[float]]:
+    now = [1_700_000_000.0]
+    store = EpisodicStore(
+        path=tmp_path / "timed_ep.jsonl",
+        capacity=50,
+        time_fn=lambda: now[0],
+    )
+    return store, now
+
+
 def _add(s: EpisodicStore, author: str = "A", user: str = "hello", ai: str = "hi") -> EpisodeEntry:
     return s.append(author=author, user_text=user, ai_response=ai)
 
@@ -102,6 +113,25 @@ class TestEpisodicStorePersistence:
         s = EpisodicStore(path=path)
         assert s.count == 0  # nothing loadable
 
+    def test_from_dict_backwards_compatible_with_legacy_fields(self) -> None:
+        """TC-MEM-07b: legacy payloads deserialize with safe defaults for new metadata."""
+        ep = EpisodeEntry.from_dict(
+            {
+                "episode_id": "legacy001",
+                "timestamp": 1234.0,
+                "author": "Alice",
+                "user_text": "hello",
+                "ai_response": "hi",
+                "importance": 7,
+            }
+        )
+        assert ep.source_type == "conversation"
+        assert ep.emotion_tags == []
+        assert ep.arousal == 0.0
+        assert ep.access_count == 0
+        assert ep.time_bucket == ""
+        assert ep.related_viewer == ""
+
 
 # ── TC-MEM-08: Retrieval ───────────────────────────────────────────────
 
@@ -141,3 +171,192 @@ class TestEpisodicStoreRetrieval:
         frag = store.to_prompt_fragment("test")
         assert frag.startswith("[MEMORY]")
         assert "Alice" in frag
+
+
+class TestEpisodicStoreM26Ranking:
+    def test_append_persists_metadata_fields(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-11: append stores new metadata fields for runtime memory events."""
+        store, _now = timed_store
+        ep = store.append(
+            author="system",
+            user_text="behavior_completed: go_sleep",
+            ai_response="success",
+            importance=6,
+            source_type="behavior",
+            emotion_tags=["thinking"],
+            arousal=0.4,
+            scene_name="yuia_home",
+            room_name="bedroom",
+            nearby_objects=["Desk", "Lamp", "Desk"],
+            activity_type="go_sleep",
+            related_viewer="Alice",
+            outcome="success",
+            time_bucket="night",
+        )
+        assert ep.source_type == "behavior"
+        assert ep.emotion_tags == ["thinking"]
+        assert ep.arousal == pytest.approx(0.4)
+        assert ep.scene_name == "yuia_home"
+        assert ep.room_name == "bedroom"
+        assert ep.nearby_objects == ["desk", "lamp"]
+        assert ep.activity_type == "go_sleep"
+        assert ep.related_viewer == "Alice"
+        assert ep.outcome == "success"
+        assert ep.time_bucket == "night"
+
+    def test_get_relevant_boosts_same_viewer_continuity(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-12: same-viewer memories rank above unrelated viewer memories on tie."""
+        store, _now = timed_store
+        store.append("Alice", "stream plan", "let's continue", importance=5)
+        store.append("Bob", "stream plan", "different thread", importance=5)
+
+        results = store.get_relevant("stream plan", author="Alice")
+
+        assert results[0].author == "Alice"
+
+    def test_get_relevant_prefers_fresher_matching_episode(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-13: fresher episodes outrank older ones with otherwise similar relevance."""
+        store, now = timed_store
+        store.append("Alice", "python shader", "old memory", importance=6)
+        now[0] += 14 * 24 * 3600
+        store.append("Alice", "python shader", "recent memory", importance=6)
+
+        results = store.get_relevant("python shader", author="Alice")
+
+        assert results[0].ai_response == "recent memory"
+
+    def test_get_relevant_boosts_matching_time_bucket(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-14: time bucket match breaks ties in favor of current context."""
+        store, _now = timed_store
+        store.append(
+            "Alice",
+            "study topic",
+            "night memory",
+            importance=5,
+            time_bucket="night",
+        )
+        store.append(
+            "Alice",
+            "study topic",
+            "morning memory",
+            importance=5,
+            time_bucket="morning",
+        )
+
+        results = store.get_relevant("study topic", author="Alice", time_bucket="morning")
+
+        assert results[0].ai_response == "morning memory"
+
+    def test_get_relevant_boosts_matching_room_name(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-14b: room match breaks ties in favor of current place continuity."""
+        store, _now = timed_store
+        store.append(
+            "Alice",
+            "study topic",
+            "desk memory",
+            importance=5,
+            room_name="desk_area",
+        )
+        store.append(
+            "Alice",
+            "study topic",
+            "kitchen memory",
+            importance=5,
+            room_name="kitchen",
+        )
+
+        results = store.get_relevant("study topic", author="Alice", room_name="desk_area")
+
+        assert results[0].ai_response == "desk memory"
+
+    def test_get_relevant_boosts_matching_scene_name(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-14c: scene match breaks ties in favor of current environment."""
+        store, _now = timed_store
+        store.append(
+            "Alice",
+            "study topic",
+            "home memory",
+            importance=5,
+            scene_name="yuia_home",
+        )
+        store.append(
+            "Alice",
+            "study topic",
+            "studio memory",
+            importance=5,
+            scene_name="stream_studio",
+        )
+
+        results = store.get_relevant("study topic", author="Alice", scene_name="yuia_home")
+
+        assert results[0].ai_response == "home memory"
+
+    def test_get_relevant_boosts_matching_nearby_objects(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-14d: nearby object overlap favors the currently grounded episode."""
+        store, _now = timed_store
+        store.append(
+            "Alice",
+            "study topic",
+            "desk memory",
+            importance=5,
+            nearby_objects=["desk", "monitor"],
+        )
+        store.append(
+            "Alice",
+            "study topic",
+            "sofa memory",
+            importance=5,
+            nearby_objects=["sofa", "plant"],
+        )
+
+        results = store.get_relevant(
+            "study topic",
+            author="Alice",
+            nearby_objects=["desk", "lamp", "monitor"],
+        )
+
+        assert results[0].ai_response == "desk memory"
+
+    def test_get_relevant_reinforces_access_count_on_recall(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-15: recalled episodes update access_count and last_accessed."""
+        store, now = timed_store
+        ep = store.append("Alice", "favorite tea", "jasmine", importance=6)
+
+        before_last_accessed = ep.last_accessed
+        results = store.get_relevant("favorite tea", author="Alice")
+
+        assert results[0].access_count == 1
+        assert results[0].last_accessed >= before_last_accessed
+
+        now[0] += 60.0
+        results = store.get_relevant("favorite tea", author="Alice")
+        assert results[0].access_count == 2
+
+    def test_retrieval_side_decay_keeps_weak_old_episode_below_recent_stronger_match(
+        self, timed_store: tuple[EpisodicStore, list[float]]
+    ) -> None:
+        """TC-MEM-16: old low-importance episodes decay instead of dominating retrieval forever."""
+        store, now = timed_store
+        store.append("Alice", "memory topic", "weak old", importance=5)
+        now[0] += 30 * 24 * 3600
+        store.append("Alice", "memory topic", "newer stronger", importance=7)
+
+        results = store.get_relevant("memory topic", author="Alice")
+
+        assert results[0].ai_response == "newer stronger"

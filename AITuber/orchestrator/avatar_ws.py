@@ -449,10 +449,15 @@ class AvatarWSSender:
     ) -> None:
         """Send appearance_update command to Unity AppearanceController.
 
-        FR-SHADER-02: shader_mode "toon" | "lit" | "scss"
-          - "toon"  → AITuber/CyberpunkToon
-          - "lit"   → Universal Render Pipeline/Lit (PBR)
-          - "scss"  → Silent's Cel Shading/Lightramp (Outline) (要 unitypackage インポート)
+        FR-SHADER-02: shader_mode — one of:
+          - "toon"       → AITuber/CyberpunkToon (default)
+          - "lit"        → Universal Render Pipeline/Lit (PBR)
+          - "scss"       → Silent's Cel Shading (Built-in RP only — non-functional in URP)
+          - "crt"        → AITuber/RetroAvatarCRT (レトロ CRT スキャンライン)
+          - "sketch"     → AITuber/CrosshatchSketch (クロスハッチ鉛筆)
+          - "watercolor" → AITuber/WatercolorAvatar (水彩)
+          - "wireframe"  → AITuber/WireframeSolid (ワイヤーフレーム + ソリッド)
+          - "manga"      → AITuber/MangaPanel (漫画パネル Unlit)
         FR-APPEARANCE-01: costume preset ID (e.g. "default", "casual", "formal", "pajama")
         FR-APPEARANCE-02: hair preset ID (e.g. "default", "ponytail", "short")
 

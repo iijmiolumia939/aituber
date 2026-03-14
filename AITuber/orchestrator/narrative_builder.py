@@ -59,10 +59,11 @@ class NarrativeBuilder:
     """
 
     _PROMPT_TEMPLATE = (
-        "以下はAIアバター「YUI.A」の最近の配信での会話記録です。\n"
-        "YUI.Aとして、これらの会話から自分がどう成長しているかを200字以内の"
-        "一人称で振り返ってください。完全な文章で書いてください。\n\n"
-        "会話記録:\n{episodes}\n\n"
+        "以下はAIアバター「YUI.A」の最近の配信での記録です。\n"
+        "会話の断片だけでなく、継続して覚えている事実や今の関心も踏まえて、"
+        "YUI.Aとして自分がどう成長しているかを200字以内の一人称で振り返ってください。"
+        "完全な文章で書いてください。\n\n"
+        "{context_blocks}\n\n"
         "YUI.Aの振り返り:"
     )
 
@@ -83,6 +84,8 @@ class NarrativeBuilder:
         self,
         episodes: list,  # list[EpisodeEntry] from episodic_store
         *,
+        semantic_fragment: str = "",
+        goal_fragment: str = "",
         window: int = _DEFAULT_WINDOW,
         max_chars: int = _DEFAULT_MAX_CHARS,
     ) -> NarrativeEntry:
@@ -99,17 +102,29 @@ class NarrativeBuilder:
         if not recent:
             narrative_text = "まだ十分な会話記録がありません。これからたくさんお話ししたいです。"
         else:
-            prompt = self._build_prompt(recent)
+            prompt = self._build_prompt(
+                recent,
+                semantic_fragment=semantic_fragment,
+                goal_fragment=goal_fragment,
+            )
             if self._llm_fn is not None:
                 try:
                     raw = self._llm_fn(prompt)
                     narrative_text = raw.strip()[:max_chars] or "（記録なし）"
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Narrative LLM call failed: %s", exc)
-                    narrative_text = self._fallback_narrative(recent)
+                    narrative_text = self._fallback_narrative(
+                        recent,
+                        semantic_fragment=semantic_fragment,
+                        goal_fragment=goal_fragment,
+                    )
             else:
                 # No LLM → rule-based stub
-                narrative_text = self._fallback_narrative(recent)
+                narrative_text = self._fallback_narrative(
+                    recent,
+                    semantic_fragment=semantic_fragment,
+                    goal_fragment=goal_fragment,
+                )
 
         import uuid as _uuid
 
@@ -142,26 +157,72 @@ class NarrativeBuilder:
 
     # ── Private helpers ───────────────────────────────────────────────
 
-    def _build_prompt(self, episodes: list) -> str:
+    def _build_prompt(
+        self,
+        episodes: list,
+        *,
+        semantic_fragment: str = "",
+        goal_fragment: str = "",
+    ) -> str:
         ep_lines: list[str] = []
         for ep in episodes:
             ep_lines.append(f"視聴者({ep.author}): {ep.user_text}")
             ep_lines.append(f"YUI.A: {ep.ai_response[:60]}")
-        return self._PROMPT_TEMPLATE.format(episodes="\n".join(ep_lines))
+        episode_block = "\n".join(ep_lines)
+        blocks = [f"会話記録:\n{episode_block}"]
+        if semantic_fragment:
+            blocks.append(f"継続して覚えている事実:\n{semantic_fragment}")
+        if goal_fragment:
+            blocks.append(f"今の中期目標:\n{goal_fragment}")
+        return self._PROMPT_TEMPLATE.format(context_blocks="\n\n".join(blocks))
 
     @staticmethod
-    def _fallback_narrative(episodes: list) -> str:
+    def _fallback_narrative(
+        episodes: list,
+        *,
+        semantic_fragment: str = "",
+        goal_fragment: str = "",
+    ) -> str:
         """Rule-based narrative stub when LLM is unavailable."""
         if not episodes:
             return "まだ記録がありません。"
         first = episodes[0]
         last = episodes[-1]
         n = len(episodes)
-        return (
+        goal_hints = NarrativeBuilder._hint_lines(goal_fragment, limit=2)
+        fact_hint = NarrativeBuilder._first_hint_line(semantic_fragment)
+        parts = [
             f"最近 {n} 件の会話を振り返ると、{first.author}さんとの対話から始まり、"
             f"{last.author}さんとの会話まで、多くのことを学びました。"
-            f"これからも視聴者の皆さんと共に成長していきたいです。"
-        )
+        ]
+        if fact_hint:
+            parts.append(f"とくに {fact_hint} という継続した流れを感じています。")
+        if goal_hints:
+            joined_goal_hints = "、そして ".join(goal_hints)
+            parts.append(f"今は {joined_goal_hints} という気持ちが強いです。")
+        parts.append("これからも視聴者の皆さんと共に成長していきたいです。")
+        return "".join(parts)
+
+    @staticmethod
+    def _first_hint_line(fragment: str) -> str:
+        for line in fragment.splitlines():
+            line = line.strip()
+            if not line or line.startswith("["):
+                continue
+            return line
+        return ""
+
+    @staticmethod
+    def _hint_lines(fragment: str, *, limit: int = 2) -> list[str]:
+        lines: list[str] = []
+        for line in fragment.splitlines():
+            line = line.strip()
+            if not line or line.startswith("["):
+                continue
+            lines.append(line)
+            if len(lines) >= limit:
+                break
+        return lines
 
     def _append_log(self, entry: NarrativeEntry) -> None:
         try:

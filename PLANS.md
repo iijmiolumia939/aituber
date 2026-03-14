@@ -1,6 +1,6 @@
 # PLANS.md — AITuber 実装計画トラッカー
 
-> **最終更新**: 2026-03-10 (M25: 優先度付き Intent キュー 完了)  
+> **最終更新**: 2026-03-14 (M29 完了)  
 > これは計画の索引です。詳細はリンク先の exec-plan を参照。  
 > 完了した計画は `exec-plans/completed/` に移動し、ここでは状態を「✅完了」に更新する。
 
@@ -8,7 +8,10 @@
 
 ## 進行中
 
-*現在進行中のタスクはありません。*
+| 計画 | 状態 | 概要 | 詳細 |
+|---|---|---|---|
+
+現在、active exec-plan はありません。
 
 <!-- M10 完了 2026-03-04 → [exec-plans/completed/m10-tts-tests.md](AITuber/docs/exec-plans/completed/m10-tts-tests.md) -->
 
@@ -58,6 +61,10 @@
 | M23: Unity Sentis A2E on-device推論 | 2026-03-09 | Audio2EmotionInferer.cs, UNITY_AI_INFERENCE_ENABLED, Issue #58 close | — |
 | M24: AivisSpeech TTS 対応 | 2026-03-09 | 7/7テスト グリーン, FR-TTS-01, TTS_BACKEND=aivisspeech, Issue #59 close | — |
 | M25: 優先度付き Intent キュー | 2026-03-10 | 12/12テスト グリーン, FR-INTENT-PRIORITY-01, IntentItem + _intent_dispatcher, 744 passed, Issue #45 close | — |
+| M26: Episodic Recall Engine | 2026-03-14 | metadata-aware episodic recall, behavior completion ingestion, 48 targeted tests green | [exec-plans/completed/m26-episodic-recall.md](AITuber/docs/exec-plans/completed/m26-episodic-recall.md) |
+| M27: Semantic Memory Layer | 2026-03-14 | durable facts for viewer familiarity/repeated topics, semantic overview, changed-files gate green | [exec-plans/completed/m27-semantic-memory.md](AITuber/docs/exec-plans/completed/m27-semantic-memory.md) |
+| M28: Narrative and Goal Continuity | 2026-03-14 | goal memory, viewer-aware continuity, ambient/scene/object grounded recall, changed-files gate green | [exec-plans/completed/m28-narrative-goal-continuity.md](AITuber/docs/exec-plans/completed/m28-narrative-goal-continuity.md) |
+| M29: Runtime Memory Maintenance | 2026-03-14 | post-stream maintenance CLI, duplicate merge, stale archive, conservative semantic/goal backfill | [exec-plans/completed/m29-memory-maintenance.md](AITuber/docs/exec-plans/completed/m29-memory-maintenance.md) |
 
 ---
 

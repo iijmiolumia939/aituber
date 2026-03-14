@@ -217,8 +217,20 @@ def test_high_exploration_overrides_read_with_walk():
     # hour=10 → READ (curiosity=0.5 default → sched_bonus = 0.8*0.5=0.4)
     # WALK score with exploration=1.0 → 0.9*1.0=0.9; margin=0.5 > _GOAL_INFLUENCE(0.35)
     scheduler, _ = _make_scheduler(hour=10)
-    scheduler.state.goal.curiosity = 0.01   # very low curiosity
+    scheduler.state.goal.curiosity = 0.01  # very low curiosity
     scheduler.state.goal.exploration = 1.0  # very high exploration
     result = scheduler._desired_activity(10)
     assert result == ActivityType.WALK
 
+
+# TC-LIFE-23: medium-horizon learning goal can bias WALK block toward READ
+def test_learning_goal_focus_biases_walking_slot_toward_read():
+    scheduler, _ = _make_scheduler(hour=15)  # baseline schedule is WALK
+    scheduler.state.goal.curiosity = 0.3
+    scheduler.state.goal.social_drive = 0.0
+    scheduler.state.goal.exploration = 0.0
+
+    assert scheduler._desired_activity(15) == ActivityType.WALK
+
+    scheduler.set_goal_focus("shader を深めたい", focus_type="learning")
+    assert scheduler._desired_activity(15) == ActivityType.READ

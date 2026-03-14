@@ -59,6 +59,19 @@ _VISEME_SETS: frozenset[str] = frozenset(["jp_basic_8"])
 
 _JP_BASIC_8: frozenset[str] = frozenset(["sil", "a", "i", "u", "e", "o", "m", "fv"])
 
+_SHADER_MODES: frozenset[str] = frozenset(
+    [
+        "toon",  # AITuber/CyberpunkToon
+        "lit",  # Universal Render Pipeline/Lit (PBR)
+        "scss",  # Silent's Cel Shading (Built-in RP only — non-functional in URP)
+        "crt",  # AITuber/RetroAvatarCRT
+        "sketch",  # AITuber/CrosshatchSketch
+        "watercolor",  # AITuber/WatercolorAvatar
+        "wireframe",  # AITuber/WireframeSolid
+        "manga",  # AITuber/MangaPanel
+    ]
+)
+
 KNOWN_CMDS: frozenset[str] = frozenset(
     [
         "avatar_update",
@@ -71,6 +84,7 @@ KNOWN_CMDS: frozenset[str] = frozenset(
         "room_change",
         "zone_change",
         "behavior_start",
+        "appearance_update",
         "a2f_audio",
         "a2f_chunk",
         "a2f_stream_close",
@@ -308,6 +322,34 @@ def _validate_a2g_stream_close(params: dict) -> WsValidationResult:  # noqa: ARG
     return WsValidationResult.valid()
 
 
+def _validate_appearance_update(params: dict) -> WsValidationResult:
+    """Validate appearance_update params. FR-SHADER-02, FR-APPEARANCE-01/02.
+
+    All fields are optional; at least one must be present.
+    shader_mode must be one of: toon | lit | scss (case-insensitive on Unity side).
+    """
+    shader_mode = params.get("shader_mode")
+    costume = params.get("costume")
+    hair = params.get("hair")
+
+    if shader_mode is None and costume is None and hair is None:
+        return WsValidationResult.error(
+            "MISSING_PARAM",
+            "appearance_update requires at least one of: shader_mode, costume, hair",
+        )
+    if shader_mode is not None:
+        if not isinstance(shader_mode, str):
+            return WsValidationResult.error(
+                "INVALID_PARAM_TYPE", f"'shader_mode' must be a string, got {type(shader_mode)}"
+            )
+        if shader_mode.lower() not in _SHADER_MODES:
+            return WsValidationResult.error(
+                "INVALID_PARAM_VALUE",
+                f"'shader_mode' must be one of {sorted(_SHADER_MODES)}, got '{shader_mode}'",
+            )
+    return WsValidationResult.valid()
+
+
 _CMD_VALIDATORS: dict[str, Any] = {
     "avatar_update": _validate_avatar_update,
     "avatar_event": _validate_avatar_event,
@@ -319,6 +361,7 @@ _CMD_VALIDATORS: dict[str, Any] = {
     "zone_change": _validate_zone_change,
     "avatar_intent": _validate_avatar_intent,
     "behavior_start": _validate_behavior_start,
+    "appearance_update": _validate_appearance_update,
     "a2f_audio": _validate_a2f_audio,
     "a2f_chunk": _validate_a2f_chunk,
     "a2f_stream_close": _validate_a2f_stream_close,

@@ -34,6 +34,7 @@ from orchestrator.emotion_gesture_selector import (
 from orchestrator.episodic_store import EpisodicStore
 from orchestrator.event_bus import EventType, get_event_bus
 from orchestrator.gesture_composer import GestureComposer
+from orchestrator.goal_memory import GoalMemory
 from orchestrator.latency import LatencyTracker
 from orchestrator.life_scheduler import LifeScheduler
 from orchestrator.llm_client import LLMClient, LLMResult
@@ -41,6 +42,7 @@ from orchestrator.memory import MemoryTracker
 from orchestrator.narrative_builder import NarrativeBuilder
 from orchestrator.overlay_server import OverlayServer
 from orchestrator.safety import SafetyVerdict, check_safety
+from orchestrator.semantic_memory import SemanticMemory, extract_topics
 from orchestrator.summarizer import build_summary_prompt, cluster_messages, summarize_for_display
 from orchestrator.tom_estimator import TomEstimator
 from orchestrator.tts import TTSClient, TTSResult
@@ -50,8 +52,8 @@ logger = logging.getLogger(__name__)
 
 # ── FR-INTENT-PRIORITY-01: Priority intent queue ──────────────────────────────
 PRIORITY_INTERACTIVE = 0  # _queue_consumer — runs directly, not queued
-PRIORITY_LIFE = 1         # _life_loop
-PRIORITY_IDLE = 2         # _idle_talk_loop (unused as queue; only flag-gated)
+PRIORITY_LIFE = 1  # _life_loop
+PRIORITY_IDLE = 2  # _idle_talk_loop (unused as queue; only flag-gated)
 
 
 @dataclasses.dataclass(order=True)
@@ -59,9 +61,9 @@ class IntentItem:
     """Priority-queue item for coordinating avatar intents (FR-INTENT-PRIORITY-01)."""
 
     priority: int
-    seq: int                                           # monotonic insertion-order tiebreaker
-    intent: str         = dataclasses.field(compare=False)
-    source: str         = dataclasses.field(compare=False)
+    seq: int  # monotonic insertion-order tiebreaker
+    intent: str = dataclasses.field(compare=False)
+    source: str = dataclasses.field(compare=False)
     room_id: str | None = dataclasses.field(compare=False, default=None)
 
 
@@ -71,11 +73,31 @@ class IntentItem:
 # This closes the Growth-system loop: unknown intents become GapEntries.
 
 # FR-GOAL-01: keywords that raise YUI.A's intellectual curiosity (GoalState)
-_INTELLECTUAL_KEYWORDS: frozenset[str] = frozenset({
-    "宇宙", "哲学", "AI", "人工知能", "量子", "タイムトラベル", "SF", "科学",
-    "数学", "物理", "意識", "未来", "ロボット", "進化", "宇宙人", "次元",
-    "simulation", "universe", "quantum", "philosophy", "consciousness",
-})
+_INTELLECTUAL_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "宇宙",
+        "哲学",
+        "AI",
+        "人工知能",
+        "量子",
+        "タイムトラベル",
+        "SF",
+        "科学",
+        "数学",
+        "物理",
+        "意識",
+        "未来",
+        "ロボット",
+        "進化",
+        "宇宙人",
+        "次元",
+        "simulation",
+        "universe",
+        "quantum",
+        "philosophy",
+        "consciousness",
+    }
+)
 
 
 class Orchestrator:
@@ -132,6 +154,9 @@ class Orchestrator:
         self._world_context = WorldContext()
         # FR-E2-01: Episodic memory
         self._episodic = EpisodicStore()
+        # FR-MEMORY-SEM-01: compact durable facts derived from repeated interactions
+        self._semantic = SemanticMemory()
+        self._goals = GoalMemory()
         # FR-E3-01: Theory of Mind estimator
         self._tom = TomEstimator()
         # FR-E5-01: Intensity/intent-aware gesture composer
@@ -141,6 +166,9 @@ class Orchestrator:
         # FR-LIFE-01: Daily life scheduler (Sims-like autonomous activities)
         self._life = LifeScheduler()
         self._life_hint: str = ""
+        self._goal_hint: str = self._goals.to_idle_hint()
+        goal_focus, goal_focus_type = self._goals.get_scheduler_focus()
+        self._life.set_goal_focus(goal_focus, focus_type=goal_focus_type)
         # FR-LIFE-01, FR-BCAST-01: ON_AIR 中は life_loop を一時停止
         self._is_live: bool = False
         # FR-E6-01: NarrativeBuilder の直近ナラティブ断片（6時間ごと更新）
@@ -163,10 +191,13 @@ class Orchestrator:
         try:
             import os
             from pathlib import Path as _Path
-            _a2e_dir = _Path(os.environ.get(
-                "A2E_MODEL_DIR",
-                r"C:\Users\iijmi\st\audio2face-3d-sdk\_data\audio2emotion-models\audio2emotion-v2.2",
-            ))
+
+            _a2e_dir = _Path(
+                os.environ.get(
+                    "A2E_MODEL_DIR",
+                    r"C:\Users\iijmi\st\audio2face-3d-sdk\_data\audio2emotion-models\audio2emotion-v2.2",
+                )
+            )
             self._a2e = A2EInferer(_a2e_dir)
             logger.info("Audio2Emotion ONNX inferer ready (%s)", _a2e_dir)
         except Exception:
@@ -271,9 +302,7 @@ class Orchestrator:
         url = f"http://{tts_cfg.host}:{tts_cfg.port}/version"
         try:
             async with aiohttp.ClientSession() as session:  # noqa: SIM117
-                async with session.get(
-                    url, timeout=aiohttp.ClientTimeout(total=3.0)
-                ) as resp:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=3.0)) as resp:
                     version = (await resp.text()).strip()[:40]
                     logger.info("[PREFLIGHT] VOICEVOX OK: %s", version)
                     print(f"[PREFLIGHT] VOICEVOX 接続OK ({url}) version={version}", flush=True)
@@ -307,12 +336,10 @@ class Orchestrator:
         # L-5: behavior_completed notification from BehaviorSequenceRunner
         if "behavior_completed" in msg:
             behavior = msg.get("behavior_completed", "")
-            success  = bool(msg.get("success", True))
-            reason   = str(msg.get("reason", ""))
+            success = bool(msg.get("success", True))
+            reason = str(msg.get("reason", ""))
             if success:
-                logger.info(
-                    "[BSR] behavior_completed: behavior=%s success=True", behavior
-                )
+                logger.info("[BSR] behavior_completed: behavior=%s success=True", behavior)
             else:
                 # R3-2: Use reason as gap_category rather than hardcoding locomotion_blocked.
                 # "interrupted" comes from StopBehavior(); "locomotion_blocked" from NavMesh.
@@ -320,8 +347,34 @@ class Orchestrator:
                 logger.warning(
                     "[BSR] behavior_completed: behavior=%s success=False "
                     "gap_category=%s — GrowthSystem should reflect.",
-                    behavior, gap_cat,
+                    behavior,
+                    gap_cat,
                 )
+            try:
+                self._episodic.append(
+                    author="system",
+                    user_text=f"behavior_completed: {behavior}",
+                    ai_response="success" if success else f"failure: {gap_cat}",
+                    importance=4 if success else 7,
+                    source_type="behavior",
+                    scene_name=self._world_context.state.scene_name,
+                    room_name=self._world_context.state.room_name,
+                    nearby_objects=self._world_context.state.objects_nearby,
+                    activity_type=behavior,
+                    outcome="success" if success else gap_cat,
+                    time_bucket=self._world_context.state.time_of_day,
+                )
+                self._goals.observe_behavior_result(
+                    behavior=str(behavior),
+                    success=success,
+                    reason=reason,
+                    room_name=self._world_context.state.room_name or "",
+                )
+                self._goal_hint = self._goals.to_idle_hint()
+                goal_focus, goal_focus_type = self._goals.get_scheduler_focus()
+                self._life.set_goal_focus(goal_focus, focus_type=goal_focus_type)
+            except Exception:
+                logger.debug("Behavior completion memory append failed")
             return  # behavior_completed events do not carry scene/room context
 
         self._world_context.update(msg)
@@ -354,7 +407,7 @@ class Orchestrator:
             logger.info("[IDLE] LLMでアイドルトーク生成中...")
 
             try:
-                extra_hints = [h for h in [self._life_hint, self._narrative_hint] if h]
+                extra_hints = self._select_idle_hints()
                 result = await self._llm.generate_idle_talk(
                     hints=(extra_hints + (self._idle_topics or [])) or None,
                 )
@@ -401,6 +454,28 @@ class Orchestrator:
             except Exception:
                 self._is_replying = False
                 logger.warning("Idle talk failed; continuing")
+
+    def _select_idle_hints(self) -> list[str]:
+        """Select a compact, non-redundant hint set for idle talk.
+
+        FR-GOAL-MEM-01: prefer current goal continuity, then the current life
+        activity, and only then narrative identity, keeping the prompt small.
+        """
+
+        candidates = [self._goal_hint, self._life_hint, self._narrative_hint]
+        hints: list[str] = []
+        for candidate in candidates:
+            text = candidate.strip()
+            if not text:
+                continue
+            if any(text == existing or text in existing or existing in text for existing in hints):
+                continue
+            if len(text) > 96:
+                text = text[:93].rstrip() + "..."
+            hints.append(text)
+            if len(hints) >= 2:
+                break
+        return hints
 
     # ── Daily life loop (FR-LIFE-01) ──────────────────────────────
 
@@ -483,9 +558,7 @@ class Orchestrator:
         """
         while self._running:
             try:
-                item: IntentItem = await asyncio.wait_for(
-                    self._intent_queue.get(), timeout=1.0
-                )
+                item: IntentItem = await asyncio.wait_for(self._intent_queue.get(), timeout=1.0)
             except TimeoutError:
                 continue
             # Defer lower-priority intents while INTERACTIVE reply is in progress
@@ -523,8 +596,24 @@ class Orchestrator:
         while self._running:
             await asyncio.sleep(self._NARRATIVE_INTERVAL_SEC)
             try:
-                episodes = self._episodic.get_recent(20)
-                entry = self._narrative.build(episodes)
+                current_goal = self._goals.current_goal()
+                goal_query = " ".join(self._goals.top_goal_values(top_k=2))
+                goal_author = current_goal.subject if current_goal and current_goal.subject else ""
+                episodes = self._select_narrative_episodes(
+                    goal_query,
+                    author=goal_author,
+                    time_bucket=self._world_context.state.time_of_day,
+                    scene_name=self._world_context.state.scene_name,
+                    room_name=self._world_context.state.room_name,
+                    nearby_objects=self._world_context.state.objects_nearby,
+                )
+                entry = self._narrative.build(
+                    episodes,
+                    semantic_fragment=self._semantic.to_overview_fragment(
+                        exclude_topics=self._goals.top_goal_values(top_k=2)
+                    ),
+                    goal_fragment=self._goals.to_prompt_fragment(),
+                )
                 if entry.narrative:
                     self._narrative_hint = entry.narrative
                     logger.info(
@@ -535,6 +624,46 @@ class Orchestrator:
                     )
             except Exception:
                 logger.debug("[NarrativeLoop] narrative build error; continuing")
+
+    def _select_narrative_episodes(
+        self,
+        goal_query: str = "",
+        *,
+        author: str = "",
+        time_bucket: str = "",
+        scene_name: str = "",
+        room_name: str = "",
+        nearby_objects: list[str] | None = None,
+        recent_k: int = 12,
+    ) -> list:
+        """Blend recent episodes with goal-relevant recall for narrative synthesis.
+
+        FR-E6-01: narrative continuity should respond to current goals rather
+        than only the most recent chat snippets.
+        """
+
+        recent = self._episodic.get_recent(recent_k)
+        if not goal_query.strip():
+            return recent
+        relevant = self._episodic.get_relevant(
+            goal_query,
+            top_k=8,
+            author=author or None,
+            time_bucket=time_bucket or None,
+            scene_name=scene_name or None,
+            room_name=room_name or None,
+            nearby_objects=nearby_objects,
+        )
+        merged: list = []
+        seen_ids: set[str] = set()
+        for episode in [*relevant, *recent]:
+            episode_id = getattr(episode, "episode_id", "")
+            if episode_id and episode_id in seen_ids:
+                continue
+            if episode_id:
+                seen_ids.add(episode_id)
+            merged.append(episode)
+        return merged
 
     # ── Memory monitor (NFR-RES-02) ───────────────────────────────
 
@@ -730,10 +859,42 @@ class Orchestrator:
         episode_count = len(self._episodic.get_by_author(msg.author_display_name))
         tom_est = self._tom.estimate(msg.text, msg.author_display_name, episode_count)
         # FR-E2-01: Inject episodic memory fragment into LLM context
-        mem_frag = self._episodic.to_prompt_fragment(msg.text)
-        if mem_frag:
-            base_ctx = self._world_context.to_prompt_fragment()
-            combined = f"{base_ctx}\n\n{mem_frag}" if base_ctx else mem_frag
+        mem_frag = self._episodic.to_prompt_fragment(
+            msg.text,
+            author=msg.author_display_name,
+            time_bucket=self._world_context.state.time_of_day or None,
+            scene_name=self._world_context.state.scene_name or None,
+            room_name=self._world_context.state.room_name or None,
+            nearby_objects=self._world_context.state.objects_nearby,
+        )
+        familiarity_score = self._semantic.familiarity_score(msg.author_display_name)
+        goal_values = self._goals.top_goal_values(
+            author=msg.author_display_name,
+            familiarity_score=familiarity_score,
+        )
+        sem_frag = self._semantic.to_prompt_fragment(
+            author=msg.author_display_name,
+            query=msg.text,
+            exclude_topics=goal_values,
+        )
+        goal_frag = self._goals.to_prompt_fragment(
+            author=msg.author_display_name,
+            query=msg.text,
+            familiarity_score=familiarity_score,
+        )
+        sem_frag = self._dedupe_semantic_goal_overlap(sem_frag, goal_values)
+        fragments = [
+            fragment
+            for fragment in (
+                self._world_context.to_prompt_fragment(),
+                sem_frag,
+                goal_frag,
+                mem_frag,
+            )
+            if fragment
+        ]
+        if fragments:
+            combined = "\n\n".join(fragments)
             self._llm.set_world_context_fragment(combined)
 
         # LLM call (GRAYゾーンの場合は回避ヒント付き)
@@ -784,7 +945,6 @@ class Orchestrator:
             return
 
         first_sr = first_item
-        accumulated.append(first_item.text)
 
         # Emit LLM events based on the first sentence
         if first_item.is_template:
@@ -843,7 +1003,26 @@ class Orchestrator:
                 author=msg.author_display_name,
                 user_text=msg.text,
                 ai_response=full_text,
+                source_type="conversation",
+                scene_name=self._world_context.state.scene_name,
+                room_name=self._world_context.state.room_name,
+                nearby_objects=self._world_context.state.objects_nearby,
+                time_bucket=self._world_context.state.time_of_day,
+                related_viewer=msg.author_display_name,
             )
+            self._semantic.observe_conversation(
+                author=msg.author_display_name,
+                user_text=msg.text,
+                ai_response=full_text,
+            )
+            self._goals.observe_conversation(
+                author=msg.author_display_name,
+                user_text=msg.text,
+                ai_response=full_text,
+            )
+            self._goal_hint = self._goals.to_idle_hint()
+            goal_focus, goal_focus_type = self._goals.get_scheduler_focus()
+            self._life.set_goal_focus(goal_focus, focus_type=goal_focus_type)
         except Exception:
             logger.debug("Episodic store append failed")
 
@@ -856,6 +1035,35 @@ class Orchestrator:
         # Record reward (simplified)
         self._bandit.update_action_reward("reply_now", 1.0)
         self._is_replying = False  # FR-INTENT-PRIORITY-01
+
+    @staticmethod
+    def _dedupe_semantic_goal_overlap(semantic_fragment: str, goal_values: list[str]) -> str:
+        """Drop semantic topic lines already covered by current goals.
+
+        FR-MEMORY-SEM-01 / FR-GOAL-MEM-01: semantic facts and goals should
+        complement each other rather than restate the same topic twice.
+        """
+
+        if not semantic_fragment or not goal_values:
+            return semantic_fragment
+        goal_topics: set[str] = set()
+        for value in goal_values:
+            goal_topics.update(extract_topics(value))
+        kept_lines: list[str] = []
+        for line in semantic_fragment.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("["):
+                kept_lines.append(stripped)
+                continue
+            line_topics = set(extract_topics(stripped))
+            if line_topics and line_topics & goal_topics:
+                continue
+            kept_lines.append(stripped)
+        if len(kept_lines) <= 1:
+            return ""
+        return "\n".join(kept_lines)
 
     async def _speak(
         self,

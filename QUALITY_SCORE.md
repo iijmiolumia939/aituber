@@ -1,6 +1,6 @@
 # QUALITY_SCORE.md — AITuber 品質スコアカード
 
-> **最終更新**: 2026-03-05 (M20完了)  
+> **最終更新**: 2026-03-14 (M29完了)  
 > **更新ルール**: PR マージ後、影響するドメインのスコアを更新する。  
 > 改善が必要な領域は `tech-debt-tracker.md` にも反映すること。
 
@@ -34,6 +34,10 @@
 | Growth/WsSchemaValidator (M9) | A | 高 (41/41 TC) | FR-WS-SCHEMA-01/02。受信時 JSON Schema バリデーション |
 | Growth/LiveChatId (M16) | A | 高 (9/9 TC) | FR-CHATID-AUTO-01。fetch_active_live_chat_id + Orchestrator._resolve_live_chat_id |
 | Growth/YuiaIntents (M17) | A | 高 (21/21 TC) | FR-YUIA-INT-01〜06。behavior_policy +6 YUI.A intents |
+| Runtime/Episodic Memory (M26) | A | 高 | metadata-aware recall。viewer/time/scene/room/object continuity を recall ranking に反映 |
+| Runtime/Semantic Memory (M27) | A | 高 | viewer familiarity + repeated topic durable facts。`[FACTS]` を compact に維持 |
+| Runtime/Goal/Narrative Continuity (M28) | A | 高 | goal memory、viewer-aware follow-up、ambient grounded recall、scheduler bias まで配線済み |
+| Runtime/Memory Maintenance (M29) | A | 高 | post-stream CLI で duplicate merge、stale archive、conservative semantic/goal backfill を実装 |
 | Behavior/BehaviorDefinitionLoader (M20) | B | 中 (テスト未実装) | FR-BEHAVIOR-SEQ-01。behaviors.json ロード+ルックアップシングルトン |
 | Behavior/BehaviorSequenceRunner (M20) | B | 中 (テスト未実装) | FR-BEHAVIOR-SEQ-01。walk_to/gesture/wait コルーチン |
 
@@ -46,7 +50,7 @@
 | Python Orchestrator 全体 | B | 依存関係は概ね整理済み。循環依存なし |
 | C# Runtime アセンブリ設計 | A | AITuber.Runtime 単一。依存境界明確 |
 | WebSocket プロトコル定義 | A | M9: WsSchemaValidator実装済み。C#バリデーションは Python 側で完了 |
-| テスト戦略 (Python) | B | pytest カバレッジ中程度 |
+| テスト戦略 (Python) | B | pytest 806件規模まで拡張済み。mock中心の統合が多く、実サービスe2eは限定的 |
 | テスト戦略 (C# Unity) | A | 61/61 テスト グリーン (EditMode 55 + PlayMode 6) |
 | CI/CD パイプライン | B | M13: ci.yml(Python ruff+black+pytest) + unity-ci.yml(game-ci EditMode/PlayMode) |
 | ドキュメント | B | 設計書あり。Harness Engineering 方式に刷新中 |
@@ -54,7 +58,7 @@
 
 ---
 
-## テスト集計（2026-03-05 時点）
+## テスト集計（2026-03-14 時点）
 
 | スイート | 合計 | 合格 | 失敗 |
 |---|---|---|---|
@@ -74,7 +78,10 @@
 | Python pytest (new M15) | 6 | 6 | 0 |
 | Python pytest (new M16) | 9 | 9 | 0 |
 | Python pytest (new M17) | 21 | 21 | 0 |
-| Python pytest (全スイート) | 507 | 507 | 2 (pre-existing: emotion_gesture_selector) |
+| Python pytest (targeted M26) | 48 | 48 | 0 |
+| Python pytest (targeted M27/M28) | 53 | 53 | 0 |
+| Python pytest (targeted M29) | 4 | 4 | 0 |
+| Python pytest (全スイート inventory, `-m "not slow"`) | 806 | 806 collected | 10 deselected |
 
 ---
 
