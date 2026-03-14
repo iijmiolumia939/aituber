@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+set -eu
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if command -v pwsh >/dev/null 2>&1; then
+  shell_cmd="pwsh"
+elif command -v powershell.exe >/dev/null 2>&1; then
+  shell_cmd="powershell.exe"
+else
+  echo "PowerShell was not found. Install PowerShell 7 or ensure powershell.exe is on PATH." >&2
+  exit 1
+fi
+
+"$shell_cmd" -NoProfile -ExecutionPolicy Bypass -File "./scripts/copilot_quality_gate.ps1" -ChangedOnly
