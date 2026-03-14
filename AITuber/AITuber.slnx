@@ -1,6 +1,7 @@
 ﻿<Solution>
   <Project Path="Assembly-CSharp-Editor.csproj" />
   <Project Path="DynamicBone.csproj" />
+  <Project Path="SilentCelShading.Unity.csproj" />
   <Project Path="AITuber.Runtime.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="AITuber.Tests.EditMode.csproj" />

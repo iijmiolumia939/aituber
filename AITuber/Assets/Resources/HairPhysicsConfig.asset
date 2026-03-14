@@ -13,50 +13,50 @@ MonoBehaviour:
   m_Name: HairPhysicsConfig
   m_EditorClassIdentifier: AITuber.Runtime::AITuber.Avatar.HairPhysicsConfig
   front:
-    stiffness: 0.03
-    elasticity: 0.05
-    damping: 0.65
-    gravityY: 0.6
-    radius: 0.03
-    forceY: 0.2
+    stiffness: 0.048
+    elasticity: 0
+    damping: 0.154
+    gravityY: 0.509
+    radius: 0.017
+    forceY: 0.385
   side:
-    stiffness: 0.02
-    elasticity: 0.05
-    damping: 0.65
-    gravityY: 0.7
-    radius: 0.03
-    forceY: 0.15
+    stiffness: 0.275
+    elasticity: 0.023
+    damping: 0.2
+    gravityY: 0.537
+    radius: 0
+    forceY: 0.03
   ribbon:
-    stiffness: 0.08
-    elasticity: 0.05
-    damping: 0.55
-    gravityY: 0.4
-    radius: 0.02
-    forceY: 0.1
+    stiffness: 0.085
+    elasticity: 0
+    damping: 0.183
+    gravityY: 0.491
+    radius: 0.0147
+    forceY: 0.174
   body:
-    stiffness: 0.15
-    elasticity: 0.05
-    damping: 0.8
-    gravityY: 0.05
-    radius: 0.04
-    forceY: 0
+    stiffness: 0.096
+    elasticity: 0
+    damping: 0.183
+    gravityY: 0.454
+    radius: 0.0151
+    forceY: 0.147
   head:
     boneName: Head
     center: {x: 0, y: 0.03, z: 0}
-    radius: 0.12
+    radius: 0.116
   neck:
     boneName: Neck
     center: {x: 0, y: 0, z: 0}
-    radius: 0.06
+    radius: 0.086
   chest:
     boneName: Chest
     center: {x: 0, y: 0.05, z: 0.02}
-    radius: 0.1
+    radius: 0.058
   lShoulder:
     boneName: L_Shoulder
     center: {x: 0.06, y: 0, z: 0}
-    radius: 0.07
+    radius: 0.019
   rShoulder:
     boneName: R_Shoulder
     center: {x: -0.06, y: 0, z: 0}
-    radius: 0.07
+    radius: 0.034

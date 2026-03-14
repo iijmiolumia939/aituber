@@ -1,6 +1,8 @@
 // SCSSApplier.cs
-// Editor utility: applies Silent's Cel Shading Shader (SCSS) to VRM/MToon materials
-// on the selected GameObject while preserving texture and colour assignments.
+// Editor utility: applies Silent's Cel Shading Shader (SCSS) to MToon/URP materials
+// on the selected GameObject (QuQu U.fbx avatar) while preserving texture and colour assignments.
+// Note: SCSS is a Built-in RP shader. In URP projects it will show pink unless
+//       a URP-compatible fork is used. Provided for Built-in RP / VRChat workflows.
 //
 // SRS refs: FR-SHADER-02
 // SCSS package: Silent's Cel Shading Shader v1.11 (MIT)
@@ -15,8 +17,9 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// One-click Editor tool to swap VRM/MToon materials to SCSS on the selected avatar.
+/// One-click Editor tool to swap MToon/URP materials to SCSS on the selected avatar.
 /// Use at Edit-time before enabling Runtime dynamic switching via AppearanceController.
+/// Note: SCSS v1.11 targets Built-in RP. In URP projects materials will appear pink.
 /// </summary>
 public static class SCSSApplier
 {
@@ -47,7 +50,7 @@ public static class SCSSApplier
     // ── Core implementation ─────────────────────────────────────────────────
 
     /// <summary>
-    /// Applies the specified SCSS shader variant to all MToon/URP/VRM materials
+    /// Applies the specified SCSS shader variant to all MToon/URP materials
     /// on the selected GameObject, preserving _MainTex, normal map, colours, etc.
     /// </summary>
     static void ApplyToSelected(string shaderName)
@@ -55,7 +58,7 @@ public static class SCSSApplier
         GameObject go = Selection.activeGameObject;
         if (go == null)
         {
-            EditorUtility.DisplayDialog("SCSS", "ヒエラルキーで VRM の GameObject を選択してください。", "OK");
+            EditorUtility.DisplayDialog("SCSS", "ヒエラルキーで GameObject を選択してください。", "OK");
             return;
         }
 

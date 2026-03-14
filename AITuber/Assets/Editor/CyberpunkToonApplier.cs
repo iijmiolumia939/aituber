@@ -4,21 +4,22 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Editor utility: replaces VRM MToon / MToon10 materials on the selected
+/// Editor utility: replaces MToon / MToon10 / URP materials on the selected
 /// GameObject with AITuber/CyberpunkToon while preserving texture assignments.
-/// Menu: AITuber > Apply CyberpunkToon to VRM
+/// Designed for QuQu U.fbx (Humanoid FBX) avatar materials.
+/// Menu: AITuber > Apply CyberpunkToon to Selected
 /// </summary>
 public static class CyberpunkToonApplier
 {
     const string SHADER_NAME = "AITuber/CyberpunkToon";
 
-    [MenuItem("AITuber/Apply CyberpunkToon to VRM")]
+    [MenuItem("AITuber/Apply CyberpunkToon to Selected")]
     static void ApplyToSelected()
     {
         GameObject go = Selection.activeGameObject;
         if (go == null)
         {
-            EditorUtility.DisplayDialog("CyberpunkToon", "ヒエラルキーで VRM の GameObject を選択してください。", "OK");
+            EditorUtility.DisplayDialog("CyberpunkToon", "ヒエラルキーで GameObject を選択してください。", "OK");
             return;
         }
 
@@ -109,15 +110,15 @@ public static class CyberpunkToonApplier
         EditorUtility.DisplayDialog("CyberpunkToon", $"{count} マテリアルに適用しました。", "OK");
     }
 
-    [MenuItem("AITuber/Apply CyberpunkToon to VRM", validate = true)]
+    [MenuItem("AITuber/Apply CyberpunkToon to Selected", validate = true)]
     static bool ApplyValidate() => Selection.activeGameObject != null;
 
     /// <summary>
     /// Applies CyberpunkToon shader to every material under Assets/QuQu/U/TEX/
     /// without requiring a selected GameObject.  FR-SHADER-01.
     /// </summary>
-    [MenuItem("AITuber/Apply CyberpunkToon to All VRM Materials")]
-    public static void ApplyToAllVrmMaterials()
+    [MenuItem("AITuber/Apply CyberpunkToon to All QuQu Materials")]
+    public static void ApplyToAllQuQuMaterials()
     {
         const string SearchFolder = "Assets/QuQu/U/TEX";
         Shader toonShader = Shader.Find(SHADER_NAME);

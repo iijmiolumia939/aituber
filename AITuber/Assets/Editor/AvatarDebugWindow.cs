@@ -1,4 +1,4 @@
-// AvatarDebugWindow.cs
+﻿// AvatarDebugWindow.cs
 // Editor ウィンドウ: WebSocket なしで AvatarController に直接コマンドを送りテストする。
 // Unity メニュー → AITuber / Avatar Debug Window
 
@@ -10,6 +10,7 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 using AITuber.Avatar;
+using AITuber.Rendering;
 
 namespace AITuber.Editor
 {
@@ -72,6 +73,13 @@ namespace AITuber.Editor
         private int    _speakerId    = 47;
         private bool   _ttsRunning   = false;
         private bool   _useA2f       = true;
+
+        // Appearance / ShaderMode
+        private static readonly string[] ShaderModeNames =
+            { "toon", "lit", "scss", "crt", "sketch", "watercolor", "wireframe", "manga", "PixelArt" };
+        private static readonly string[] ShaderModeLabels =
+            { "Toon (CyberpunkToon)", "Lit (PBR)", "SCSS ※URP非推奨", "CRT レトロ", "Sketch 鉛筆", "Watercolor 水彩", "Wireframe", "Manga 漫画", "PixelArt ドット絵" };
+        private int _selectedShaderMode = 0;
         private static readonly Dictionary<string, string> VowelToText = new Dictionary<string, string>
         {
             ["a"] = "あ", ["i"] = "い", ["u"] = "う",
@@ -95,6 +103,7 @@ namespace AITuber.Editor
             DrawEmotionSection();
             DrawLookTargetSection();
             DrawEyeQualitySection();
+            DrawAppearanceSection();
             DrawTTSSection();
             DrawLipSyncSection();
             DrawResetSection();
@@ -474,6 +483,78 @@ namespace AITuber.Editor
             if (GUILayout.Button("Reset All (neutral / none / camera)", GUILayout.Height(28)))
                 SendReset();
             EditorGUILayout.Space(4);
+        }
+
+        // ── Appearance / ShaderMode ────────────────────────────────────
+        private void DrawAppearanceSection()
+        {
+            EditorGUILayout.LabelField("Appearance / Shader Mode", EditorStyles.boldLabel);
+
+            // Current mode readout
+            var ac = AppearanceController.Instance;
+            if (ac != null)
+            {
+                var prevColor = GUI.color;
+                GUI.color = new Color(0.6f, 1f, 0.8f);
+                EditorGUILayout.LabelField($"Current: {ac.CurrentMode}", EditorStyles.miniLabel);
+                GUI.color = prevColor;
+            }
+            else if (Application.isPlaying)
+            {
+                var prevColor = GUI.color;
+                GUI.color = Color.yellow;
+                EditorGUILayout.LabelField("AppearanceController.Instance = null", EditorStyles.miniLabel);
+                GUI.color = prevColor;
+            }
+
+            // Popup selector
+            _selectedShaderMode = EditorGUILayout.Popup(
+                "Shader Mode", _selectedShaderMode, ShaderModeLabels);
+
+            // Apply button
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Apply", GUILayout.Height(26)))
+                    SendAppearanceShaderMode(ShaderModeNames[_selectedShaderMode]);
+
+                // Quick-access buttons
+                if (GUILayout.Button("Toon",  GUILayout.Width(56)))
+                    SendAppearanceShaderMode("toon");
+                if (GUILayout.Button("CRT",   GUILayout.Width(46)))
+                    SendAppearanceShaderMode("crt");
+                if (GUILayout.Button("Sketch",GUILayout.Width(56)))
+                    SendAppearanceShaderMode("sketch");
+                if (GUILayout.Button("Water", GUILayout.Width(52)))
+                    SendAppearanceShaderMode("watercolor");
+                if (GUILayout.Button("Wire",  GUILayout.Width(42)))
+                    SendAppearanceShaderMode("wireframe");
+                if (GUILayout.Button("Manga", GUILayout.Width(52)))
+                    SendAppearanceShaderMode("manga");
+                if (GUILayout.Button("Pixel", GUILayout.Width(48)))
+                    SendAppearanceShaderMode("PixelArt");
+            }
+
+            // PixelArt resolution controls (shown only when in PixelArt mode)
+            var pf = PixelizeFeature.Instance;
+            if (pf != null && ac?.CurrentMode == ShaderMode.PixelArt)
+            {
+                EditorGUILayout.Space(2);
+                EditorGUILayout.LabelField("Pixelize Resolution", EditorStyles.miniLabel);
+                EditorGUI.indentLevel++;
+                var newX = EditorGUILayout.IntSlider("Width",  pf.resolutionX, 60,  640);
+                var newY = EditorGUILayout.IntSlider("Height", pf.resolutionY, 34,  360);
+                if (newX != pf.resolutionX || newY != pf.resolutionY)
+                {
+                    pf.resolutionX = newX;
+                    pf.resolutionY = newY;
+                }
+                EditorGUI.indentLevel--;
+            }
+
+            if (!Application.isPlaying)
+                EditorGUILayout.HelpBox("Play Mode を起動すると AppearanceController が動作します。", MessageType.Info);
+
+            EditorGUILayout.Space(6);
         }
 
         // ── AvatarController 取得 ──────────────────────────────────────
@@ -920,6 +1001,33 @@ namespace AITuber.Editor
             Invoke(ctrl, "ApplyLookTarget", "camera");
             _commentScanActive = false;
             SetStatus("🔄 Reset", Color.gray);
+        }
+
+        private void SendAppearanceShaderMode(string mode)
+        {
+            if (!Application.isPlaying)
+            {
+                SetStatus("⚠ Play Mode を起動してください", Color.yellow);
+                return;
+            }
+            var ac = AppearanceController.Instance;
+            if (ac == null)
+            {
+                SetStatus("⚠ AppearanceController.Instance = null", Color.red);
+                return;
+            }
+            if (System.Enum.TryParse<ShaderMode>(mode, true, out var shaderMode))
+            {
+                ac.ApplyShaderMode(shaderMode);
+                // ポップアップ選択も同期する
+                int idx = System.Array.IndexOf(ShaderModeNames, mode);
+                if (idx >= 0) _selectedShaderMode = idx;
+                SetStatus($"🎨 ShaderMode → {shaderMode}", new Color(0.6f, 0.9f, 1f));
+            }
+            else
+            {
+                SetStatus($"⚠ Unknown mode: {mode}", Color.red);
+            }
         }
 
         // ── Lip sync デモ (EditorApplication.update で tick) ──────────

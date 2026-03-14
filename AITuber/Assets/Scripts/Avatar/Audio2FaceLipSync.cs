@@ -54,7 +54,7 @@ namespace AITuber.Avatar
         [Tooltip("Lerp speed when fading A2F weights in/out (frames per second unit).")]
         [SerializeField] private float _smoothSpeed = 15f;
 
-        // ── ARKit 52 → QuQu VRM blendshape index map ─────────────────
+        // ── ARKit 52 → QuQu blendshape index map ─────────────────────
         // Standard ARKit order (indices 0..51) mapped to Unity blendshape indices.
         // Only the 18 mouth-related shapes used by AvatarController are wired.
         // Unused shapes default to -1 (not applied).
@@ -88,8 +88,8 @@ namespace AITuber.Avatar
         [HideInInspector] public int MouthStretchLIndex     = -1;
         [HideInInspector] public int MouthStretchRIndex     = -1;
 
-        [Header("VRM Vowel Blendshape Indices (set from AvatarController)")]
-        // When set, A2F weights are also remapped to VRM vowel shapes for
+        [Header("Vowel Blendshape Indices (set from AvatarController)")]
+        // When set, A2F weights are also remapped to vowel shapes for
         // larger, more readable mouth movement (same shapes used by TTS lip sync).
         [HideInInspector] public int VowelAIndex = -1;  // Fcl_MTH_A / あ
         [HideInInspector] public int VowelIIndex = -1;  // Fcl_MTH_I / い
@@ -424,7 +424,7 @@ namespace AITuber.Avatar
         }
 
         /// <summary>
-        /// Register VRM vowel blendshape indices so A2F weights are additionally
+        /// Register vowel blendshape indices so A2F weights are additionally
         /// remapped to the same vowel shapes used by TTS phoneme lip sync.
         /// Call once from AvatarController.Start() after SetIndexMap().
         /// </summary>

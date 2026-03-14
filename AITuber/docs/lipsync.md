@@ -15,7 +15,7 @@ VOICEVOX                                  AvatarController.cs
   └─ synthesis   (WAV 生成)                   ├─ UpdateViseme()  ← Update() 毎フレーム
                                               │   ├─ Anticipation (50ms 先行)
   ↓ VisemeEvent[]  (t_ms, v)                  │   ├─ Coarticulation (60% ブレンド)
-                                              │   ├─ VRM 母音シェイプ (あいうえお)
+                                              │   ├─ 母音シェイプ (あいうえお)
   send_viseme ──────────────WebSocket────────→└─  └─ ARKit 口シェイプ (18種)
   play_audio  ←同一フレームで発火
 ```
@@ -106,7 +106,7 @@ emit VisemeEvent(t_ms=t*1000, v="sil")  # 末尾無音
 
 ## 4. ARKit PerfectSync ブレンドシェイプ
 
-VRM の母音5シェイプ（あいうえお）に加え、ARKit 互換の18種の口シェイプを音素プロファイルで同時駆動する。
+母音５シェイプ（あいうえお）に加え、ARKit 互换1８種の口シェイプを音素プロファイルで同時騆動する。
 
 ### 制御シェイプ一覧（QuQu アバター）
 
