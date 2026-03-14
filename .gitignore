@@ -119,7 +119,9 @@ config/youtube_token.json
 AITuber/config/client_secret.json
 AITuber/config/youtube_token.json
 AITuber/config/episodic_memory.jsonl
+AITuber/config/goal_memory.jsonl
 AITuber/config/narrative_log.jsonl
+AITuber/config/semantic_memory.jsonl
 
 # Unity project in subdirectory (paths not matched by leading-/ patterns above)
 AITuber/Temp/
@@ -137,6 +139,10 @@ AITuber/err.txt
 # Unity auto-generated crash recovery scenes
 AITuber/Assets/_Recovery/
 AITuber/Assets/_Recovery.meta
+
+# Local screenshot captures
+AITuber/Assets/Screenshots/screenshot-*.png
+AITuber/Assets/Screenshots/screenshot-*.png.meta
 
 # Native plugin build artifacts (source is tracked, binary build is not)
 native/A2GPlugin/build/
