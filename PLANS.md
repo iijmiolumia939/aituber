@@ -23,11 +23,8 @@
 
 | Issue | 剿先 | 概要 |
 |---|---|---|
-| [#42](https://github.com/iijmiolumia939/aituber/issues/42) | FR-MEMORY-01 | コメント履歴の永続化（再起動で消失） |
-| [#40](https://github.com/iijmiolumia939/aituber/issues/40) | TD-008 | GapLogger 非同期 I/O 改善 |
-| [#31](https://github.com/iijmiolumia939/aituber/issues/31) | FR-LIFE-03 | 髪物理ボーン設定最適化（頭へのめり込み解消） |
-| [#29](https://github.com/iijmiolumia939/aituber/issues/29) | FR-APPEARANCE-01/02/03 | アバター衣装・髪型の動的変更 |
-| [#28](https://github.com/iijmiolumia939/aituber/issues/28) | FR-SHADER-01/02 | トゥーンシェーダー再適用 + Runtime 動的切替 |
+
+現在、バックログに未解決の Issue はありません。
 
 ---
 

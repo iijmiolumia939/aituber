@@ -1,8 +1,7 @@
 ﻿// AvatarController.cs
 // Thin renderer: applies avatar_update / avatar_event / avatar_viseme
 // commands received via WebSocket to the FBX (Humanoid) avatar.
-// Note: UniVRM (com.vrmc.vrm) is kept in Packages/manifest.json for
-//       VRMSpringBone hair-physics only, not for the avatar file format.
+// Hair physics: Dynamic Bone (Assets/DynamicBone) — UniVRM dependency removed.
 //
 // SRS refs: FR-A7-01, FR-LIPSYNC-01, FR-LIPSYNC-02
 // Hard rules: No business logic. No allocations in hot path.

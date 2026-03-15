@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 from collections.abc import Callable, Sequence
@@ -156,6 +157,9 @@ class AvatarWSSender:
         self._lock = asyncio.Lock()
         self._ready = asyncio.Event()
         self._schema_validator = WsSchemaValidator()
+        # FR-PERF-01 / Issue #61: binary msgpack transport (default ON)
+        # Set USE_MSGPACK=0 to disable.
+        self._use_msgpack: bool = os.environ.get("USE_MSGPACK", "1") == "1"
         # FR-E4-01: incoming message handlers keyed by message type
         self._incoming_handlers: dict[str, Callable[[dict], None]] = {}
 
@@ -279,7 +283,26 @@ class AvatarWSSender:
         logger.debug("Sent capabilities message")
 
     async def _broadcast(self, data: str) -> None:
-        """Send data to all connected clients."""
+        """Send text data to all connected clients."""
+        if not self._clients:
+            return
+        import websockets
+
+        dead = set()
+        async with self._lock:
+            for ws in self._clients:
+                try:
+                    await ws.send(data)
+                except (
+                    websockets.exceptions.ConnectionClosed,
+                    ConnectionError,
+                    OSError,
+                ):
+                    dead.add(ws)
+        self._clients -= dead
+
+    async def _broadcast_binary(self, data: bytes) -> None:
+        """Send raw binary data to all connected clients (FR-PERF-01 / Issue #61)."""
         if not self._clients:
             return
         import websockets
@@ -315,6 +338,15 @@ class AvatarWSSender:
         if not self._clients:
             logger.debug("No avatar clients connected; message dropped")
             return
+        if self._use_msgpack:
+            try:
+                import msgpack  # noqa: PLC0415
+
+                raw = msgpack.packb(json.loads(msg.to_json()), use_bin_type=True)
+                await self._broadcast_binary(raw)
+                return
+            except ImportError:
+                logger.warning("msgpack not installed; falling back to JSON text (FR-PERF-01)")
         await self._broadcast(msg.to_json())
 
     # ── High-level commands ───────────────────────────────────────

@@ -112,6 +112,8 @@ namespace AITuber.Avatar
         {
             var buffer = new byte[4096];
             var sb = new StringBuilder();
+            // FR-PERF-01 / Issue #61: accumulate binary (msgpack) chunks
+            var binaryChunks = new System.Collections.Generic.List<byte[]>();
 
             while (_ws.State == WebSocketState.Open && !ct.IsCancellationRequested)
             {
@@ -137,6 +139,47 @@ namespace AITuber.Avatar
                     break;
                 }
 
+                // FR-PERF-01 / Issue #61: handle msgpack binary frames
+                if (result.MessageType == WebSocketMessageType.Binary)
+                {
+                    var chunk = new byte[result.Count];
+                    Array.Copy(buffer, 0, chunk, 0, result.Count);
+                    binaryChunks.Add(chunk);
+
+                    if (result.EndOfMessage)
+                    {
+                        // Combine chunks into a single payload
+                        int total = 0;
+                        foreach (var c in binaryChunks) total += c.Length;
+                        var payload = new byte[total];
+                        int offset = 0;
+                        foreach (var c in binaryChunks)
+                        {
+                            Array.Copy(c, 0, payload, offset, c.Length);
+                            offset += c.Length;
+                        }
+                        binaryChunks.Clear();
+
+                        string jsonStr;
+                        try
+                        {
+                            jsonStr = MsgPackDecoder.ToJson(payload);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogWarning($"[AvatarWS] MsgPack decode error: {ex.Message}");
+                            continue;
+                        }
+
+                        if (_mainThread != null)
+                            _mainThread.Post(_ => TryDispatch(jsonStr), null);
+                        else
+                            _incomingQueue.Enqueue(jsonStr);
+                    }
+                    continue;
+                }
+
+                // Text frame path
                 sb.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
 
                 if (result.EndOfMessage)

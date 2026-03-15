@@ -69,7 +69,9 @@ class TestAvatarWSServer:
         import websockets
 
         cfg = AvatarWSConfig(host="127.0.0.1", port=39102)
-        sender = AvatarWSSender(cfg)
+        # Force JSON mode so recv() returns text frames (msgpack is tested separately)
+        with patch.dict("os.environ", {"USE_MSGPACK": "0"}):
+            sender = AvatarWSSender(cfg)
         await sender.start_server()
 
         # Connect a client
