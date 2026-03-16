@@ -1,3 +1,4 @@
 
 config/client_secret.json
 config/youtube_token.json
+config/youtube_token.revoked*.json
