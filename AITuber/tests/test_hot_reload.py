@@ -9,6 +9,7 @@ TC-HOT-06: run() starts process on entry
 TC-HOT-07: run() restarts process when change detected
 TC-HOT-08: _stop_process terminates running process
 TC-HOT-09: _stop_process is a no-op when process already exited
+TC-HOT-10: run() restarts process when it exits unexpectedly (dead-process detection)
 
 SRS refs: FR-HOTRELOAD-01
 """
@@ -148,7 +149,7 @@ async def test_run_starts_process(tmp_path: Path) -> None:
         patch.object(hr, "_start_process", new_callable=AsyncMock) as mock_start,
         patch.object(hr, "_check_for_changes", return_value=[]),
     ):
-        task = asyncio.ensure_future(hr.run())
+        task = asyncio.create_task(hr.run())
         await asyncio.sleep(0.15)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -184,7 +185,7 @@ async def test_run_restarts_on_change(tmp_path: Path) -> None:
         patch.object(hr, "_check_for_changes", side_effect=_changes_side_effect),
         patch.object(hr, "_restart_process", new_callable=AsyncMock) as mock_restart,
     ):
-        task = asyncio.ensure_future(hr.run())
+        task = asyncio.create_task(hr.run())
         await asyncio.sleep(0.2)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -239,3 +240,51 @@ async def test_stop_process_noop_when_exited(tmp_path: Path) -> None:
 
     mock_proc.terminate.assert_not_called()
     assert hr._proc is None
+
+
+# ── TC-HOT-10: dead-process auto-restart ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_restarts_dead_process(tmp_path: Path) -> None:
+    """TC-HOT-10: run() restarts the orchestrator when it exits unexpectedly."""
+    from orchestrator.hot_reload import HotReloader
+
+    watch = tmp_path / "orchestrator"
+    watch.mkdir()
+    hr = HotReloader(cmd=["python"], watch_dir=watch, poll_interval=0.05, reconnect_wait=0.0)
+
+    start_calls: list[int] = []
+
+    async def fake_start() -> None:
+        start_calls.append(1)
+        # Simulate a process that exits immediately on the second start
+        mock_proc = AsyncMock()
+        mock_proc.returncode = None if len(start_calls) == 1 else None
+        mock_proc.pid = 99900 + len(start_calls)
+        hr._proc = mock_proc
+
+    # After first poll, simulate the process having crashed (returncode set)
+    check_calls = 0
+
+    def fake_check() -> list[Path]:
+        nonlocal check_calls
+        check_calls += 1
+        if check_calls == 1 and hr._proc is not None:
+            # Simulate the proc having exited between polls
+            hr._proc.returncode = 1  # type: ignore[assignment]
+        return []
+
+    with (
+        patch.object(hr, "_start_process", side_effect=fake_start),
+        patch.object(hr, "_check_for_changes", side_effect=fake_check),
+        patch.object(hr, "_stop_process", new_callable=AsyncMock),
+    ):
+        task = asyncio.create_task(hr.run())
+        await asyncio.sleep(0.25)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    # _start_process must have been called at least twice: initial + after crash
+    assert len(start_calls) >= 2

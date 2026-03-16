@@ -117,7 +117,7 @@ class GapTrigger:
             )
             self._in_flight.add(intent)
             # Fire-and-forget; errors logged inside _run_dev_agent
-            asyncio.ensure_future(self._run_dev_agent(intent))
+            asyncio.create_task(self._run_dev_agent(intent), name=f"gap-{intent}")
 
     async def _run_dev_agent(self, intent: str) -> None:
         """Run DevAgent for *intent* in a subprocess, then clear gaps on success.
@@ -139,14 +139,25 @@ class GapTrigger:
     async def _invoke_dev_agent(self, intent: str) -> bool:
         """Invoke the DevAgent CLI for the given intent gap.
 
-        Creates a transient GitHub issue describing the gap and runs DevAgent.
+        Creates a transient GitHub issue describing the gap, then runs DevAgent
+        on that specific issue number.
         Returns True on success (returncode == 0).
+
+        FR-GAP-TRIGGER-01.
         """
+        issue_number = await self._create_gap_issue(intent)
+        if issue_number is None:
+            logger.warning(
+                "[GapTrigger] Could not create GitHub issue for '%s' — skipping DevAgent",
+                intent,
+            )
+            return False
+
         cmd = [
             "python",
             "tools/dev_loop.py",
-            "--label",
-            "gap-trigger",
+            "--issue",
+            str(issue_number),
             "--auto-commit",
             "--loop",
             "1",
@@ -168,6 +179,51 @@ class GapTrigger:
         except Exception:
             logger.exception("[GapTrigger] Failed to spawn DevAgent for intent '%s'", intent)
             return False
+
+    async def _create_gap_issue(self, intent: str) -> int | None:
+        """Create a transient GitHub issue for the intent gap via the gh CLI.
+
+        Returns the issue number on success, or None on failure.
+        FR-GAP-TRIGGER-01.
+        """
+        title = f"Gap: implement intent '{intent}'"
+        body = (
+            f"Auto-created by GapTrigger: intent **{intent!r}** has reached the threshold of "
+            f"{self._threshold} unhandled occurrences in the capability gap log.\n\n"
+            "Please implement this missing behavior in the orchestrator.\n\n"
+            "SRS refs: FR-GAP-TRIGGER-01"
+        )
+        cmd = [
+            "gh",
+            "issue",
+            "create",
+            "--title",
+            title,
+            "--label",
+            "gap-trigger",
+            "--body",
+            body,
+        ]
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=str(_WORKSPACE_ROOT),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                logger.warning(
+                    "[GapTrigger] gh issue create failed: %s",
+                    stderr.decode(errors="replace").strip(),
+                )
+                return None
+            # gh issue create writes the issue URL to stdout: .../issues/123
+            url = stdout.decode().strip()
+            return int(url.rstrip("/").split("/")[-1])
+        except Exception:
+            logger.exception("[GapTrigger] Failed to create GitHub issue for intent '%s'", intent)
+            return None
 
     def _clear_gaps_for_intent(self, intent: str) -> None:
         """Remove all gap entries matching *intent* from every JSONL file.

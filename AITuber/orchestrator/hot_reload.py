@@ -65,6 +65,19 @@ class HotReloader:
         try:
             while True:
                 await asyncio.sleep(self._poll_interval)
+
+                # Restart if the process exited on its own (e.g., crash / import error)
+                if self._proc is not None and self._proc.returncode is not None:
+                    logger.warning(
+                        "[HotReload] Orchestrator PID %d exited (rc=%d) — restarting",
+                        self._proc.pid,
+                        self._proc.returncode,
+                    )
+                    self._proc = None
+                    await self._start_process()
+                    await asyncio.sleep(self._reconnect_wait)
+                    continue
+
                 changed = self._check_for_changes()
                 if changed:
                     logger.info(

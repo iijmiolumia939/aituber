@@ -78,7 +78,7 @@ async def test_at_threshold_kicks_dev_agent(tmp_path: Path) -> None:
         kicked.append(intent)
 
     with patch.object(gt, "_run_dev_agent", side_effect=fake_run):
-        # ensure_future is used inside _tick, so we need to let the loop run
+        # create_task schedules for next loop iteration
         await gt._tick()
         await asyncio.sleep(0)  # allow scheduled coroutines to run
 
