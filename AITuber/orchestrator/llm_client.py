@@ -237,6 +237,13 @@ class LLMClient:
         """
         self._world_context_fragment = fragment
 
+    def react_context(self) -> tuple[str, str]:
+        """Return (system_prompt, world_context_fragment) for ReActEngine.
+
+        FR-LLM-REACT-01 L3: provides read access without exposing private fields.
+        """
+        return self._system_prompt, self._world_context_fragment
+
     async def warmup(self) -> None:
         """GPU へのモデルロードを事前に完了させる (初回レイテンシ回避).
 
@@ -348,9 +355,7 @@ class LLMClient:
                 all_tokens.append(token)
                 # Flush complete sentences from the front of the buffer
                 while True:
-                    idx = next(
-                        (i for i, ch in enumerate(buf) if ch in _SENTENCE_ENDS), -1
-                    )
+                    idx = next((i for i, ch in enumerate(buf) if ch in _SENTENCE_ENDS), -1)
                     if idx < 0:
                         break
                     sentence = buf[: idx + 1].strip()
@@ -404,3 +409,25 @@ class LLMClient:
         )
 
         return await self.generate_reply(idle_prompt)
+
+    async def generate_with_react(
+        self,
+        user_text: str,
+        *,
+        max_turns: int = 3,
+    ) -> LLMResult:
+        """FR-LLM-REACT-01: Tool-augmented reply via ReAct loop.
+
+        Detects whether the query needs external tools (web search / config read).
+        Falls back to plain generate_reply() when ReAct is not needed or fails.
+
+        Returns a standard LLMResult so callers need no special handling.
+        """
+        from orchestrator.react_engine import ReActEngine
+
+        engine = ReActEngine(self, self._cfg, max_turns=max_turns)
+        react_result = await engine.run(user_text)
+        return LLMResult(
+            text=react_result.answer,
+            is_template=react_result.is_template,
+        )

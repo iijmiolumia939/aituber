@@ -915,13 +915,20 @@ class Orchestrator:
         async def _generate() -> None:
             nonlocal first_sr
             try:
-                async for sr in self._llm.generate_reply_stream(
-                    msg.text, avoidance_hint=avoidance_hint
-                ):
+                # FR-LLM-REACT-01 L1: opt-in ReAct path (REACT_ENABLED=1)
+                if self._llm._cfg.react_enabled:
+                    sr = await self._llm.generate_with_react(msg.text)
                     accumulated.append(sr.text)
-                    if first_sr is None:
-                        first_sr = sr
+                    first_sr = sr
                     await sentence_queue.put(sr)
+                else:
+                    async for sr in self._llm.generate_reply_stream(
+                        msg.text, avoidance_hint=avoidance_hint
+                    ):
+                        accumulated.append(sr.text)
+                        if first_sr is None:
+                            first_sr = sr
+                        await sentence_queue.put(sr)
             except Exception:
                 logger.warning("LLM stream outer error; continuing")
             finally:

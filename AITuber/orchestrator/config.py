@@ -58,6 +58,10 @@ class LLMConfig:
     timeout_sec: float = 60.0  # Ollama local inference (mistral-nemo 7B) can take 20-30s
     cost_hard_limit_yen_per_hour: float = 300.0
     cost_target_yen_per_hour: float = 150.0
+    # FR-LLM-REACT-01: opt-in ReAct tool loop (set REACT_ENABLED=1 to enable)
+    react_enabled: bool = field(
+        default_factory=lambda: os.environ.get("REACT_ENABLED", "0") == "1"
+    )
 
 
 @dataclass(frozen=True)
