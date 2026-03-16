@@ -41,6 +41,7 @@ namespace AITuber.Avatar
         // ── Runtime ───────────────────────────────────────────────
 
         private AvatarGrounding _grounding;
+        private GestureController _gesture;
         private float _currentBlend;
         private float _groundedTimer;   // counts up while Grounded, resets when airborne
 
@@ -49,6 +50,7 @@ namespace AITuber.Avatar
         private void Awake()
         {
             _grounding = GetComponent<AvatarGrounding>();
+            _gesture = GetComponent<GestureController>();
         }
 
         private void Update()
@@ -78,6 +80,10 @@ namespace AITuber.Avatar
             // Issue #51 (revised): read Animator "speed" param via AvatarGrounding.IsLocomoting
             // instead of a manually managed flag. Single Source of Truth = Animator parameter.
             if (_grounding.IsLocomoting) return false;
+
+            // Seated poses should not plant feet to nearby furniture such as the desk top.
+            // When the seated base pose is active, keep the authored animation untouched.
+            if (_gesture != null && _gesture.IsSeatedBasePoseActive) return false;
 
             return true;
         }

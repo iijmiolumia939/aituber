@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using Unity.AI.Navigation;
 using AITuber.Behavior;
+using UnityEngine.SceneManagement;
 
 public static class NavMeshBakeTool
 {
@@ -103,17 +104,15 @@ public static class NavMeshBakeTool
 
         // ── 4. SofaSeat 子 GameObject を作成
         //   ソファ座面中央のローカル座標 (Sofa03_1 ローカル空間):
-        //   X=0 (幅方向中央), Y=0 (床レベル), Z=0.3 (奥行き方向・前縁から中央付近)
+        //   X=0 (幅方向中央), Y=0.34 (座面高さ), Z=0.3 (奥行き方向・前縁から中央付近)
         //   ※ Unity Editor の Scene view でドラッグして微調整してください
-        var seat = new GameObject("SofaSeat");
-        seat.transform.SetParent(sofa.transform, false);
-        seat.transform.localPosition = new Vector3(0f, 0f, 0.3f);
-        seat.transform.localRotation = Quaternion.identity;
-
-        // ── 5. InteractionSlot コンポーネントを追加・設定
-        var slot = seat.AddComponent<InteractionSlot>();
-        slot.slotId = "sofa";
-        slot.faceYaw = oldSlot != null ? oldSlot.faceYaw : -1f;
+        var seat = CreateSeatAnchor(
+            furniture: sofa,
+            seatName: "SofaSeat",
+            slotId: "sofa",
+            localPosition: new Vector3(0f, 0.34f, 0.3f),
+            colliderSize: new Vector3(0.9f, 0.10f, 0.55f),
+            faceYaw: oldSlot != null ? oldSlot.faceYaw : -1f);
 
         // ── 6. 旧 InteractionSlot を削除
         if (oldSlot != null)
@@ -131,7 +130,151 @@ public static class NavMeshBakeTool
         EditorSceneManager.MarkSceneDirty(sofa.scene);
 
         Debug.Log($"[SofaSeat] ✓ SofaSeat created at {seat.transform.position:F3} (world). " +
-                  "Adjust local Z in Inspector to center the avatar on the sofa cushion.");
+                  "Adjust local position / collider size in Inspector to center the avatar on the sofa cushion.");
+    }
+
+    [MenuItem("Tools/Setup WorkSeat InteractionSlot")]
+    public static void SetupWorkSeat()
+    {
+        Vector3 defaultLocalSeatPosition = new Vector3(0f, 0.42f, -0.10f);
+        var scene = EditorSceneManager.OpenScene("Assets/Scenes/SampleScene.unity", OpenSceneMode.Single);
+        AITuber.Editor.SceneRoomPlacer.SetupRooms();
+
+        var chair = FindGameObjectIncludingInactive("DeskChair02 (1)")
+            ?? FindGameObjectIncludingInactive("DeskChair02");
+        if (chair == null)
+        {
+            Debug.LogError("[WorkSeat] Desk chair not found in SampleScene. Make sure Room_living_room is placed.");
+            return;
+        }
+
+        InteractionSlot oldSlot = null;
+        foreach (var s in Object.FindObjectsByType<InteractionSlot>(FindObjectsSortMode.None))
+            if (s.slotId == "sit_work") { oldSlot = s; break; }
+
+        var existingChild = chair.transform.Find("WorkSeat");
+        if (existingChild != null)
+        {
+            Object.DestroyImmediate(existingChild.gameObject);
+            Debug.Log("[WorkSeat] Removed existing WorkSeat child.");
+        }
+
+        Vector3 localSeatPosition = defaultLocalSeatPosition;
+        if (oldSlot != null)
+        {
+            localSeatPosition = chair.transform.InverseTransformPoint(oldSlot.transform.position);
+            localSeatPosition.z = defaultLocalSeatPosition.z;
+        }
+
+        if (TryResolveSeatSupportLocalY(chair, localSeatPosition, out float sampledSeatLocalY))
+            localSeatPosition.y = sampledSeatLocalY;
+        else
+            localSeatPosition.y = 0.42f;
+
+        var seat = CreateSeatAnchor(
+            furniture: chair,
+            seatName: "WorkSeat",
+            slotId: "sit_work",
+            localPosition: localSeatPosition,
+            colliderSize: new Vector3(0.46f, 0.10f, 0.46f),
+            faceYaw: oldSlot != null ? oldSlot.faceYaw : -1f);
+
+        if (oldSlot != null)
+        {
+            var oldGo = oldSlot.gameObject;
+            Object.DestroyImmediate(oldSlot);
+            if (oldGo != chair && oldGo.GetComponents<Component>().Length <= 1)
+                Object.DestroyImmediate(oldGo);
+            Debug.Log("[WorkSeat] Removed old sit_work InteractionSlot.");
+        }
+
+        EditorUtility.SetDirty(seat);
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+
+        Debug.Log($"[WorkSeat] ✓ WorkSeat created at {seat.transform.position:F3} (world). " +
+                  $"Adjusted local Z to {localSeatPosition.z:F3} so AvatarRoot sits deeper on the chair cushion. " +
+                  "Adjust local position / collider size in Inspector if the chair mesh differs.");
+    }
+
+    private static GameObject CreateSeatAnchor(
+        GameObject furniture,
+        string seatName,
+        string slotId,
+        Vector3 localPosition,
+        Vector3 colliderSize,
+        float faceYaw)
+    {
+        var seat = new GameObject(seatName);
+        seat.transform.SetParent(furniture.transform, false);
+        seat.transform.localPosition = localPosition;
+        seat.transform.localRotation = Quaternion.identity;
+
+        var collider = seat.AddComponent<BoxCollider>();
+        collider.size = colliderSize;
+        collider.center = new Vector3(0f, -colliderSize.y * 0.5f, 0f);
+        collider.isTrigger = false;
+
+        var slot = seat.AddComponent<InteractionSlot>();
+        slot.slotId = slotId;
+        slot.faceYaw = faceYaw;
+        slot.standOffset = Vector3.zero;
+
+        return seat;
+    }
+
+    private static bool TryResolveSeatSupportLocalY(GameObject furniture, Vector3 localProbePosition, out float localSupportY)
+    {
+        Vector3 worldProbe = furniture.transform.TransformPoint(new Vector3(localProbePosition.x, localProbePosition.y + 0.5f, localProbePosition.z));
+        Collider bestCollider = null;
+        float bestSurfaceY = float.NegativeInfinity;
+
+        foreach (var collider in Object.FindObjectsByType<Collider>(FindObjectsSortMode.None))
+        {
+            if (collider == null || collider.isTrigger)
+                continue;
+
+            if (!collider.gameObject.scene.IsValid())
+                continue;
+
+            if (Vector3.Distance(collider.bounds.center, worldProbe) > 1.2f)
+                continue;
+
+            var bounds = collider.bounds;
+            bool withinX = worldProbe.x >= bounds.min.x - 0.05f && worldProbe.x <= bounds.max.x + 0.05f;
+            bool withinZ = worldProbe.z >= bounds.min.z - 0.05f && worldProbe.z <= bounds.max.z + 0.05f;
+            if (!withinX || !withinZ)
+                continue;
+
+            if (bounds.max.y > bestSurfaceY)
+            {
+                bestSurfaceY = bounds.max.y;
+                bestCollider = collider;
+            }
+        }
+
+        if (bestCollider == null)
+        {
+            localSupportY = 0f;
+            return false;
+        }
+
+        localSupportY = furniture.transform.InverseTransformPoint(new Vector3(worldProbe.x, bestSurfaceY, worldProbe.z)).y;
+        Debug.Log($"[WorkSeat] Sampled support collider '{bestCollider.name}' at worldY={bestSurfaceY:F3} -> localY={localSupportY:F3}");
+        return true;
+    }
+
+    private static GameObject FindGameObjectIncludingInactive(string name)
+    {
+        foreach (var candidate in Resources.FindObjectsOfTypeAll<GameObject>())
+        {
+            if (!candidate.scene.IsValid())
+                continue;
+            if (candidate.name == name)
+                return candidate;
+        }
+
+        return null;
     }
 
     [MenuItem("Tools/Validate NavMesh Path (spawn→sofa)")]

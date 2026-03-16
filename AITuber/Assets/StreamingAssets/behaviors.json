@@ -19,7 +19,18 @@
         { "type": "walk_to", "slot_id": "sit_work", "duration": 2.0 },
         { "type": "gesture", "gesture": "walk_stop", "emotion": "neutral", "look_target": "camera" },
         { "type": "wait", "duration": 0.5 },
-        { "type": "gesture", "gesture": "sit_write", "emotion": "neutral", "look_target": "camera" }
+        { "type": "zone_snap", "slot_id": "sit_work" },
+        { "type": "gesture", "gesture": "sit_down", "emotion": "neutral", "look_target": "camera" },
+        { "type": "wait", "duration": 0.6 },
+        { "type": "sit_settle", "duration": 0.6 },
+        { "type": "gesture", "gesture": "sit_idle", "emotion": "neutral", "look_target": "camera" },
+        {
+          "type": "camera_focus_avatar",
+          "duration": 0.5,
+          "camera_local_offset": { "x": 0.0, "y": 1.45, "z": 0.95 },
+          "camera_target_height": 1.45,
+          "camera_fov": 34.0
+        }
       ]
     },
     {

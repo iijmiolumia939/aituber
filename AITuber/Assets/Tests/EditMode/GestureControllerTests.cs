@@ -21,6 +21,9 @@
 //   GC-16  All known gesture strings produce a non-default warning (trigger mapped)
 //   GC-17  Apply with Animator lacking controller → logs warning, no crash
 //   GC-18  Apply re-resolves to controller-backed humanoid Animator when available
+//   GC-19  Seated gestures enable seated base pose restoration
+//   GC-20  Standing gestures clear seated base pose restoration
+//   GC-21  Gesture finish while seated forces SitIdle restoration
 //
 // SRS: FR-A7-01, FR-WS-01, FR-BEHAVIOR-SEQ-01
 // Issue: #52 Phase 1 test coverage
@@ -37,7 +40,7 @@ namespace AITuber.Tests
     /// EditMode unit tests for GestureController.
     /// Coroutines (PlayInitialIdleAlt, DiagnoseWaveBone) are tested only for
     /// null-safety; full timing tests require PlayMode with a real AnimatorController.
-    /// TC-GC-01 ~ TC-GC-18 / FR-WS-01 / FR-A7-01 / FR-BEHAVIOR-SEQ-01
+    /// TC-GC-01 ~ TC-GC-21 / FR-WS-01 / FR-A7-01 / FR-BEHAVIOR-SEQ-01
     /// </summary>
     public class GestureControllerTests
     {
@@ -338,6 +341,51 @@ namespace AITuber.Tests
             // Cache must be set (not "none") after a known gesture
             Assert.AreNotEqual("none", _gc.LastAppliedGestureForTest,
                 $"Gesture '{gesture}' must update the dedup cache (trigger mapped)");
+        }
+
+        // [TC-GC-19] Seated gestures enable seated base pose restoration
+        [Test]
+        public void Apply_SitIdle_EnablesSeatedBasePoseRestoration()
+        {
+            InjectDummyAnimator();
+            LogAssert.ignoreFailingMessages = true;
+            _gc.Apply("sit_idle");
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.IsTrue(_gc.PreferSeatedBasePoseForTest,
+                "Applying a seated gesture should enable seated base pose restoration.");
+        }
+
+        // [TC-GC-20] Standing gestures clear seated base pose restoration
+        [Test]
+        public void Apply_IdleAlt_ClearsSeatedBasePoseRestoration()
+        {
+            InjectDummyAnimator();
+            LogAssert.ignoreFailingMessages = true;
+            _gc.Apply("sit_idle");
+            _gc.Apply("idle_alt");
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.IsFalse(_gc.PreferSeatedBasePoseForTest,
+                "Applying idle_alt should clear seated base pose restoration.");
+        }
+
+        // [TC-GC-21] Gesture finish while seated forces SitIdle restoration
+        [Test]
+        public void SimulateDedupTransition_GestureToIdleWhileSeated_ForcesSitIdle()
+        {
+            InjectDummyAnimator();
+            LogAssert.ignoreFailingMessages = true;
+            _gc.Apply("sit_idle");
+            _gc.Apply("sit_clap");
+            _gc.SimulateDedupTransitionForTest(animatorLooping: false);
+            _gc.SimulateDedupTransitionForTest(animatorLooping: true);
+            LogAssert.ignoreFailingMessages = false;
+
+            Assert.AreEqual("SitIdle", _gc.LastForcedLoopStateForTest,
+                "When a seated gesture ends, GestureController should restore the SitIdle base pose.");
+            Assert.AreEqual("none", _gc.LastAppliedGestureForTest,
+                "Dedup cache should still reset after seated base pose restoration.");
         }
     }
 }

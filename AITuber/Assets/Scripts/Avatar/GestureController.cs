@@ -22,6 +22,8 @@ namespace AITuber.Avatar
         private Animator  _animator;
         private string    _lastAppliedGesture = "none";
         private bool      _wasInGestureState;
+        private bool      _preferSeatedBasePose;
+        private string    _lastForcedLoopState = "";
         private float     _breathPhase;
         private Transform _breathBone;
         private string    _idleMotion = "default";
@@ -63,6 +65,9 @@ namespace AITuber.Avatar
         {
             if (_wasInGestureState && !inGesture && _lastAppliedGesture != "none")
             {
+                if (_preferSeatedBasePose)
+                    PlayLoopState("SitIdle");
+
                 Debug.Log($"[GestureCtrl] Gesture '{_lastAppliedGesture}' finished → resetting dedup tracker");
                 _lastAppliedGesture = "none";
             }
@@ -108,6 +113,9 @@ namespace AITuber.Avatar
                 _lastAppliedGesture = "none";
                 return;
             }
+
+            UpdateBasePosePreference(gesture);
+
             if (gesture == _lastAppliedGesture) return;
             _lastAppliedGesture = gesture;
 
@@ -258,6 +266,44 @@ namespace AITuber.Avatar
             }
         }
 
+        private void UpdateBasePosePreference(string gesture)
+        {
+            switch (gesture)
+            {
+                case "sit_down":
+                case "sit_idle":
+                case "sit_laugh":
+                case "sit_clap":
+                case "sit_point":
+                case "sit_disbelief":
+                case "sit_kick":
+                case "sit_read":
+                case "sit_eat":
+                case "sit_write":
+                    _preferSeatedBasePose = true;
+                    break;
+
+                case "idle_alt":
+                case "walk":
+                case "walk_stop":
+                case "walk_stop_start":
+                case "stretch":
+                case "sleep_idle":
+                    _preferSeatedBasePose = false;
+                    break;
+            }
+        }
+
+        private void PlayLoopState(string stateName)
+        {
+            _lastForcedLoopState = stateName ?? "";
+            if (_animator == null || string.IsNullOrEmpty(stateName))
+                return;
+
+            if (_animator.HasState(0, Animator.StringToHash(stateName)))
+                _animator.CrossFadeInFixedTime(stateName, 0.15f, 0, 0f);
+        }
+
 #if UNITY_EDITOR
         private IEnumerator DiagnoseWaveBone()
         {
@@ -292,6 +338,15 @@ namespace AITuber.Avatar
 
         /// <summary>Exposes dedup cache for assertions in tests.</summary>
         public string LastAppliedGestureForTest => _lastAppliedGesture;
+
+        /// <summary>Exposes whether seated base pose restoration is active.</summary>
+        public bool PreferSeatedBasePoseForTest => _preferSeatedBasePose;
+
+        /// <summary>True while seated base pose behavior is active at runtime.</summary>
+        public bool IsSeatedBasePoseActive => _preferSeatedBasePose;
+
+        /// <summary>Exposes the last forced loop state for assertions in tests.</summary>
+        public string LastForcedLoopStateForTest => _lastForcedLoopState;
 
         /// <summary>
         /// Drive the dedup-transition logic directly without a running Animator state machine.

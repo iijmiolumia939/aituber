@@ -6,11 +6,12 @@
 //   { "cmd": "behavior_start", "params": { "behavior": "go_sleep" } }
 //
 // Each BehaviorStep.type maps to a Coroutine handler in BehaviorSequenceRunner:
-//   "face_toward" – smoothly rotate avatar to face an InteractionSlot (Issue #48)
-//   "walk_to"     – move avatar to InteractionSlot with NavMesh (collision-aware)
-//   "gesture"     – fire avatar_update command (emotion + gesture + look_target)
-//   "wait"        – pause for duration seconds
-//   "slot_snap"   – instant teleport to nearest InteractionSlot (no animation)
+//   "face_toward"         – smoothly rotate avatar to face an InteractionSlot (Issue #48)
+//   "walk_to"             – move avatar to InteractionSlot with NavMesh (collision-aware)
+//   "gesture"             – fire avatar_update command (emotion + gesture + look_target)
+//   "wait"                – pause for duration seconds
+//   "zone_snap"           – instant teleport to nearest InteractionSlot (no animation)
+//   "camera_focus_avatar" – move the active camera to an avatar-relative streaming shot
 
 using System;
 using UnityEngine;
@@ -24,7 +25,7 @@ namespace AITuber.Behavior
     [Serializable]
     public class BehaviorStep
     {
-        /// <summary>Step type: "face_toward" | "walk_to" | "gesture" | "wait" | "slot_snap"</summary>
+        /// <summary>Step type: "face_toward" | "walk_to" | "gesture" | "wait" | "zone_snap" | "camera_focus_avatar"</summary>
         public string type = "";
 
         /// <summary>[walk_to / slot_snap] <see cref="InteractionSlot.slotId"/> of the target slot.</summary>
@@ -41,6 +42,15 @@ namespace AITuber.Behavior
 
         /// <summary>[gesture] Look target name (e.g. "camera", "down", "random").</summary>
         public string look_target = "";
+
+        /// <summary>[camera_focus_avatar] Camera position offset in avatar local space.</summary>
+        public Vector3 camera_local_offset = Vector3.zero;
+
+        /// <summary>[camera_focus_avatar] Look-at target height above avatar root in meters.</summary>
+        public float camera_target_height = 0f;
+
+        /// <summary>[camera_focus_avatar] Override FOV. Uses the current camera FOV when <= 0.</summary>
+        public float camera_fov = 0f;
     }
 
     /// <summary>

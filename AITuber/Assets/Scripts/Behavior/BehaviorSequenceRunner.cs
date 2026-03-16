@@ -57,14 +57,17 @@ namespace AITuber.Behavior
         private bool              _currentBehaviorSuccess;  // tracks step-level failures (L-5 / Issue #50)
         // CC reference kept here so StopBehavior can restore it even if the coroutine is cancelled mid-walk
         private CharacterController _walkingCC;
-        // Grounding reference saved by zone_snap so gravity can be resumed in StopBehavior or sequence end.
-        private AITuber.Avatar.AvatarGrounding _sittingGrounding;
         // NavMeshAgent reference — enabled for walking, disabled for idle (avoids CC+agent transform conflict)
         private NavMeshAgent        _walkingAgent;
         // Locomotion Animator — lazily cached; Unity null-check handles destroyed Animator (L-3 / review perf)
         private Animator            _locomotionAnimator;
         private readonly HashSet<string> _warpDiagnosticWarnings = new();
         private const int InitialWalkFrameDiagnostics = 12;
+        private const float MaxSeatSupportDrop = 0.20f;
+        private const float WalkStartElevationProjectionThreshold = 0.30f;
+        private const float WalkStartProjectionPreserveXZThreshold = 0.15f;
+        private const float WalkStartProjectionDuration = 0.18f;
+        private static readonly Vector3 DefaultStreamCameraOffset = new(0f, 1.45f, 0.95f);
         private Animator _visualDebugAnimator;
         private SkinnedMeshRenderer _visualDebugBodyRenderer;
 
@@ -140,17 +143,6 @@ namespace AITuber.Behavior
             // Without this, an interrupted "walk" would leave the cache at "walk" and the
             // following walk_to step would be silently skipped by AvatarController's dedup guard.
             _avatarController?.ResetGestureDedup();
-            // Resume gravity if zone_snap had suspended it (e.g. behavior interrupted mid-sit).
-            ResumeSittingGravity();
-        }
-
-        private void ResumeSittingGravity()
-        {
-            if (_sittingGrounding == null) return;
-            _sittingGrounding.SuspendGravity(false);
-            if (!_sittingGrounding.IsSnapping)
-                _sittingGrounding.BeginSnap();
-            _sittingGrounding = null;
         }
 
         private void RestoreCharacterController()
@@ -216,8 +208,6 @@ namespace AITuber.Behavior
             }
 
             Debug.Log($"[BehaviorRunner] Finished '{seq.behavior}'");
-            // Resume gravity if zone_snap suspended it (e.g. go_eat completed, next behavior needs floor).
-            ResumeSittingGravity();
             // Notify Python orchestrator: closes Perception-Memory-Action loop (L-5 / Issue #50)
             PerceptionReporter.Instance?.ReportBehaviorCompleted(seq.behavior, _currentBehaviorSuccess);
             _current = null;
@@ -235,6 +225,7 @@ namespace AITuber.Behavior
                 case "wait":       yield return StepWait(step);        break;
                 case "zone_snap":  yield return StepZoneSnap(step);    break;
                 case "sit_settle": yield return StepSitSettle(step);   break;
+                case "camera_focus_avatar": yield return StepCameraFocusAvatar(step); break;
                 default:
                     Debug.LogWarning($"[BehaviorRunner] Unknown step type: '{step.type}'");
                     break;
@@ -335,15 +326,20 @@ namespace AITuber.Behavior
                 if (NavMesh.SamplePosition(_avatarRoot.position, out NavMeshHit floorHit, 2f, NavMesh.AllAreas))
                 {
                     float elevationAboveNavMesh = avatarY - floorHit.position.y;
-                    if (elevationAboveNavMesh > 0.3f)
+                    if (elevationAboveNavMesh > WalkStartElevationProjectionThreshold)
                     {
+                        float horizontalProjectionDrift = Vector2.Distance(
+                            new Vector2(_avatarRoot.position.x, _avatarRoot.position.z),
+                            new Vector2(floorHit.position.x, floorHit.position.z));
                         Debug.Log($"[BehaviorRunner] walk_to: avatar elevated {elevationAboveNavMesh:F2}m above NavMesh " +
-                                  $"(pos={_avatarRoot.position}, navMesh={floorHit.position}) — dropping to floor first.");
-                        var cc        = _avatarRoot.GetComponent<CharacterController>();
+                                  $"(pos={_avatarRoot.position}, navMesh={floorHit.position}, horizontalDrift={horizontalProjectionDrift:F2}) — projecting to floor first.");
                         var grounding = _avatarRoot.GetComponent<AITuber.Avatar.AvatarGrounding>();
-                        if (cc != null) cc.enabled = false;
-                        _avatarRoot.position = floorHit.position;
-                        if (cc != null) cc.enabled = true;
+                        Vector3 targetWalkStart = horizontalProjectionDrift <= WalkStartProjectionPreserveXZThreshold
+                            ? new Vector3(_avatarRoot.position.x, floorHit.position.y, _avatarRoot.position.z)
+                            : floorHit.position;
+
+                        yield return SmoothProjectAvatarToWalkStart(targetWalkStart, WalkStartProjectionDuration);
+
                         if (grounding != null && !grounding.IsSnapping)
                         {
                             grounding.BeginSnap();
@@ -395,6 +391,35 @@ namespace AITuber.Behavior
             GetLocomotionAnimator()?.SetFloat("speed", 0f);
             RestoreCharacterController();
             Debug.Log($"[BehaviorRunner] walk_to '{step.slot_id}' done — AvatarRoot={_avatarRoot?.position}");
+        }
+
+        private IEnumerator SmoothProjectAvatarToWalkStart(Vector3 targetPosition, float duration)
+        {
+            if (_avatarRoot == null)
+                yield break;
+
+            var cc = _avatarRoot.GetComponent<CharacterController>();
+            Vector3 startPosition = _avatarRoot.position;
+            if (Vector3.Distance(startPosition, targetPosition) <= 0.001f)
+                yield break;
+
+            if (cc != null)
+                cc.enabled = false;
+
+            float elapsed = 0f;
+            float safeDuration = Mathf.Max(duration, 0.01f);
+            while (elapsed < safeDuration)
+            {
+                float t = elapsed / safeDuration;
+                _avatarRoot.position = Vector3.Lerp(startPosition, targetPosition, t);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            _avatarRoot.position = targetPosition;
+
+            if (cc != null)
+                cc.enabled = true;
         }
 
         private bool TryBuildReachableWalkPath(
@@ -691,25 +716,33 @@ namespace AITuber.Behavior
 
         private IEnumerator StepZoneSnap(BehaviorStep step)
         {
-            // X/Z (+Y=floor via standOffset=0) teleport.  Suspends gravity so CC doesn't drag
-            // the avatar back to floor during seating.  sit_settle handles final Y.
+            // Teleport directly onto the slot anchor and keep gravity active.
+            // Seat stability should come from chair/sofa colliders, not from gravity suspension.
             if (!string.IsNullOrEmpty(step.slot_id) && _avatarRoot != null)
             {
                 var slot      = InteractionSlot.FindNearest(step.slot_id, _avatarRoot.position);
                 if (slot != null)
                 {
-                    var cc        = _avatarRoot.GetComponent<CharacterController>();
-                    var grounding = _avatarRoot.GetComponent<AITuber.Avatar.AvatarGrounding>();
+                    if (!TryFindSeatSupport(slot.StandPosition, out RaycastHit seatHit))
+                    {
+                        Debug.LogWarning(
+                            $"[BehaviorRunner] zone_snap: skipped unsupported seat anchor at {slot.StandPosition} " +
+                            $"(slot='{slot.slotId}'). Add a seat collider near the slot before using zone_snap.");
+                        _avatarRoot.rotation = slot.StandRotation;
+                        _currentBehaviorSuccess = false;
+                        yield break;
+                    }
 
-                    grounding?.SuspendGravity(true);
-                    _sittingGrounding = grounding;
+                    var cc        = _avatarRoot.GetComponent<CharacterController>();
+                    Vector3 supportedPosition = slot.StandPosition;
+                    supportedPosition.y = ComputeSupportedRootY(cc, seatHit.point.y, slot.StandPosition.y);
 
                     if (cc != null) cc.enabled = false;
-                    _avatarRoot.position = slot.StandPosition;
+                    _avatarRoot.position = supportedPosition;
                     _avatarRoot.rotation = slot.StandRotation;
                     if (cc != null) cc.enabled = true;
 
-                    Debug.Log($"[BehaviorRunner] zone_snap: → {slot.StandPosition} (slot='{slot.slotId}') — gravity suspended.");
+                    Debug.Log($"[BehaviorRunner] zone_snap: → {supportedPosition} (slot='{slot.slotId}') — gravity active.");
                 }
                 else
                 {
@@ -738,6 +771,13 @@ namespace AITuber.Behavior
             float blendWait = step.duration > 0f ? step.duration : 0.5f;
             yield return new WaitForSeconds(blendWait);
 
+            if (!TryFindSeatSupport(_avatarRoot.position, out RaycastHit settledSeatHit))
+            {
+                Debug.LogWarning(
+                    $"[BehaviorRunner] sit_settle: skipped Y correction because no seat support was found near {_avatarRoot.position}.");
+                yield break;
+            }
+
             var hip = anim.GetBoneTransform(HumanBodyBones.Hips);
             if (hip == null)
             {
@@ -754,25 +794,118 @@ namespace AITuber.Behavior
                                              hip.position.y + 0.5f,
                                              _avatarRoot.position.z);
             float rayLen    = hip.position.y + 1.0f;
-            float surfaceY  = 0f;
-            string surfName = "(fallback Y=0)";
+            float surfaceY  = settledSeatHit.point.y;
+            string surfName = settledSeatHit.collider != null ? settledSeatHit.collider.name : "(seat support)";
             if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, rayLen))
             {
-                surfaceY = hit.point.y;
-                surfName = hit.collider.name;
+                float seatDistance = Mathf.Abs(settledSeatHit.point.y - _avatarRoot.position.y);
+                float hitDistance = Mathf.Abs(hit.point.y - _avatarRoot.position.y);
+                if (hitDistance <= seatDistance + MaxSeatSupportDrop)
+                {
+                    surfaceY = hit.point.y;
+                    surfName = hit.collider.name;
+                }
             }
 
-            // Target: hips sit 0.03 m above the surface
+            // Target: hips sit 0.03 m above the surface, but never below the seat support
+            // already established by zone_snap / CharacterController support alignment.
             float newRootY = (surfaceY + 0.03f) - hipAboveRoot;
+            var cc = _avatarRoot.GetComponent<CharacterController>();
+            float minSupportedRootY = ComputeSupportedRootY(cc, surfaceY, _avatarRoot.position.y);
+            if (newRootY < minSupportedRootY)
+            {
+                Debug.LogWarning(
+                    $"[BehaviorRunner] sit_settle: clamped root Y from {newRootY:F3} to seat-supported {minSupportedRootY:F3}.");
+                newRootY = minSupportedRootY;
+            }
 
             Debug.Log($"[BehaviorRunner] sit_settle: surface='{surfName}' Y={surfaceY:F3} " +
                       $"hipAboveRoot={hipAboveRoot:F3} → newRootY={newRootY:F3}");
 
-            var cc = _avatarRoot.GetComponent<CharacterController>();
             if (cc != null) cc.enabled = false;
             _avatarRoot.position = new Vector3(_avatarRoot.position.x, newRootY, _avatarRoot.position.z);
             if (cc != null) cc.enabled = true;
-            // Gravity remains suspended via _sittingGrounding until ResumeSittingGravity() fires.
+        }
+
+        private bool TryFindSeatSupport(Vector3 slotPosition, out RaycastHit seatHit)
+        {
+            Vector3 rayOrigin = slotPosition + Vector3.up * 0.25f;
+            if (!Physics.Raycast(rayOrigin, Vector3.down, out seatHit, 0.75f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                return false;
+
+            float drop = slotPosition.y - seatHit.point.y;
+            return drop <= MaxSeatSupportDrop;
+        }
+
+        private static float ComputeSupportedRootY(CharacterController characterController, float supportSurfaceY, float fallbackRootY)
+        {
+            if (characterController == null)
+                return Mathf.Max(fallbackRootY, supportSurfaceY);
+
+            float controllerBottomOffset = characterController.center.y - (characterController.height * 0.5f);
+            float clearance = Mathf.Max(characterController.skinWidth, 0.01f);
+            float supportedRootY = supportSurfaceY - controllerBottomOffset + clearance;
+            return Mathf.Max(fallbackRootY, supportedRootY);
+        }
+
+        // ── Step: camera_focus_avatar ──────────────────────────────────────
+
+        private IEnumerator StepCameraFocusAvatar(BehaviorStep step)
+        {
+            if (_avatarRoot == null)
+            {
+                Debug.LogWarning("[BehaviorRunner] camera_focus_avatar: avatarRoot is null.");
+                _currentBehaviorSuccess = false;
+                yield break;
+            }
+
+            var activeCamera = Camera.main;
+            if (activeCamera == null)
+            {
+                Debug.LogWarning("[BehaviorRunner] camera_focus_avatar: Main Camera not found.");
+                _currentBehaviorSuccess = false;
+                yield break;
+            }
+
+            var localOffset = step.camera_local_offset == Vector3.zero
+                ? DefaultStreamCameraOffset
+                : step.camera_local_offset;
+            float lookHeight = step.camera_target_height > 0f ? step.camera_target_height : 1.45f;
+            float targetFov = step.camera_fov > 0f ? step.camera_fov : activeCamera.fieldOfView;
+
+            Vector3 targetPosition = _avatarRoot.TransformPoint(localOffset);
+            Vector3 lookTarget = _avatarRoot.position + Vector3.up * lookHeight;
+            Vector3 forward = lookTarget - targetPosition;
+            if (forward.sqrMagnitude < 0.0001f)
+                forward = _avatarRoot.forward.sqrMagnitude > 0.0001f ? -_avatarRoot.forward : Vector3.back;
+
+            Quaternion targetRotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
+            float duration = Mathf.Max(step.duration, 0f);
+            if (duration <= 0.01f)
+            {
+                activeCamera.transform.SetPositionAndRotation(targetPosition, targetRotation);
+                activeCamera.fieldOfView = targetFov;
+                yield break;
+            }
+
+            Vector3 startPosition = activeCamera.transform.position;
+            Quaternion startRotation = activeCamera.transform.rotation;
+            float startFov = activeCamera.fieldOfView;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                float t = elapsed / duration;
+                activeCamera.transform.SetPositionAndRotation(
+                    Vector3.Lerp(startPosition, targetPosition, t),
+                    Quaternion.Slerp(startRotation, targetRotation, t));
+                activeCamera.fieldOfView = Mathf.Lerp(startFov, targetFov, t);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            activeCamera.transform.SetPositionAndRotation(targetPosition, targetRotation);
+            activeCamera.fieldOfView = targetFov;
         }
 
         private void SendAvatarUpdate(string gesture, string emotion, string lookTarget)

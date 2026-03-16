@@ -41,8 +41,10 @@ namespace AITuber.Editor
             { "Idle",                 ("IdleAlt",       true)  },
 
             // 座り系
-            { "Sitting",              ("SitDown",       false) },  // 座る動作 (1回)
-            { "Sitting Idle",         ("SitIdle",       true)  },  // 座りアイドル (ループ)
+            // Note: Setup Seated Base Pose rebinds SitIdle to Sitting Idle.fbx so the sustained
+            // seated pose remains visually stable after the sit-down transition.
+            { "Sitting",              ("SitDown",       false) },
+            { "Sitting Idle",         ("SitIdle",       true)  },
             { "Sitting Laughing",     ("SitLaugh",      false) },
             { "Sitting Clap",         ("SitClap",       false) },
             { "Sitting And Pointing", ("SitPoint",      false) },
@@ -148,7 +150,22 @@ namespace AITuber.Editor
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
 
+            ConfigureSeatedBasePose(controller);
+
             Debug.Log($"[AnimatorSetup] Done. added={added}, skipped(already exist)={skipped}");
+        }
+
+        [MenuItem("AITuber/Setup Seated Base Pose")]
+        public static void SetupSeatedBasePose()
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+            if (controller == null)
+            {
+                Debug.LogError($"[AnimatorSetup] AnimatorController not found at: {ControllerPath}");
+                return;
+            }
+
+            ConfigureSeatedBasePose(controller);
         }
 
         /// <summary>
@@ -304,6 +321,52 @@ namespace AITuber.Editor
 
         private static bool WsmHasTransition(AnimatorState from, string toStateName) =>
             from.transitions.Any(t => t.destinationState?.name == toStateName);
+
+        private static void ConfigureSeatedBasePose(AnimatorController controller)
+        {
+            var layer = controller.layers[0];
+            var sm = layer.stateMachine;
+
+            var sitIdleState = sm.states.FirstOrDefault(s => s.state.name == "SitIdle").state;
+            if (sitIdleState == null)
+            {
+                Debug.LogWarning("[AnimatorSetup] SitIdle state not found; seated base pose setup skipped.");
+                return;
+            }
+
+            AnimationClip seatedBaseClip = LoadClipFromFbx($"{MixamoFolder}Sitting Idle.fbx");
+            if (seatedBaseClip == null)
+            {
+                Debug.LogWarning("[AnimatorSetup] Sitting Idle.fbx not found; seated base pose setup skipped.");
+                return;
+            }
+
+            sitIdleState.motion = seatedBaseClip;
+            sitIdleState.writeDefaultValues = false;
+
+            foreach (var stateName in new[] { "SitDown", "SitLaugh", "SitClap", "SitPoint", "SitDisbelief", "SitKick", "SitEat" })
+            {
+                var state = sm.states.FirstOrDefault(s => s.state.name == stateName).state;
+                if (state == null)
+                    continue;
+
+                foreach (var transition in state.transitions.Where(t => t.destinationState?.name == "Idle").ToList())
+                    state.RemoveTransition(transition);
+
+                if (!WsmHasTransition(state, "SitIdle"))
+                {
+                    var exitTrans = state.AddTransition(sitIdleState);
+                    exitTrans.hasExitTime = true;
+                    exitTrans.exitTime = 0.85f;
+                    exitTrans.duration = 0.2f;
+                    exitTrans.hasFixedDuration = false;
+                }
+            }
+
+            EditorUtility.SetDirty(controller);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[AnimatorSetup] Seated base pose configured: SitIdle now uses Sitting Idle.fbx and seated one-shots return to SitIdle.");
+        }
 
         // FBX から AnimationClip を1つ取得
         private static AnimationClip LoadClipFromFbx(string fbxPath)

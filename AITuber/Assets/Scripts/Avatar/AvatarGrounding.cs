@@ -44,6 +44,7 @@ namespace AITuber.Avatar
         private float               _verticalVelocity;
         private bool                _pivotFixed;    // アバター子 localY 補正済みフラグ
         private const float         _terminalVelocity = 53.0f;
+        private FootIKTargetUpdater _footIKUpdater;
 
         // Phase 2: horizontal velocity injected each frame by locomotion (BSR walk).
         // Consumed in ApplyGravity() each frame.
@@ -133,6 +134,13 @@ namespace AITuber.Avatar
             {
                 _anim.gameObject.AddComponent<AvatarIKProxy>();
                 Debug.Log($"[AvatarGrounding] AvatarIKProxy を {_anim.gameObject.name} に自動追加しました。Inspector の Component リストで確認できます。");
+            }
+
+            _footIKUpdater = GetComponent<FootIKTargetUpdater>();
+            if (_footIKUpdater == null)
+            {
+                _footIKUpdater = gameObject.AddComponent<FootIKTargetUpdater>();
+                Debug.Log("[AvatarGrounding] FootIKTargetUpdater を AvatarRoot に自動追加しました。");
             }
 
             // Phase 1: Trigger initial grounding at startup.
@@ -380,7 +388,7 @@ namespace AITuber.Avatar
 
         private void ApplyFootIK()
         {
-            if (!_enableFootIK || _anim == null || !_anim.isHuman) return;
+            if ((_enableFootIK == false && FootIKBlend <= 0.001f) || _anim == null || !_anim.isHuman) return;
             UpdateFootIK(AvatarIKGoal.LeftFoot);
             UpdateFootIK(AvatarIKGoal.RightFoot);
         }

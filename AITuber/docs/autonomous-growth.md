@@ -91,12 +91,12 @@ PRを自動生成しても「コンパイル通過」「テスト通過」「saf
 | Asset | 現状 | Locomotion品質への活用度 |
 |---|---|---|
 | `BehaviorSequenceRunner.cs` | NavMeshAgent + CharacterController で `walk_to` 実行 | ✅ 基盤あり。L-1〜L-3 の改善が必要 |
-| `AvatarGrounding.cs` | CharacterController 重力・着地 + Foot IK（`_enableFootIK = false` で無効） | ⚡ Foot IK は実装済みだが **無効化されたまま**。歩行中の足ズレ補正に活用可能 |
+| `AvatarGrounding.cs` | CharacterController 重力・着地 + Foot IK。FootIKTargetUpdater を runtime で自動追加し、歩行外では足接地補正を有効化 | ✅ 着席/アイドル時の足接地補正に利用可能 |
 | `AvatarIKProxy.cs` | Animator → AvatarGrounding への IK コールバック転送 | ✅ 有効。Foot IK 有効化時に自動機能 |
-| `InteractionSlot.cs` | ルーム内の名前付きスロット（`sit_work`, `sleep_area`, `sofa`） | ✅ walk_to のターゲット座標・向き定義の基盤 |
+| `InteractionSlot.cs` | ルーム内の名前付きスロット（`sit_work`, `sleep_area`, `sofa`）。着席系は座面 collider を持つ seat anchor と組み合わせる | ✅ walk_to / zone_snap のターゲット座標・向き定義の基盤 |
 | `NavMeshAgent` (UnityEngine.AI) | `BehaviorSequenceRunner` が `_navMeshAgent` として参照 | ✅ 経路確認 API（`CalculatePath`）が利用可能 → L-1 修正の根拠 |
 | `AvatarAnimatorController.controller` | Animator に 20+ クリップ。Blend Tree **なし**。Walk state `m_WriteDefaultValues=0` | ❌ Blend Tree 未整備がアニメーション品質の主要ボトルネック |
-| `behaviors.json` | `walk_to→gesture→wait` の 3 ステップモデル | ⚡ VirtualHome 教訓に基づく細分化（`face_toward` ステップ追加）が必要 |
+| `behaviors.json` | `face_toward→walk_to→gesture→wait` を基底に、配信時は `sit_down→sit_settle→sit_idle→camera_focus_avatar` で着席遷移・着席維持・配信画角を分離 | ✅ 行動・着席遷移・着席維持・配信画角を疎結合で拡張可能 |
 
 **修正ロードマップ（L-1〜L-5 対応）**:
 
@@ -520,7 +520,7 @@ GapLogの該当エントリをクローズ
 | BehaviorSequenceRunner | C# (Unity) | `Assets/Scripts/Behavior/BehaviorSequenceRunner.cs` | Phase 2 ✅ M19 |
 | BehaviorSequences (data) | JSON | `Assets/StreamingAssets/behaviors.json` | Phase 2 ✅ M19 |
 | AvatarGrounding (Foot IK) | C# (Unity) | `Assets/Scripts/Avatar/AvatarGrounding.cs` | Phase 2 ⚡ `_enableFootIK` 有効化待ち |
-| face_toward ステップ対応 | C# (Unity) | `BehaviorSequenceRunner.cs` 拡張 | Phase 2 ❌ 未実装 (L-2) |
+| face_toward / camera_focus_avatar ステップ対応 | C# (Unity) | `BehaviorSequenceRunner.cs` 拡張 | Phase 2 ✅ 実装済み |
 | NavMesh Affordance 確認 | C# (Unity) | `BehaviorSequenceRunner.cs` 拡張 | Phase 2 ❌ 未実装 (L-1) |
 | BSR completion callback | C# + Python | `BehaviorSequenceRunner` → `perception_update` | Phase 2 ❌ 未実装 (L-5) |
 | Blend Tree (walk speed) | AnimatorController | `AvatarAnimatorController.controller` | Phase 2 ❌ 未実装 (L-3) |

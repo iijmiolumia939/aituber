@@ -10,7 +10,7 @@ Copilot にテスト実行を依頼する際の参照資料としても使用で
 | 項目 | 確認方法 | 正常状態 |
 |------|---------|---------|
 | VOICEVOX | `http://localhost:50021/version` | `0.25.1` が返る |
-| Unity PlayMode | MCP ツール / エディタ ▶ ボタン | `isPlaying: true` |
+| Unity PlayMode | MCP の `AITuber/PlayMode/Enter` またはエディタ ▶ ボタン | `__AITuberPlayModeProbe` が見つかる |
 | Python 仮想環境 | `.venv\Scripts\Activate.ps1` | `(.venv)` プロンプト |
 
 ---

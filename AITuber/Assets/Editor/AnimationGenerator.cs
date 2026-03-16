@@ -652,6 +652,7 @@ namespace AITuber.Editor
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            AnimatorSetup.SetupSeatedBasePose();
             Debug.Log($"[Mixamo] Done. {added} Mixamo clips registered in AnimatorController.");
         }
     }
