@@ -33,6 +33,7 @@ from orchestrator.emotion_gesture_selector import (
 )
 from orchestrator.episodic_store import EpisodicStore
 from orchestrator.event_bus import EventType, get_event_bus
+from orchestrator.gap_trigger import GapTrigger
 from orchestrator.gesture_composer import GestureComposer
 from orchestrator.goal_memory import GoalMemory
 from orchestrator.latency import LatencyTracker
@@ -246,6 +247,7 @@ class Orchestrator:
             self._intent_dispatcher(),
             self._narrative_loop(),
             self._memory_monitor(),
+            GapTrigger().run(),
         )
 
     # ── Live Chat ID resolver (FR-CHATID-AUTO-01) ──────────────────────
