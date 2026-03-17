@@ -147,6 +147,28 @@ class BanditConfig:
 
 
 @dataclass(frozen=True)
+class GameBridgeConfig:
+    """GameBridge 接続設定。
+
+    ゲームモジュール (Mineflayer bot など) と Orchestrator 間の
+    ローカル WebSocket ブリッジ。
+    SRS refs: FR-GAME-01.
+    """
+
+    host: str = field(default_factory=lambda: os.environ.get("GAME_BRIDGE_HOST", "127.0.0.1"))
+    port: int = field(default_factory=lambda: int(os.environ.get("GAME_BRIDGE_PORT", "31901")))
+    # コンテキスト発話間隔 (秒)。0 で無効。FR-GAME-03
+    commentary_interval_sec: float = field(
+        default_factory=lambda: float(os.environ.get("GAME_COMMENTARY_INTERVAL", "20"))
+    )
+    # 反射行動エンジンの有効/無効。FR-GAME-02
+    reflex_enabled: bool = field(
+        default_factory=lambda: os.environ.get("GAME_REFLEX_ENABLED", "1") == "1"
+    )
+    reconnect_interval_sec: float = 5.0
+
+
+@dataclass(frozen=True)
 class AppConfig:
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)
@@ -155,6 +177,7 @@ class AppConfig:
     safety: SafetyConfig = field(default_factory=SafetyConfig)
     seen_set: SeenSetConfig = field(default_factory=SeenSetConfig)
     bandit: BanditConfig = field(default_factory=BanditConfig)
+    game_bridge: GameBridgeConfig = field(default_factory=GameBridgeConfig)
 
 
 def load_config() -> AppConfig:

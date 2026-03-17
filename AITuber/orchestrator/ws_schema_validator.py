@@ -90,6 +90,7 @@ KNOWN_CMDS: frozenset[str] = frozenset(
         "a2f_stream_close",
         "a2g_chunk",
         "a2g_stream_close",
+        "game_action",  # FR-GAME-01: orchestrator → Unity game action relay
     ]
 )
 
