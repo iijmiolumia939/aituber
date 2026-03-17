@@ -138,8 +138,9 @@ namespace AITuber.Behavior
             var grounding = _avatarRoot.GetComponent<AvatarGrounding>();
             if (grounding != null && grounding.Agent != null && grounding.Agent.enabled)
             {
-                grounding.Agent.ResetPath();
                 grounding.Agent.isStopped = true;
+                grounding.Agent.ResetPath();
+                grounding.Agent.velocity = Vector3.zero;
             }
         }
 
@@ -378,8 +379,10 @@ namespace AITuber.Behavior
                 _currentBehaviorSuccess = false;
             }
 
-            // Stop agent and set final rotation
+            // Stop agent completely — isStopped alone causes deceleration slide
             agent.isStopped = true;
+            agent.ResetPath();
+            agent.velocity = Vector3.zero;
             _avatarRoot.rotation = slot.StandRotation;
             GetLocomotionAnimator()?.SetFloat("speed", 0f);
             Debug.Log($"[BehaviorRunner] walk_to '{step.slot_id}' done — AvatarRoot={_avatarRoot?.position}");
@@ -469,7 +472,7 @@ namespace AITuber.Behavior
 
         private IEnumerator StepZoneSnap(BehaviorStep step)
         {
-            // #67: NavMeshAgent 一本化 — agent を無効化して直接 position を書き込む。
+            // #67: NavMeshAgent 一本化 — agent を無効化してスムーズに seat position へ移動。
             if (!string.IsNullOrEmpty(step.slot_id) && _avatarRoot != null)
             {
                 var slot      = InteractionSlot.FindNearest(step.slot_id, _avatarRoot.position);
@@ -488,12 +491,26 @@ namespace AITuber.Behavior
                     Vector3 supportedPosition = slot.StandPosition;
                     supportedPosition.y = Mathf.Max(seatHit.point.y, slot.StandPosition.y);
 
-                    // Disable agent before direct position write
+                    // Disable agent before position transition
                     var grounding = _avatarRoot.GetComponent<AvatarGrounding>();
                     grounding?.DisableAgent();
 
+                    // Smooth transition to seat position to avoid visible warp
+                    Vector3 startPos = _avatarRoot.position;
+                    Quaternion startRot = _avatarRoot.rotation;
+                    Quaternion targetRot = slot.StandRotation;
+                    const float snapDuration = 0.25f;
+                    float snapElapsed = 0f;
+                    while (snapElapsed < snapDuration)
+                    {
+                        float t = snapElapsed / snapDuration;
+                        _avatarRoot.position = Vector3.Lerp(startPos, supportedPosition, t);
+                        _avatarRoot.rotation = Quaternion.Slerp(startRot, targetRot, t);
+                        snapElapsed += Time.deltaTime;
+                        yield return null;
+                    }
                     _avatarRoot.position = supportedPosition;
-                    _avatarRoot.rotation = slot.StandRotation;
+                    _avatarRoot.rotation = targetRot;
 
                     Debug.Log($"[BehaviorRunner] zone_snap: → {supportedPosition} (slot='{slot.slotId}')");
                 }
@@ -503,7 +520,6 @@ namespace AITuber.Behavior
                     _currentBehaviorSuccess = false;
                 }
             }
-            yield break;
         }
 
         // ── Step: sit_settle ───────────────────────────────────────────────
@@ -573,8 +589,19 @@ namespace AITuber.Behavior
             Debug.Log($"[BehaviorRunner] sit_settle: surface='{surfName}' Y={surfaceY:F3} " +
                       $"hipAboveRoot={hipAboveRoot:F3} → newRootY={newRootY:F3}");
 
-            // Agent is already disabled by zone_snap — direct position write is safe
-            _avatarRoot.position = new Vector3(_avatarRoot.position.x, newRootY, _avatarRoot.position.z);
+            // Agent is already disabled by zone_snap — smooth Y correction to avoid visible warp
+            Vector3 settleStart = _avatarRoot.position;
+            Vector3 settleTarget = new Vector3(_avatarRoot.position.x, newRootY, _avatarRoot.position.z);
+            const float settleDuration = 0.25f;
+            float settleElapsed = 0f;
+            while (settleElapsed < settleDuration)
+            {
+                float t = settleElapsed / settleDuration;
+                _avatarRoot.position = Vector3.Lerp(settleStart, settleTarget, t);
+                settleElapsed += Time.deltaTime;
+                yield return null;
+            }
+            _avatarRoot.position = settleTarget;
         }
 
         private bool TryFindSeatSupport(Vector3 slotPosition, out RaycastHit seatHit)
