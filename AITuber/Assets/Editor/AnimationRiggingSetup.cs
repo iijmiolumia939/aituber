@@ -102,7 +102,7 @@ namespace AITuber.Editor
             Undo.RegisterCreatedObjectUndo(constraintGo, "Create Hips Override");
             constraintGo.transform.SetParent(rig.transform, false);
 
-            var constraint = Undo.AddComponent<OverrideTransformConstraint>(constraintGo);
+            var constraint = Undo.AddComponent<OverrideTransform>(constraintGo);
 
             // Constraint データ設定
             constraint.data.constrainedObject = hips;
