@@ -16,6 +16,7 @@
 // SRS: FR-ROOM-01
 
 using System.Text;
+using AITuber.Behavior;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
@@ -165,6 +166,69 @@ namespace AITuber.Editor
 
             Debug.Log($"[NavMeshSetup] {added} 個の NavMeshModifierVolume を追加しました。");
             if (added > 0)
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+                    UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            }
+        }
+
+        // ------------------------------------------------------------------ //
+        // Issue #75: InteractionSlot standOffset 自動補正
+        // ------------------------------------------------------------------ //
+
+        [MenuItem("AITuber/NavMesh/5. Fix Slot StandOffsets (project to NavMesh)")]
+        public static void FixSlotStandOffsets()
+        {
+            var slots = Object.FindObjectsByType<InteractionSlot>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (slots.Length == 0)
+            {
+                Debug.LogWarning("[NavMeshSetup] InteractionSlot が見つかりません。");
+                return;
+            }
+
+            int fixed_ = 0;
+            var sb = new StringBuilder();
+            sb.AppendLine("[NavMeshSetup] ═══ StandOffset Auto-Fix ═══");
+
+            foreach (var slot in slots)
+            {
+                Vector3 worldPos = slot.transform.position;
+
+                // NavMesh 上の最寄り点を探す（下方向優先: Y を床レベルに落として探索）
+                Vector3 floorProbe = new Vector3(worldPos.x, 0f, worldPos.z);
+                if (!NavMesh.SamplePosition(floorProbe, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+                {
+                    sb.AppendLine($"  ✗ [{slot.slotId}] NavMesh 上に投影先が見つかりません (probe={floorProbe:F3})");
+                    continue;
+                }
+
+                // StandPosition を NavMesh 上の点にするための offset を計算
+                // StandPosition = transform.position + transform.TransformVector(standOffset)
+                // → standOffset = transform.InverseTransformVector(hit.position - transform.position)
+                Vector3 worldOffset = hit.position - slot.transform.position;
+                Vector3 localOffset = slot.transform.InverseTransformVector(worldOffset);
+
+                // 既に近い場合 (dist < 0.1m) はスキップ
+                float dist = Vector3.Distance(slot.StandPosition, hit.position);
+                if (dist < 0.1f && slot.standOffset == Vector3.zero)
+                {
+                    sb.AppendLine($"  ─ [{slot.slotId}] 既に NavMesh 上 (dist={dist:F3}m) → スキップ");
+                    continue;
+                }
+
+                Undo.RecordObject(slot, "Fix InteractionSlot standOffset");
+                slot.standOffset = localOffset;
+                EditorUtility.SetDirty(slot);
+
+                sb.AppendLine($"  ✓ [{slot.slotId}] offset={localOffset:F3} → StandPos={slot.StandPosition:F3} (NavMesh dist={Vector3.Distance(slot.StandPosition, hit.position):F3}m)");
+                fixed_++;
+            }
+
+            sb.AppendLine($"\n  {fixed_} / {slots.Length} スロットの standOffset を修正しました。");
+            Debug.Log(sb.ToString());
+
+            if (fixed_ > 0)
             {
                 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
                     UnityEngine.SceneManagement.SceneManager.GetActiveScene());

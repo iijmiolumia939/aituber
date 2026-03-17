@@ -26,11 +26,11 @@ namespace AITuber.Editor
             var sb = new StringBuilder();
             sb.AppendLine("[NavMeshDiag] ═══ Agent Settings Validation ═══");
 
-            // NavMeshAgent を持つ全オブジェクト
-            var agents = Object.FindObjectsByType<NavMeshAgent>(FindObjectsSortMode.None);
+            // NavMeshAgent を持つ全オブジェクト (非アクティブ含む)
+            var agents = Object.FindObjectsByType<NavMeshAgent>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             if (agents.Length == 0)
             {
-                sb.AppendLine("  ⚠ NavMeshAgent が見つかりません (Play Mode で実行してください)");
+                sb.AppendLine("  ⚠ NavMeshAgent が見つかりません");
                 Debug.LogWarning(sb.ToString());
                 return;
             }
@@ -73,10 +73,10 @@ namespace AITuber.Editor
             var sb = new StringBuilder();
             sb.AppendLine("[NavMeshDiag] ═══ InteractionSlot Reachability ═══");
 
-            var slots = Object.FindObjectsByType<InteractionSlot>(FindObjectsSortMode.None);
+            var slots = Object.FindObjectsByType<InteractionSlot>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             if (slots.Length == 0)
             {
-                sb.AppendLine("  ⚠ InteractionSlot が見つかりません (Play Mode で実行してください)");
+                sb.AppendLine("  ⚠ InteractionSlot が見つかりません");
                 Debug.LogWarning(sb.ToString());
                 return;
             }
@@ -141,7 +141,7 @@ namespace AITuber.Editor
             var sb = new StringBuilder();
             sb.AppendLine("[NavMeshDiag] ═══ NavMeshSurface Settings ═══");
 
-            var surfaces = Object.FindObjectsByType<NavMeshSurface>(FindObjectsSortMode.None);
+            var surfaces = Object.FindObjectsByType<NavMeshSurface>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             if (surfaces.Length == 0)
             {
                 sb.AppendLine("  ⚠ NavMeshSurface が見つかりません。");
@@ -166,7 +166,7 @@ namespace AITuber.Editor
             }
 
             // NavMeshModifier 統計
-            var modifiers = Object.FindObjectsByType<NavMeshModifier>(FindObjectsSortMode.None);
+            var modifiers = Object.FindObjectsByType<NavMeshModifier>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             int ignored = 0, areaOverride = 0;
             foreach (var mod in modifiers)
             {
@@ -178,13 +178,13 @@ namespace AITuber.Editor
             sb.AppendLine($"    overrideArea    = {areaOverride}");
 
             // NavMeshModifierVolume 統計
-            var volumes = Object.FindObjectsByType<NavMeshModifierVolume>(FindObjectsSortMode.None);
+            var volumes = Object.FindObjectsByType<NavMeshModifierVolume>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             sb.AppendLine($"\n  NavMeshModifierVolume: {volumes.Length} total");
             if (volumes.Length == 0)
                 sb.AppendLine("    💡 NavMeshModifierVolume を使うとボックス範囲で精密にエリアを制御できます");
 
             // NavMeshLink 統計
-            var links = Object.FindObjectsByType<NavMeshLink>(FindObjectsSortMode.None);
+            var links = Object.FindObjectsByType<NavMeshLink>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             sb.AppendLine($"\n  NavMeshLink: {links.Length} total");
             if (links.Length == 0)
                 sb.AppendLine("    💡 NavMeshLink で段差・ドア・部屋間の接続を明示できます");
