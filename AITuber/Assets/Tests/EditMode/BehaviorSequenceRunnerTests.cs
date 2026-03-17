@@ -15,7 +15,7 @@
 //   BSR-10  camera_focus_avatar repositions the Main Camera for stream framing
 //   BSR-11  zone_snap skips unsupported seat anchors instead of dropping avatar
 //   BSR-12  zone_snap lands on nearby seat support when collider is present
-//   BSR-13  zone_snap raises root enough for CharacterController seat support
+//   BSR-13  zone_snap Y is at least the seat support height (no CC dependency)
 
 using System.Collections.Generic;
 using System.Reflection;
@@ -291,37 +291,33 @@ namespace AITuber.Tests
             }
         }
 
-        // [TC-BSR-13] zone_snap should lift AvatarRoot so the CharacterController bottom clears the seat surface
+        // [TC-BSR-13] zone_snap should lift AvatarRoot to at least the seat support height (#67: CC removed)
         [Test]
-        public void ZoneSnap_WithCharacterController_RaisesRootToSeatSupport()
+        public void ZoneSnap_WithSeatSupport_RaisesRootToSeatLevel()
         {
             var seatGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            var slotGo = new GameObject("SupportedSeatWithCCSlot");
+            var slotGo = new GameObject("SupportedSeatWithSupportSlot");
             try
             {
-                seatGo.name = "WorkSeatColliderCC";
+                seatGo.name = "WorkSeatColliderSupport";
                 seatGo.transform.position = new Vector3(4f, 0.95f, 5f);
                 seatGo.transform.localScale = new Vector3(0.5f, 0.1f, 0.5f);
 
                 var slot = slotGo.AddComponent<InteractionSlot>();
-                slot.slotId = "supported_seat_cc";
+                slot.slotId = "supported_seat_v2";
                 slot.faceYaw = 135f;
                 slotGo.transform.position = new Vector3(4f, 1.0f, 5f);
-
-                var controller = _go.AddComponent<CharacterController>();
-                controller.center = new Vector3(0f, 0.9f, 0f);
-                controller.height = 1.8f;
-                controller.radius = 0.2f;
 
                 _go.transform.position = Vector3.zero;
                 _go.transform.rotation = Quaternion.identity;
                 SetPrivateField("_avatarRoot", _go.transform);
                 SetPrivateField("_currentBehaviorSuccess", true);
 
-                var step = new BehaviorStep { type = "zone_snap", slot_id = "supported_seat_cc" };
+                var step = new BehaviorStep { type = "zone_snap", slot_id = "supported_seat_v2" };
                 RunPrivateCoroutine("StepZoneSnap", step);
 
-                Assert.That(_go.transform.position.y, Is.GreaterThan(1.0f));
+                // #67: Without CC, zone_snap places at Max(seatHit.y, slot.StandPosition.y)
+                Assert.That(_go.transform.position.y, Is.GreaterThanOrEqualTo(1.0f));
                 Assert.That(Quaternion.Angle(_go.transform.rotation, Quaternion.Euler(0f, 135f, 0f)), Is.LessThan(0.001f));
                 Assert.IsTrue(GetPrivateField<bool>("_currentBehaviorSuccess"));
             }

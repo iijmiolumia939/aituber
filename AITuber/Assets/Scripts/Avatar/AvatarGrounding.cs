@@ -1,5 +1,6 @@
 // AvatarGrounding.cs
-// StarterAssets ThirdPersonController の重力・着地実装。
+// NavMeshAgent 一本化によるアバター接地管理。(#67)
+// CharacterController を廃止し NavMeshAgent が唯一の位置オーナー。
 // QuQu(U.fbx) は Humanoid FBX。root origin がヒップ位置のため起動時に pivot を足裏へ補正する。
 
 using UnityEngine;
@@ -7,27 +8,14 @@ using UnityEngine.AI;
 
 namespace AITuber.Avatar
 {
-    [RequireComponent(typeof(CharacterController))]
+    [RequireComponent(typeof(NavMeshAgent))]
     public class AvatarGrounding : MonoBehaviour
     {
         // ── Inspector ──────────────────────────────────────────────
 
-        [Header("CharacterController 形状")]
-        [SerializeField] private float _capsuleHeight = 1.7f;
-        [SerializeField] private float _capsuleRadius = 0.15f;
-
-        [Header("Grounded Check")]
-        [SerializeField] private float     _groundedRadius = 0.28f;
-        [SerializeField] private LayerMask _groundLayers   = ~0;
-
         [Header("Snap")]
         [SerializeField] private LayerMask _snapGroundLayers = ~0;
         [SerializeField] private float     _snapTimeout      = 3.0f;
-        [SerializeField] private float     _navMeshSnapRadius = 6.0f;
-        [SerializeField] private float     _maxNavMeshSnapDrift = 0.35f;
-
-        [Header("Gravity")]
-        [SerializeField] private float _gravity = -15.0f;
 
         [Header("Foot IK（段差補正・オプション）")]
         [SerializeField] private bool             _enableFootIK = false;
@@ -39,40 +27,18 @@ namespace AITuber.Avatar
 
         // ── Runtime ───────────────────────────────────────────────
 
-        private CharacterController _cc;
+        private NavMeshAgent        _agent;
         private Animator            _anim;
-        private float               _verticalVelocity;
         private bool                _pivotFixed;    // アバター子 localY 補正済みフラグ
-        private const float         _terminalVelocity = 53.0f;
         private FootIKTargetUpdater _footIKUpdater;
 
-        // Phase 2: horizontal velocity injected each frame by locomotion (BSR walk).
-        // Consumed in ApplyGravity() each frame.
-        private Vector3 _externalHorizontalVelocity;
+        /// <summary>NavMeshAgent の参照。BSR / RoomManager が WarpTo / SetDestination で使う。</summary>
+        public NavMeshAgent Agent => _agent;
 
-        // StarterAssets デフォルト固定値（pivot = 足裏 が前提）
-        private const float GroundedOffset = 0.14f;
-
-        public bool Grounded   { get; private set; } = true;
+        public bool Grounded => _agent != null && _agent.enabled && _agent.isOnNavMesh;
         /// <summary>BeginSnap が実行中なら true — walk_to はこれが false になるまで待つ。</summary>
         public bool IsSnapping  { get; private set; }
-        /// <summary>zone_snap 中に重力を一時停止するフラグ。</summary>
-        private bool _gravitySuspended;
 
-        /// <summary>
-        /// 座席スナップ中に重力を停止／再開する。<br/>
-        /// true: CC gravity を止め、蓄積速度もリセット。<br/>
-        /// false: 重力再開（続けて BeginSnap を呼ぶこと）。
-        /// </summary>
-        public void SuspendGravity(bool suspended)
-        {
-            _gravitySuspended = suspended;
-            if (suspended)
-            {
-                _verticalVelocity            = 0f;
-                _externalHorizontalVelocity  = Vector3.zero;
-            }
-        }
         /// <summary>
         /// Phase 5: Foot IK の実効ウェイト乗数（0=OFF, 1=_ikWeight をフル適用）。
         /// FootIKTargetUpdater が idle/walk/snap 状態に応じて毎フレーム書き込む。
@@ -92,27 +58,14 @@ namespace AITuber.Avatar
         private SnapPhase _snapPhase     = SnapPhase.Idle;
         private float     _snapPhaseTimer;
         private float     _snapElapsed;
-        private float     _snapLastY;
-        private int       _snapStableFrames;
 
         // ── Unity ─────────────────────────────────────────────────
 
         private void Awake()
         {
-            _cc = GetComponent<CharacterController>();
-            _cc.height          = _capsuleHeight;
-            _cc.radius          = _capsuleRadius;
-            _cc.center          = new Vector3(0f, _capsuleHeight * 0.5f, 0f);
-            _cc.skinWidth       = 0.02f;
-            _cc.minMoveDistance = 0f;
-            _cc.slopeLimit      = 45f;
-            _cc.stepOffset      = 0.1f;
-
-            // Disable NavMeshAgent at startup so it doesn't interfere with
-            // CharacterController gravity or coroutine scheduling on this GO.
-            // BehaviorSequenceRunner enables it explicitly when walking starts.
-            var startAgent = GetComponent<UnityEngine.AI.NavMeshAgent>();
-            if (startAgent != null) startAgent.enabled = false;
+            _agent = GetComponent<NavMeshAgent>();
+            _agent.updateRotation = false;   // BSR がローテーションを制御
+            _agent.enabled = false;          // BeginSnap 完了まで無効
 
             // AvatarRoot 自身ではなく「子」の humanoid Animator を探す
             // （AvatarRoot にも Animator が付いている場合があるため除外）
@@ -144,61 +97,67 @@ namespace AITuber.Avatar
             }
 
             // Phase 1: Trigger initial grounding at startup.
-            // BeginSnap handles pivot fix (FBX hip-origin → sole-origin) + floor-drop via CC gravity.
-            // Prevents avatar from floating in mid-air when the scene first loads.
+            // BeginSnap handles pivot fix (FBX hip-origin → sole-origin) + floor Warp.
             BeginSnap();
         }
 
         private void Update()
         {
-            if (_cc.enabled)
-            {
-                ApplyGravity();
-                GroundedCheck();
-            }
             if (_snapPhase != SnapPhase.Idle)
                 UpdateSnap();
         }
 
-        // ── Grounded / Gravity（StarterAssets そのまま）─────────────
+        // ── Public API ────────────────────────────────────────────
 
-        private void GroundedCheck()
+        /// <summary>
+        /// アバターを指定位置にワープさせる。NavMeshAgent を一時無効化して安全にテレポートする。
+        /// 座席など NavMesh 外の位置にもワープ可能。
+        /// </summary>
+        public void WarpTo(Vector3 position)
         {
-            // CharacterController already resolves actual contact against the world during Move().
-            // Using it as the single source of truth avoids startup false positives from nearby
-            // colliders when the avatar is still visibly above the floor.
-            Grounded = _cc.isGrounded;
+            if (_agent != null && _agent.enabled)
+            {
+                _agent.Warp(position);
+            }
+            else
+            {
+                transform.position = position;
+            }
         }
 
         /// <summary>
-        /// 外部ロコモーションソース（walk_to コルーチン）から 1 フレーム分の水平速度を注入する。
-        /// ApplyGravity() で重力と合算して CC.Move に渡す。
+        /// NavMeshAgent を有効化し、NavMesh 上の最寄りの有効ポイントに配置する。
+        /// walk_to 開始前に呼ぶ。
         /// </summary>
-        public void RequestHorizontalMove(Vector3 worldVelocity)
+        public void EnableAgentOnNavMesh()
         {
-            _externalHorizontalVelocity.x = worldVelocity.x;
-            _externalHorizontalVelocity.z = worldVelocity.z;
+            if (_agent == null) return;
+            if (!_agent.enabled)
+            {
+                // Find nearest NavMesh point before enabling to avoid agent placement issues
+                if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 5f, NavMesh.AllAreas))
+                    transform.position = hit.position;
+                _agent.enabled = true;
+                _agent.Warp(transform.position);
+            }
         }
 
-        private void ApplyGravity()
+        /// <summary>
+        /// NavMeshAgent を無効化する。zone_snap や sit_settle など NavMesh 外への配置前に呼ぶ。
+        /// </summary>
+        public void DisableAgent()
         {
-            if (_gravitySuspended) return;
-            if (Grounded && _verticalVelocity < 0f)
-                _verticalVelocity = -2f;
-
-            if (_verticalVelocity < _terminalVelocity)
-                _verticalVelocity += _gravity * Time.deltaTime;
-
-            // Combine external horizontal (locomotion) + vertical gravity in one CC.Move.
-            var move = _externalHorizontalVelocity + new Vector3(0f, _verticalVelocity, 0f);
-            _cc.Move(move * Time.deltaTime);
-            _externalHorizontalVelocity = Vector3.zero; // consumed each frame
+            if (_agent != null && _agent.enabled)
+            {
+                _agent.ResetPath();
+                _agent.enabled = false;
+            }
         }
 
         // ── 部屋切り替えスナップ（Update state machine）──────────────
 
         /// <summary>
-        /// 部屋切り替え時に呼ぶ。pivot 補正 → 落下着地を Update ループで実行する。
+        /// 部屋切り替え時に呼ぶ。pivot 補正 → 床ワープを Update ループで実行する。
         /// コルーチンを使わないので MonoBehaviour の有効状態に依存しない。
         /// RoomManager.DoSwitch() から呼ぶ。
         /// </summary>
@@ -206,16 +165,13 @@ namespace AITuber.Avatar
         {
             if (_snapPhase != SnapPhase.Idle)
             {
-                // Reliability (review): log so caller knows the re-entry was dropped.
-                // RoomManager should wait for IsSnapping==false before calling BeginSnap again.
                 Debug.LogWarning($"[AvatarGrounding] BeginSnap called while snap already in progress (phase={_snapPhase}) — ignoring.");
                 return;
             }
             IsSnapping = true;
 
-            // NavMeshAgent を無効化（CC と競合防止）
-            var agent = GetComponent<NavMeshAgent>();
-            if (agent != null && agent.enabled) agent.enabled = false;
+            // NavMeshAgent を無効化（直接 position を書き込むため）
+            DisableAgent();
 
             Debug.Log($"[AvatarGrounding] BeginSnap — _pivotFixed={_pivotFixed}, _anim={((object)_anim != null ? _anim.gameObject.name : "null")}");
 
@@ -282,14 +238,8 @@ namespace AITuber.Avatar
 
         private void StartFloorDrop()
         {
-            // 起動時/テレポート時の接地は、Rigging や重力落下で解くより
-            // 「床高さを問い合わせて root を決定論的に置く」方が安定する。
-            // Rigging / Foot IK は最終見た目の補正であって、root 配置の責務ではない。
-            _cc.enabled       = false;
-            _verticalVelocity = 0f;
-
-            // 床候補は「現在の root より下」にあり、かつ上向き法線を持つ hit に限定する。
-            // これで天井や梁の下面を誤採用しない。
+            // 床高さを問い合わせて root を決定論的に配置する。
+            // NavMeshAgent は無効状態なので transform.position に直接書き込む。
             float currentY = transform.position.y;
             float floorY   = currentY;
             string hitName = "(none)";
@@ -324,53 +274,24 @@ namespace AITuber.Avatar
                 Debug.LogWarning("[AvatarGrounding] 床を検出できませんでした。");
             }
 
-            // CharacterController の底面が床に軽く接する Y を直接求める。
-            // 手動で Y=0 を入れた後に約 0.055 へ落ち着くのは skinWidth 分だけ浮くためで、
-            // 初期配置でも同じ値を使うのが最も一貫する。
-            float groundedY = floorY + _cc.skinWidth;
-            var groundedPosition = new Vector3(transform.position.x, groundedY, transform.position.z);
-            if (TryProjectToNearestNavMesh(groundedPosition, out Vector3 navMeshPosition, out string navMeshReason))
+            // NavMesh 上の最寄り点を使い、raycast 床高さも加味して配置する。
+            var groundedPosition = new Vector3(transform.position.x, floorY, transform.position.z);
+            if (NavMesh.SamplePosition(groundedPosition + Vector3.up * 0.5f, out NavMeshHit navHit, 6f, NavMesh.AllAreas))
             {
-                groundedPosition = navMeshPosition;
-                Debug.Log($"[AvatarGrounding] FloorSnap — currentY={currentY:F3} floor={floorY:F3} target={groundedPosition} ({hitName}, {navMeshReason})");
+                groundedPosition = navHit.position;
+                Debug.Log($"[AvatarGrounding] FloorSnap — currentY={currentY:F3} floor={floorY:F3} target={groundedPosition} ({hitName}, navMesh={navHit.position})");
             }
             else
             {
-                Debug.Log($"[AvatarGrounding] FloorSnap NavMesh projection skipped: {navMeshReason}");
-                Debug.Log($"[AvatarGrounding] FloorSnap — currentY={currentY:F3} floor={floorY:F3} targetY={groundedY:F3} ({hitName})");
+                Debug.Log($"[AvatarGrounding] FloorSnap — currentY={currentY:F3} floor={floorY:F3} target={groundedPosition} ({hitName}, no NavMesh)");
             }
 
             transform.position = groundedPosition;
 
-            _cc.enabled = true;
-            GroundedCheck();
+            // NavMeshAgent を有効化して NavMesh 上に配置する
+            _agent.enabled = true;
+            _agent.Warp(groundedPosition);
             FinishSnap();
-        }
-
-        private bool TryProjectToNearestNavMesh(Vector3 groundedPosition, out Vector3 projectedPosition, out string reason)
-        {
-            projectedPosition = groundedPosition;
-            reason = "no NavMesh projection attempted";
-
-            var sampleOrigin = groundedPosition + Vector3.up * 0.5f;
-            if (!NavMesh.SamplePosition(sampleOrigin, out NavMeshHit hit, _navMeshSnapRadius, NavMesh.AllAreas))
-            {
-                reason = $"no NavMesh within {_navMeshSnapRadius:F1}m of {groundedPosition}";
-                return false;
-            }
-
-            float horizontalDrift = Vector2.Distance(
-                new Vector2(groundedPosition.x, groundedPosition.z),
-                new Vector2(hit.position.x, hit.position.z));
-            if (horizontalDrift > _maxNavMeshSnapDrift)
-            {
-                reason = $"nearest NavMesh drift too large ({horizontalDrift:F2}m > {_maxNavMeshSnapDrift:F2}m)";
-                return false;
-            }
-
-            projectedPosition = new Vector3(hit.position.x, groundedPosition.y, hit.position.z);
-            reason = $"navMeshXZ={hit.position} drift={horizontalDrift:F2}m";
-            return true;
         }
 
         private void FinishSnap()
@@ -437,9 +358,7 @@ namespace AITuber.Avatar
         {
             Gizmos.color = Application.isPlaying && Grounded
                 ? new Color(0f, 1f, 0f, 0.35f) : new Color(1f, 0f, 0f, 0.35f);
-            Gizmos.DrawSphere(
-                new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z),
-                _groundedRadius);
+            Gizmos.DrawSphere(transform.position, 0.28f);
         }
 #endif
     }

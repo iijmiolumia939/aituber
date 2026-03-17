@@ -1,14 +1,14 @@
 // BehaviorSequenceRunner.cs
 // Executes multi-step BehaviorSequences loaded from behaviors.json.
-// Chains zone movement (NavMeshAgent or Lerp fallback), gestures, and waits as a Coroutine.
+// Chains zone movement (NavMeshAgent), gestures, and waits as a Coroutine.
+// #67: NavMeshAgent 一本化 — CharacterController 廃止。agent.SetDestination で歩行。
 //
 // SRS refs: FR-LIFE-01, FR-BEHAVIOR-SEQ-01, TD-012 (#36), TD-013 (#38)
 //
 // Setup:
 //   1. Attach to the same GameObject as AvatarController (e.g. "AvatarRoot").
 //   2. Assign _avatarController and _avatarRoot in Inspector.
-//   3. Optionally assign _navMeshAgent (or add NavMeshAgent to AvatarRoot) for
-//      collision-aware movement. Falls back to linear Lerp when not assigned.
+//   3. AvatarRoot must have AvatarGrounding + NavMeshAgent.
 //   4. Ensure BehaviorDefinitionLoader is present in the scene.
 //
 // Wire: { "cmd": "behavior_start", "params": { "behavior": "go_sleep" } }
@@ -37,12 +37,6 @@ namespace AITuber.Behavior
         [Tooltip("アバターの Root Transform — walk_to で位置を移動する")]
         [SerializeField] private Transform _avatarRoot;
 
-        [Tooltip("NavMeshAgent (optional) — 設定するとコリジョン回避移動が有効になる。未設定の場合は線形 Lerp へフォールバック。")]
-        [SerializeField] private NavMeshAgent _navMeshAgent;
-
-        [Tooltip("NavMesh 経路が取れない場合に、壁抜けの可能性がある直線 Lerp fallback を許可する。通常は OFF。")]
-        [SerializeField] private bool _allowUnsafeLerpFallback = false;
-
         [Tooltip("behavior 実行中に 1 フレームでこの距離以上移動した場合、warp 診断ログを出す。")]
         [SerializeField] private float _warpDiagnosticThreshold = 0.50f;
 
@@ -56,17 +50,12 @@ namespace AITuber.Behavior
         private string            _runningBehavior;
         private bool              _currentBehaviorSuccess;  // tracks step-level failures (L-5 / Issue #50)
         // CC reference kept here so StopBehavior can restore it even if the coroutine is cancelled mid-walk
-        private CharacterController _walkingCC;
-        // NavMeshAgent reference — enabled for walking, disabled for idle (avoids CC+agent transform conflict)
-        private NavMeshAgent        _walkingAgent;
+        // (removed: CC/NavMeshAgent dual management — NavMeshAgent is the sole position owner #67)
         // Locomotion Animator — lazily cached; Unity null-check handles destroyed Animator (L-3 / review perf)
         private Animator            _locomotionAnimator;
         private readonly HashSet<string> _warpDiagnosticWarnings = new();
         private const int InitialWalkFrameDiagnostics = 12;
         private const float MaxSeatSupportDrop = 0.20f;
-        private const float WalkStartElevationProjectionThreshold = 0.30f;
-        private const float WalkStartProjectionPreserveXZThreshold = 0.15f;
-        private const float WalkStartProjectionDuration = 0.18f;
         private static readonly Vector3 DefaultStreamCameraOffset = new(0f, 1.45f, 0.95f);
         private Animator _visualDebugAnimator;
         private SkinnedMeshRenderer _visualDebugBodyRenderer;
@@ -133,31 +122,24 @@ namespace AITuber.Behavior
             // Critical (review): Reset LocoBlend so walk animation does not persist after interruption.
             // Without this, speed=1 stays set indefinitely when StopBehavior cancels mid-walk.
             GetLocomotionAnimator()?.SetFloat("speed", 0f);
-            // Restore CharacterController and disable NavMeshAgent if stopped mid-walk
-            RestoreCharacterController();
+            // Stop NavMeshAgent if walking was interrupted (#67)
+            StopAgentMovement();
             // Medium (review): notify orchestrator on interrupt, closes Perception-Memory-Action loop (L-5)
             if (!string.IsNullOrEmpty(_runningBehavior))
                 PerceptionReporter.Instance?.ReportBehaviorCompleted(_runningBehavior, false, "interrupted");
             _runningBehavior = null;
             // R-1 fix: reset dedup cache so next behavior can re-fire the same gesture trigger.
-            // Without this, an interrupted "walk" would leave the cache at "walk" and the
-            // following walk_to step would be silently skipped by AvatarController's dedup guard.
             _avatarController?.ResetGestureDedup();
         }
 
-        private void RestoreCharacterController()
+        private void StopAgentMovement()
         {
-            // Phase 2: _walkingCC is never set (CC stays enabled during walk), so this is a no-op.
-            if (_walkingCC != null)
+            if (_avatarRoot == null) return;
+            var grounding = _avatarRoot.GetComponent<AvatarGrounding>();
+            if (grounding != null && grounding.Agent != null && grounding.Agent.enabled)
             {
-                _walkingCC.enabled = true;
-                _walkingCC = null;
-            }
-            // Disable NavMeshAgent after walk — CC resumes sole ownership of gravity/movement.
-            if (_walkingAgent != null)
-            {
-                _walkingAgent.enabled = false;
-                _walkingAgent = null;
+                grounding.Agent.ResetPath();
+                grounding.Agent.isStopped = true;
             }
         }
 
@@ -271,7 +253,7 @@ namespace AITuber.Behavior
             if (string.IsNullOrEmpty(step.slot_id))
             {
                 Debug.LogWarning("[BehaviorRunner] walk_to: slot_id is empty.");
-                _currentBehaviorSuccess = false;  // R3-1: step failure must propagate to completion report
+                _currentBehaviorSuccess = false;
                 yield break;
             }
 
@@ -281,7 +263,7 @@ namespace AITuber.Behavior
             if (slot == null)
             {
                 Debug.LogWarning($"[BehaviorRunner] walk_to: no InteractionSlot found with slotId='{step.slot_id}'.");
-                _currentBehaviorSuccess = false;  // R3-1: slot resolution failure must propagate to completion report
+                _currentBehaviorSuccess = false;
                 yield break;
             }
 
@@ -289,12 +271,7 @@ namespace AITuber.Behavior
                 $"[BehaviorRunner] walk_to '{slot.slotId}': resolved slot={GetTransformPath(slot.transform)} " +
                 $"slotPos={slot.transform.position} standPos={slot.StandPosition} faceYaw={slot.faceYaw:F1}");
 
-            // Wait for AvatarGrounding.BeginSnap (state machine) to finish landing before walking.
-            // If walk_to starts while snap is still in progress (e.g. room-switch or initial
-            // floor-fall), disabling CC will block the snap landing, causing the avatar to
-            // stay 3 m above the floor and walk on nothing.
-            // Safety cap: 5 s max — if IsSnapping stays true due to an unexpected error we
-            // do not block the behavior forever.
+            // Wait for AvatarGrounding.BeginSnap to finish before walking.
             if (_avatarRoot != null)
             {
                 var grounding = _avatarRoot.GetComponent<AvatarGrounding>();
@@ -311,178 +288,101 @@ namespace AITuber.Behavior
                 }
             }
 
-            // Phase 2: CC stays enabled so AvatarGrounding gravity continues throughout the walk.
-            // Agent uses updatePosition=false — CC owns the transform; agent provides path/desiredVelocity.
-            // _walkingCC is intentionally not set here; RestoreCharacterController is a no-op for CC.
-            // (avatar-motion-roadmap.md Phase 2)
-
-            // Recovery: if avatar is elevated above NavMesh floor (e.g. after zone_snap to sofa seat),
-            // teleport to the nearest NavMesh floor position before attempting pathfinding.
-            // Without this, walk_to fails with "source projection drift too large" or the CC
-            // collides with sofa geometry, making the behavior appear stuck ("invalid").
-            if (_avatarRoot != null)
+            // #67: NavMeshAgent 一本化 — EnableAgentOnNavMesh で agent を有効化し、
+            // SetDestination で移動する。CC disable/enable や Lerp fallback は不要。
+            var walkGrounding = _avatarRoot.GetComponent<AvatarGrounding>();
+            if (walkGrounding == null)
             {
-                float avatarY = _avatarRoot.position.y;
-                if (NavMesh.SamplePosition(_avatarRoot.position, out NavMeshHit floorHit, 2f, NavMesh.AllAreas))
-                {
-                    float elevationAboveNavMesh = avatarY - floorHit.position.y;
-                    if (elevationAboveNavMesh > WalkStartElevationProjectionThreshold)
-                    {
-                        float horizontalProjectionDrift = Vector2.Distance(
-                            new Vector2(_avatarRoot.position.x, _avatarRoot.position.z),
-                            new Vector2(floorHit.position.x, floorHit.position.z));
-                        Debug.Log($"[BehaviorRunner] walk_to: avatar elevated {elevationAboveNavMesh:F2}m above NavMesh " +
-                                  $"(pos={_avatarRoot.position}, navMesh={floorHit.position}, horizontalDrift={horizontalProjectionDrift:F2}) — projecting to floor first.");
-                        var grounding = _avatarRoot.GetComponent<AITuber.Avatar.AvatarGrounding>();
-                        Vector3 targetWalkStart = horizontalProjectionDrift <= WalkStartProjectionPreserveXZThreshold
-                            ? new Vector3(_avatarRoot.position.x, floorHit.position.y, _avatarRoot.position.z)
-                            : floorHit.position;
-
-                        yield return SmoothProjectAvatarToWalkStart(targetWalkStart, WalkStartProjectionDuration);
-
-                        if (grounding != null && !grounding.IsSnapping)
-                        {
-                            grounding.BeginSnap();
-                            float dropWait = 0f;
-                            while (grounding.IsSnapping && dropWait < 3f)
-                            {
-                                dropWait += Time.deltaTime;
-                                yield return null;
-                            }
-                        }
-                    }
-                }
+                Debug.LogWarning("[BehaviorRunner] walk_to: AvatarGrounding component not found.");
+                _currentBehaviorSuccess = false;
+                yield break;
             }
 
+            walkGrounding.EnableAgentOnNavMesh();
+            var agent = walkGrounding.Agent;
+            if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+            {
+                Debug.LogWarning($"[BehaviorRunner] walk_to: NavMeshAgent is not on NavMesh. agent={agent != null} enabled={agent?.enabled} onNavMesh={agent?.isOnNavMesh}");
+                _currentBehaviorSuccess = false;
+                yield break;
+            }
+
+            // Resolve destination to nearest NavMesh point
             Vector3 dest = slot.StandPosition;
-            Vector3 actualStart = _avatarRoot.position;
-            bool canWalk = TryBuildReachableWalkPath(actualStart, slot, out Vector3 src, out dest, out NavMeshPath path, out string pathReason);
+            if (NavMesh.SamplePosition(dest, out NavMeshHit destHit, 5f, NavMesh.AllAreas))
+                dest = destHit.position;
 
-            if (canWalk || _allowUnsafeLerpFallback)
-            {
-                // Play walk animation only when an actual move will happen.
-                SendAvatarUpdate("walk", "neutral", "random");
-                GetLocomotionAnimator()?.SetFloat("speed", 1f);
-            }
+            Debug.Log($"[BehaviorRunner] walk_to '{slot.slotId}': agent start={_avatarRoot.position} dest={dest}");
 
-            if (canWalk)
+            // Play walk animation
+            SendAvatarUpdate("walk", "neutral", "random");
+            GetLocomotionAnimator()?.SetFloat("speed", 1f);
+
+            // Navigate using NavMeshAgent
+            agent.isStopped = false;
+            agent.SetDestination(dest);
+
+            // Wait for path to be computed
+            yield return null;
+            if (agent.pathStatus == NavMeshPathStatus.PathInvalid)
             {
-                Debug.Log(
-                    $"[BehaviorRunner] walk_to '{slot.slotId}': actualStart={actualStart} navmeshStart={src} " +
-                    $"dest={dest} pathCorners={path.corners.Length} ({pathReason})");
-                yield return StepWalkAlongPath(path.corners, slot, step.duration);
-            }
-            else if (_allowUnsafeLerpFallback)
-            {
-                Debug.LogWarning(
-                    $"[BehaviorRunner] walk_to '{slot.slotId}': {pathReason} — unsafe Lerp fallback enabled. " +
-                    "gap_category=locomotion_lerp_unverified (Issue #47)");
+                Debug.LogWarning($"[BehaviorRunner] walk_to '{slot.slotId}': invalid path — movement cancelled.");
                 _currentBehaviorSuccess = false;
-                yield return StepWalkToLerp(step, slot);
-            }
-            else
-            {
-                Debug.LogWarning(
-                    $"[BehaviorRunner] walk_to '{slot.slotId}': {pathReason} — movement cancelled to avoid wall clipping.");
-                _currentBehaviorSuccess = false;
+                GetLocomotionAnimator()?.SetFloat("speed", 0f);
+                agent.isStopped = true;
+                yield break;
             }
 
-            // Restore CharacterController and stop walk blend (L-3 / Issue #49)
-            GetLocomotionAnimator()?.SetFloat("speed", 0f);
-            RestoreCharacterController();
-            Debug.Log($"[BehaviorRunner] walk_to '{step.slot_id}' done — AvatarRoot={_avatarRoot?.position}");
-        }
-
-        private IEnumerator SmoothProjectAvatarToWalkStart(Vector3 targetPosition, float duration)
-        {
-            if (_avatarRoot == null)
-                yield break;
-
-            var cc = _avatarRoot.GetComponent<CharacterController>();
-            Vector3 startPosition = _avatarRoot.position;
-            if (Vector3.Distance(startPosition, targetPosition) <= 0.001f)
-                yield break;
-
-            if (cc != null)
-                cc.enabled = false;
-
+            // Poll until arrival
+            const float arrivalThreshold = 0.20f;
+            float timeout = Mathf.Max(step.duration * 3f, 30f);
             float elapsed = 0f;
-            float safeDuration = Mathf.Max(duration, 0.01f);
-            while (elapsed < safeDuration)
+            Vector3 previousPosition = _avatarRoot.position;
+            int diagnosticFramesRemaining = InitialWalkFrameDiagnostics;
+
+            while (elapsed < timeout)
             {
-                float t = elapsed / safeDuration;
-                _avatarRoot.position = Vector3.Lerp(startPosition, targetPosition, t);
+                // Face movement direction
+                Vector3 vel = agent.velocity;
+                vel.y = 0f;
+                if (vel.sqrMagnitude > 0.01f)
+                    _avatarRoot.rotation = Quaternion.LookRotation(vel.normalized);
+
+                // Check arrival
+                if (!agent.pathPending && agent.remainingDistance <= arrivalThreshold)
+                    break;
+
                 elapsed += Time.deltaTime;
                 yield return null;
-            }
 
-            _avatarRoot.position = targetPosition;
-
-            if (cc != null)
-                cc.enabled = true;
-        }
-
-        private bool TryBuildReachableWalkPath(
-            Vector3 actualStart,
-            InteractionSlot slot,
-            out Vector3 navMeshStart,
-            out Vector3 navMeshDest,
-            out NavMeshPath bestPath,
-            out string reason)
-        {
-            navMeshStart = actualStart;
-            navMeshDest = slot.StandPosition;
-            bestPath = null;
-            reason = "path search not evaluated";
-
-            if (!NavMesh.SamplePosition(actualStart, out NavMeshHit sh, 1.5f, NavMesh.AllAreas))
-            {
-                reason = $"no NavMesh near start actual={actualStart}";
-                return false;
-            }
-
-            navMeshStart = sh.position;
-
-            float srcProjectionDrift = Vector2.Distance(
-                new Vector2(actualStart.x, actualStart.z),
-                new Vector2(navMeshStart.x, navMeshStart.z));
-            if (srcProjectionDrift > 0.5f)
-            {
-                reason = $"source projection drift too large ({srcProjectionDrift:F2}m) actual={actualStart} navmesh={navMeshStart}";
-                return false;
-            }
-
-            float bestScore = float.MaxValue;
-            foreach (Vector3 desired in BuildWalkTargetCandidates(slot))
-            {
-                foreach (float radius in new[] { 0.5f, 1f, 2f, 3.5f, 5f })
+                if (diagnosticFramesRemaining > 0)
                 {
-                    if (!NavMesh.SamplePosition(desired, out NavMeshHit dh, radius, NavMesh.AllAreas))
-                        continue;
-
-                    var path = new NavMeshPath();
-                    if (!NavMesh.CalculatePath(navMeshStart, dh.position, NavMesh.AllAreas, path)
-                        || path.status != NavMeshPathStatus.PathComplete)
-                        continue;
-
-                    float score = Vector3.Distance(dh.position, slot.StandPosition) + GetPathLength(path) * 0.1f;
-                    if (score < bestScore)
-                    {
-                        bestScore = score;
-                        navMeshDest = dh.position;
-                        bestPath = path;
-                        reason = $"candidate={desired} sampleRadius={radius:F1} slotDist={Vector3.Distance(dh.position, slot.StandPosition):F2}";
-                    }
-
-                    break;
+                    float horizontalDelta = Vector2.Distance(
+                        new Vector2(previousPosition.x, previousPosition.z),
+                        new Vector2(_avatarRoot.position.x, _avatarRoot.position.z));
+                    float verticalDelta = Mathf.Abs(_avatarRoot.position.y - previousPosition.y);
+                    Debug.Log(
+                        $"[BehaviorRunner] walk frame diagnostic: slot='{slot.slotId}' " +
+                        $"prev={previousPosition} current={_avatarRoot.position} " +
+                        $"horizontalDelta={horizontalDelta:F3} verticalDelta={verticalDelta:F3} remaining={agent.remainingDistance:F2} {BuildVisualAnchorDebugString()}");
+                    diagnosticFramesRemaining--;
                 }
+
+                LogWarpDiagnostic(previousPosition, _avatarRoot.position, $"walk_to/{slot.slotId}");
+                previousPosition = _avatarRoot.position;
             }
 
-            if (bestPath != null)
-                return true;
+            if (elapsed >= timeout)
+            {
+                Debug.LogWarning($"[BehaviorRunner] walk_to '{slot.slotId}' timed out.");
+                _currentBehaviorSuccess = false;
+            }
 
-            reason = $"no complete NavMesh path near slot standPos={slot.StandPosition}";
-            return false;
+            // Stop agent and set final rotation
+            agent.isStopped = true;
+            _avatarRoot.rotation = slot.StandRotation;
+            GetLocomotionAnimator()?.SetFloat("speed", 0f);
+            Debug.Log($"[BehaviorRunner] walk_to '{step.slot_id}' done — AvatarRoot={_avatarRoot?.position}");
         }
 
         private static string GetTransformPath(Transform transform)
@@ -498,153 +398,6 @@ namespace AITuber.Behavior
             }
 
             return path;
-        }
-
-        private IEnumerable<Vector3> BuildWalkTargetCandidates(InteractionSlot slot)
-        {
-            Vector3 basePos = slot.StandPosition;
-            Quaternion rot = slot.StandRotation;
-
-            yield return basePos;
-
-            var directions = new[]
-            {
-                rot * Vector3.back,
-                rot * Vector3.forward,
-                rot * Vector3.left,
-                rot * Vector3.right,
-                (rot * (Vector3.back + Vector3.left)).normalized,
-                (rot * (Vector3.back + Vector3.right)).normalized,
-                (rot * (Vector3.forward + Vector3.left)).normalized,
-                (rot * (Vector3.forward + Vector3.right)).normalized,
-            };
-
-            foreach (float distance in new[] { 0.35f, 0.7f, 1.1f, 1.5f })
-            {
-                foreach (Vector3 direction in directions)
-                    yield return basePos + direction * distance;
-            }
-        }
-
-        private static float GetPathLength(NavMeshPath path)
-        {
-            float length = 0f;
-            var corners = path.corners;
-            for (int i = 1; i < corners.Length; i++)
-                length += Vector3.Distance(corners[i - 1], corners[i]);
-            return length;
-        }
-
-        /// <summary>
-        /// NavMesh パスのコーナーを CC + RequestHorizontalMove で追従する。
-        /// NavMeshAgent の enable/disable は一切行わない → transform スナップなし。
-        /// </summary>
-        private IEnumerator StepWalkAlongPath(Vector3[] corners, InteractionSlot slot, float expectedDuration)
-        {
-            if (_avatarRoot == null || corners.Length < 2) yield break;
-
-            var grounding = _avatarRoot.GetComponent<AvatarGrounding>();
-            const float walkSpeed   = 1.5f;  // m/s — human walk
-            const float cornerReach = 0.15f; // m — corner reached threshold
-            float timeout = Mathf.Max(expectedDuration * 3f, 30f);
-            float elapsed = 0f;
-            Vector3 previousPosition = _avatarRoot.position;
-            int diagnosticFramesRemaining = InitialWalkFrameDiagnostics;
-
-            for (int i = 1; i < corners.Length && elapsed < timeout; i++)
-            {
-                Vector3 corner = corners[i];
-                while (elapsed < timeout)
-                {
-                    float dx = corner.x - _avatarRoot.position.x;
-                    float dz = corner.z - _avatarRoot.position.z;
-                    if (dx * dx + dz * dz < cornerReach * cornerReach) break; // corner reached
-
-                    Vector3 dir = new Vector3(dx, 0f, dz).normalized;
-                    grounding?.RequestHorizontalMove(dir * walkSpeed);
-                    _avatarRoot.rotation = Quaternion.LookRotation(dir);
-
-                    elapsed += Time.deltaTime;
-                    yield return null;
-
-                    if (diagnosticFramesRemaining > 0)
-                    {
-                        float horizontalDelta = Vector2.Distance(
-                            new Vector2(previousPosition.x, previousPosition.z),
-                            new Vector2(_avatarRoot.position.x, _avatarRoot.position.z));
-                        float verticalDelta = Mathf.Abs(_avatarRoot.position.y - previousPosition.y);
-                        Debug.Log(
-                            $"[BehaviorRunner] walk frame diagnostic: slot='{slot.slotId}' corner={i} " +
-                            $"prev={previousPosition} current={_avatarRoot.position} " +
-                            $"horizontalDelta={horizontalDelta:F3} verticalDelta={verticalDelta:F3} {BuildVisualAnchorDebugString()}");
-                        diagnosticFramesRemaining--;
-                    }
-
-                    LogWarpDiagnostic(previousPosition, _avatarRoot.position, $"walk_to/{slot.slotId}/corner{i}");
-                    previousPosition = _avatarRoot.position;
-                }
-            }
-
-            if (elapsed >= timeout)
-            {
-                Debug.LogWarning($"[BehaviorRunner] walk path to '{slot.slotId}' timed out.");
-                _currentBehaviorSuccess = false;
-            }
-            _avatarRoot.rotation = slot.StandRotation;
-        }
-
-        /// <summary>
-        /// Linear-Lerp walk fallback when NavMeshAgent is unavailable.
-        /// Phasing through walls is possible — bake NavMesh to avoid this.
-        /// </summary>
-        private IEnumerator StepWalkToLerp(BehaviorStep step, InteractionSlot slot)
-        {
-            if (_avatarRoot == null)
-            {
-                // R5-1: _avatarRoot null means locomotion is impossible — flag failure for consistency
-                _currentBehaviorSuccess = false;
-                yield return new WaitForSeconds(Mathf.Max(step.duration, 0.1f));
-                yield break;
-            }
-
-            // Medium (review, L-1): NavMeshAgent unavailable — full Affordance Check cannot run.
-            // SamplePosition provides a best-effort reachability hint only; walls are not avoided.
-            // Bake a NavMesh and assign NavMeshAgent to enable complete check (Issue #47).
-            if (!NavMesh.SamplePosition(slot.StandPosition, out _, 1f, NavMesh.AllAreas))
-                Debug.LogWarning(
-                    $"[BehaviorRunner] walk_to Lerp '{slot.slotId}': destination not found on NavMesh — " +
-                    "gap_category=locomotion_lerp_unverified (Issue #47)");
-
-            Vector3    startPos = _avatarRoot.position;
-            Quaternion startRot = _avatarRoot.rotation;
-            // Strip Y from slot.StandPosition: Lerp moves on the floor, not to furniture height.
-            // (Warp-fix Phase 3: consistent with NavMesh path which also targets floor Y.) (#warp-bug)
-            Vector3    endPos   = new Vector3(slot.StandPosition.x, startPos.y, slot.StandPosition.z);
-            Quaternion endRot   = slot.StandRotation;
-
-            // Orient toward destination at start of walk
-            Vector3 dir = endPos - startPos;
-            dir.y = 0f;
-            if (dir.sqrMagnitude > 0.001f)
-            {
-                startRot = Quaternion.LookRotation(dir);
-                _avatarRoot.rotation = startRot;
-            }
-
-            float duration = Mathf.Max(step.duration, 0.1f);
-            float elapsed  = 0f;
-            while (elapsed < duration)
-            {
-                elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-                _avatarRoot.position = Vector3.Lerp(startPos, endPos, t);
-                _avatarRoot.rotation = Quaternion.Slerp(startRot, endRot, t);
-                yield return null;
-            }
-
-            // Snap to exact slot values
-            _avatarRoot.position = endPos;
-            _avatarRoot.rotation = endRot;
         }
 
         // ── Step: face_toward ─────────────────────────────────────────────────
@@ -716,8 +469,7 @@ namespace AITuber.Behavior
 
         private IEnumerator StepZoneSnap(BehaviorStep step)
         {
-            // Teleport directly onto the slot anchor and keep gravity active.
-            // Seat stability should come from chair/sofa colliders, not from gravity suspension.
+            // #67: NavMeshAgent 一本化 — agent を無効化して直接 position を書き込む。
             if (!string.IsNullOrEmpty(step.slot_id) && _avatarRoot != null)
             {
                 var slot      = InteractionSlot.FindNearest(step.slot_id, _avatarRoot.position);
@@ -733,16 +485,17 @@ namespace AITuber.Behavior
                         yield break;
                     }
 
-                    var cc        = _avatarRoot.GetComponent<CharacterController>();
                     Vector3 supportedPosition = slot.StandPosition;
-                    supportedPosition.y = ComputeSupportedRootY(cc, seatHit.point.y, slot.StandPosition.y);
+                    supportedPosition.y = Mathf.Max(seatHit.point.y, slot.StandPosition.y);
 
-                    if (cc != null) cc.enabled = false;
+                    // Disable agent before direct position write
+                    var grounding = _avatarRoot.GetComponent<AvatarGrounding>();
+                    grounding?.DisableAgent();
+
                     _avatarRoot.position = supportedPosition;
                     _avatarRoot.rotation = slot.StandRotation;
-                    if (cc != null) cc.enabled = true;
 
-                    Debug.Log($"[BehaviorRunner] zone_snap: → {supportedPosition} (slot='{slot.slotId}') — gravity active.");
+                    Debug.Log($"[BehaviorRunner] zone_snap: → {supportedPosition} (slot='{slot.slotId}')");
                 }
                 else
                 {
@@ -807,11 +560,9 @@ namespace AITuber.Behavior
                 }
             }
 
-            // Target: hips sit 0.03 m above the surface, but never below the seat support
-            // already established by zone_snap / CharacterController support alignment.
+            // Target: hips sit 0.03 m above the surface
             float newRootY = (surfaceY + 0.03f) - hipAboveRoot;
-            var cc = _avatarRoot.GetComponent<CharacterController>();
-            float minSupportedRootY = ComputeSupportedRootY(cc, surfaceY, _avatarRoot.position.y);
+            float minSupportedRootY = Mathf.Max(_avatarRoot.position.y, surfaceY);
             if (newRootY < minSupportedRootY)
             {
                 Debug.LogWarning(
@@ -822,9 +573,8 @@ namespace AITuber.Behavior
             Debug.Log($"[BehaviorRunner] sit_settle: surface='{surfName}' Y={surfaceY:F3} " +
                       $"hipAboveRoot={hipAboveRoot:F3} → newRootY={newRootY:F3}");
 
-            if (cc != null) cc.enabled = false;
+            // Agent is already disabled by zone_snap — direct position write is safe
             _avatarRoot.position = new Vector3(_avatarRoot.position.x, newRootY, _avatarRoot.position.z);
-            if (cc != null) cc.enabled = true;
         }
 
         private bool TryFindSeatSupport(Vector3 slotPosition, out RaycastHit seatHit)
@@ -835,17 +585,6 @@ namespace AITuber.Behavior
 
             float drop = slotPosition.y - seatHit.point.y;
             return drop <= MaxSeatSupportDrop;
-        }
-
-        private static float ComputeSupportedRootY(CharacterController characterController, float supportSurfaceY, float fallbackRootY)
-        {
-            if (characterController == null)
-                return Mathf.Max(fallbackRootY, supportSurfaceY);
-
-            float controllerBottomOffset = characterController.center.y - (characterController.height * 0.5f);
-            float clearance = Mathf.Max(characterController.skinWidth, 0.01f);
-            float supportedRootY = supportSurfaceY - controllerBottomOffset + clearance;
-            return Mathf.Max(fallbackRootY, supportedRootY);
         }
 
         // ── Step: camera_focus_avatar ──────────────────────────────────────

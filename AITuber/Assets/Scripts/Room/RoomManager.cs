@@ -215,6 +215,13 @@ namespace AITuber.Room
             if (_avatarRoot != null)
             {
                 var resolvedSpawnPosition = ResolveAvatarSpawnPosition(def.avatarPosition, def.roomId);
+
+                // #67: NavMeshAgent 一本化 — agent を無効化してからワープし、
+                // BeginSnap で再度有効化する。
+                var grounding = _avatarRoot.GetComponent<AITuber.Avatar.AvatarGrounding>();
+                if (grounding != null)
+                    grounding.DisableAgent();
+
                 _avatarRoot.position    = resolvedSpawnPosition;
                 _avatarRoot.eulerAngles = def.avatarEuler;
                 Debug.Log(
@@ -229,7 +236,7 @@ namespace AITuber.Room
                 var grounding = _avatarRoot.GetComponent<AITuber.Avatar.AvatarGrounding>();
                 if (grounding != null)
                     // BeginSnap は Update ステートマシンを開始する（コルーチン不使用）。
-                    // BehaviorSequenceRunner は grounding.IsSnapping が false になるまで待つ。
+                    // #67: BeginSnap 完了時に NavMeshAgent を再有効化する。
                     grounding.BeginSnap();
             }
 
