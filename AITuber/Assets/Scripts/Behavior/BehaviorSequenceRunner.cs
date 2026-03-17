@@ -299,6 +299,28 @@ namespace AITuber.Behavior
                 yield break;
             }
 
+            // Smooth stand-up transition: if avatar is off NavMesh (e.g. seated on furniture),
+            // Lerp to the nearest NavMesh point before enabling agent to avoid instant teleport.
+            Vector3 preWalkPos = _avatarRoot.position;
+            if (NavMesh.SamplePosition(preWalkPos, out NavMeshHit preWalkHit, 5f, NavMesh.AllAreas))
+            {
+                float distToNavMesh = Vector3.Distance(preWalkPos, preWalkHit.position);
+                if (distToNavMesh > 0.15f)
+                {
+                    float standUpDuration = Mathf.Clamp(distToNavMesh / 1.5f, 0.25f, 1.0f);
+                    float standUpElapsed = 0f;
+                    Debug.Log($"[BehaviorRunner] walk_to '{slot.slotId}': smooth stand-up from {preWalkPos} to NavMesh {preWalkHit.position} ({distToNavMesh:F2}m, {standUpDuration:F2}s)");
+                    while (standUpElapsed < standUpDuration)
+                    {
+                        float t = standUpElapsed / standUpDuration;
+                        _avatarRoot.position = Vector3.Lerp(preWalkPos, preWalkHit.position, t);
+                        standUpElapsed += Time.deltaTime;
+                        yield return null;
+                    }
+                    _avatarRoot.position = preWalkHit.position;
+                }
+            }
+
             walkGrounding.EnableAgentOnNavMesh();
             var agent = walkGrounding.Agent;
             if (agent == null || !agent.enabled || !agent.isOnNavMesh)
@@ -495,11 +517,12 @@ namespace AITuber.Behavior
                     var grounding = _avatarRoot.GetComponent<AvatarGrounding>();
                     grounding?.DisableAgent();
 
-                    // Smooth transition to seat position to avoid visible warp
+                    // Smooth transition to seat position — duration scales with distance (~2 m/s)
                     Vector3 startPos = _avatarRoot.position;
                     Quaternion startRot = _avatarRoot.rotation;
                     Quaternion targetRot = slot.StandRotation;
-                    const float snapDuration = 0.25f;
+                    float snapDistance = Vector3.Distance(startPos, supportedPosition);
+                    float snapDuration = Mathf.Clamp(snapDistance / 2f, 0.2f, 0.8f);
                     float snapElapsed = 0f;
                     while (snapElapsed < snapDuration)
                     {
