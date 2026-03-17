@@ -130,6 +130,46 @@ namespace AITuber.Editor
                 UnityEngine.SceneManagement.SceneManager.GetActiveScene());
             Debug.Log("[NavMeshSetup] All NavMesh surfaces rebaked. Save the scene to persist.");
         }
+
+        // ------------------------------------------------------------------ //
+        // Issue #75: NavMeshModifierVolume による精密なエリア制御
+        // ------------------------------------------------------------------ //
+
+        [MenuItem("AITuber/NavMesh/4. Add ModifierVolumes To Furniture")]
+        public static void AddModifierVolumes()
+        {
+            int added = 0;
+            var renderers = Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None);
+            foreach (var mr in renderers)
+            {
+                float sizeY   = mr.bounds.size.y;
+                float bottomY = mr.bounds.min.y;
+                bool  isFloor = sizeY < kFloorMaxSizeY && bottomY < kFloorMaxBottomY;
+                if (isFloor) continue;
+
+                var go = mr.gameObject;
+                // 既に ModifierVolume がある場合はスキップ
+                if (go.GetComponent<NavMeshModifierVolume>() != null) continue;
+                // ignoreFromBuild が既に設定済みのオブジェクトを対象にする
+                var mod = go.GetComponent<NavMeshModifier>();
+                if (mod == null || !mod.ignoreFromBuild) continue;
+
+                var vol = Undo.AddComponent<NavMeshModifierVolume>(go);
+                vol.size   = mr.bounds.size + Vector3.one * 0.1f; // 少しマージン
+                vol.center = go.transform.InverseTransformPoint(mr.bounds.center);
+                vol.area   = NavMesh.GetAreaFromName("Not Walkable");
+
+                EditorUtility.SetDirty(go);
+                added++;
+            }
+
+            Debug.Log($"[NavMeshSetup] {added} 個の NavMeshModifierVolume を追加しました。");
+            if (added > 0)
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+                    UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            }
+        }
     }
 }
 #endif
