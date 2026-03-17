@@ -387,7 +387,8 @@ namespace AITuber.Behavior
                     Debug.Log(
                         $"[BehaviorRunner] walk frame diagnostic: slot='{slot.slotId}' " +
                         $"prev={previousPosition} current={_avatarRoot.position} " +
-                        $"horizontalDelta={horizontalDelta:F3} verticalDelta={verticalDelta:F3} remaining={agent.remainingDistance:F2} {BuildVisualAnchorDebugString()}");
+                        $"horizontalDelta={horizontalDelta:F3} verticalDelta={verticalDelta:F3} remaining={agent.remainingDistance:F02} " +
+                        $"{BuildVisualAnchorDebugString()}");
                     diagnosticFramesRemaining--;
                 }
 

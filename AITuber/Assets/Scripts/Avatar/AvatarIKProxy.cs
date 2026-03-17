@@ -41,5 +41,31 @@ namespace AITuber.Avatar
             _grounding?.OnAnimatorIKFromProxy(layerIndex);
             _controller?.OnAnimatorIKFromProxy(layerIndex);
         }
+
+        /// <summary>
+        /// Humanoid body (Hips) が Animator の累積 root motion で親 AvatarRoot から
+        /// XZ ドリフトするのを、Hips ボーンを直接移動して毎フレーム修正する。
+        /// localPosition を変更すると Animator 評価との positive feedback loop が発生するため、
+        /// ボーンレベルで修正する。Animator は次フレームでボーンを再評価するため feedback なし。
+        /// </summary>
+        private void LateUpdate()
+        {
+            var anim = GetComponent<Animator>();
+            if (anim == null || !anim.isActiveAndEnabled || !anim.isHuman) return;
+
+            var hips = anim.GetBoneTransform(HumanBodyBones.Hips);
+            if (hips == null) return;
+
+            var parent = transform.parent;
+            if (parent == null) return;
+
+            // Hips の世界 XZ を親 (AvatarRoot = NavMeshAgent) に合わせる。
+            // Hips を移動すると全子ボーン（spine, arms, legs）も追従する。
+            float driftX = hips.position.x - parent.position.x;
+            float driftZ = hips.position.z - parent.position.z;
+
+            if (driftX != 0f || driftZ != 0f)
+                hips.position -= new Vector3(driftX, 0f, driftZ);
+        }
     }
 }
