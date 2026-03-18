@@ -40,6 +40,9 @@ namespace AITuber.Behavior
         [Tooltip("behavior 実行中に 1 フレームでこの距離以上移動した場合、warp 診断ログを出す。")]
         [SerializeField] private float _warpDiagnosticThreshold = 0.50f;
 
+        [Tooltip("LocoBlend speed パラメータの遷移スムージング時間（秒）")]
+        [SerializeField] private float _locoSpeedDampTime = 0.15f;
+
         // ── Singleton ─────────────────────────────────────────────────────────
 
         public static BehaviorSequenceRunner Instance { get; private set; }
@@ -367,7 +370,8 @@ namespace AITuber.Behavior
             // while LocoBlend simultaneously blends idle→walk, causing double animation.
             // Set emotion/look_target without gesture to keep face/eyes correct during walk.
             _avatarController?.ApplyBehaviorGesture("none", "neutral", "random");
-            GetLocomotionAnimator()?.SetFloat("speed", 1f);
+            // Speed parameter is ramped smoothly through dampTime in the walk loop below
+            // to prevent instant BlendTree snap that causes knee pop/jitter.
 
             // Navigate using NavMeshAgent
             agent.isStopped = false;
@@ -393,6 +397,9 @@ namespace AITuber.Behavior
 
             while (elapsed < timeout)
             {
+                // Smoothly ramp speed parameter via dampTime to prevent BlendTree knee snap
+                GetLocomotionAnimator()?.SetFloat("speed", 1f, _locoSpeedDampTime, Time.deltaTime);
+
                 // Smooth face movement direction (avoid instant snap)
                 Vector3 vel = agent.velocity;
                 vel.y = 0f;
@@ -439,7 +446,21 @@ namespace AITuber.Behavior
             agent.ResetPath();
             agent.velocity = Vector3.zero;
             _avatarRoot.rotation = slot.StandRotation;
-            GetLocomotionAnimator()?.SetFloat("speed", 0f);
+
+            // Smooth ramp-down of speed parameter to avoid knee snap at stop
+            var stopAnim = GetLocomotionAnimator();
+            if (stopAnim != null)
+            {
+                float rampDown = _locoSpeedDampTime;
+                float t = 0f;
+                while (t < rampDown)
+                {
+                    stopAnim.SetFloat("speed", 0f, _locoSpeedDampTime, Time.deltaTime);
+                    t += Time.deltaTime;
+                    yield return null;
+                }
+                stopAnim.SetFloat("speed", 0f);
+            }
             Debug.Log($"[BehaviorRunner] walk_to '{step.slot_id}' done — AvatarRoot={_avatarRoot?.position}");
         }
 
