@@ -2,23 +2,40 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Detects and logs Editor pause state during Play mode.
-/// Auto-unpauses if Error Pause triggers during play to prevent frozen game loop.
+/// Prevents Error Pause from freezing the game loop during Play mode.
+/// Intercepts error logs and immediately schedules an unpause via delayCall.
 /// </summary>
 [InitializeOnLoad]
 public static class AutoUnpause
 {
     static AutoUnpause()
     {
+        Application.logMessageReceived += OnLogMessage;
         EditorApplication.pauseStateChanged += OnPauseStateChanged;
+    }
+
+    private static void OnLogMessage(string condition, string stacktrace, LogType type)
+    {
+        if (type == LogType.Error || type == LogType.Exception)
+        {
+            if (EditorApplication.isPlaying)
+            {
+                // Schedule unpause for the next editor tick.
+                // This fires after Error Pause processes the log.
+                EditorApplication.delayCall += Unpause;
+            }
+        }
     }
 
     private static void OnPauseStateChanged(PauseState state)
     {
         if (state == PauseState.Paused && EditorApplication.isPlaying)
-        {
-            Debug.LogWarning("[AutoUnpause] Game paused during Play mode — auto-unpausing.");
+            EditorApplication.delayCall += Unpause;
+    }
+
+    private static void Unpause()
+    {
+        if (EditorApplication.isPlaying && EditorApplication.isPaused)
             EditorApplication.isPaused = false;
-        }
     }
 }

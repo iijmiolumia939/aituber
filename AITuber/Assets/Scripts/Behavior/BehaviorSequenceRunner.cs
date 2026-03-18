@@ -576,18 +576,9 @@ namespace AITuber.Behavior
                 var slot      = InteractionSlot.FindNearest(step.slot_id, _avatarRoot.position);
                 if (slot != null)
                 {
-                    if (!TryFindSeatSupport(slot.StandPosition, out RaycastHit seatHit))
-                    {
-                        Debug.LogWarning(
-                            $"[BehaviorRunner] zone_snap: skipped unsupported seat anchor at {slot.StandPosition} " +
-                            $"(slot='{slot.slotId}'). Add a seat collider near the slot before using zone_snap.");
-                        _avatarRoot.rotation = slot.StandRotation;
-                        _currentBehaviorSuccess = false;
-                        yield break;
-                    }
-
-                    Vector3 supportedPosition = slot.StandPosition;
-                    supportedPosition.y = Mathf.Max(seatHit.point.y, slot.StandPosition.y);
+                    // Snap to the slot's transform position (seat height).
+                    // StandPosition is for walking (floor level); transform.position is the seat anchor.
+                    Vector3 targetPosition = slot.transform.position;
 
                     // Disable agent before position transition
                     var grounding = _avatarRoot.GetComponent<AvatarGrounding>();
@@ -597,21 +588,21 @@ namespace AITuber.Behavior
                     Vector3 startPos = _avatarRoot.position;
                     Quaternion startRot = _avatarRoot.rotation;
                     Quaternion targetRot = slot.StandRotation;
-                    float snapDistance = Vector3.Distance(startPos, supportedPosition);
+                    float snapDistance = Vector3.Distance(startPos, targetPosition);
                     float snapDuration = Mathf.Clamp(snapDistance / 2f, 0.2f, 0.8f);
                     float snapElapsed = 0f;
                     while (snapElapsed < snapDuration)
                     {
                         float t = snapElapsed / snapDuration;
-                        _avatarRoot.position = Vector3.Lerp(startPos, supportedPosition, t);
+                        _avatarRoot.position = Vector3.Lerp(startPos, targetPosition, t);
                         _avatarRoot.rotation = Quaternion.Slerp(startRot, targetRot, t);
                         snapElapsed += Time.deltaTime;
                         yield return null;
                     }
-                    _avatarRoot.position = supportedPosition;
+                    _avatarRoot.position = targetPosition;
                     _avatarRoot.rotation = targetRot;
 
-                    Debug.Log($"[BehaviorRunner] zone_snap: → {supportedPosition} (slot='{slot.slotId}')");
+                    Debug.Log($"[BehaviorRunner] zone_snap: → {targetPosition} (slot='{slot.slotId}')");
                 }
                 else
                 {
