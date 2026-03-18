@@ -1,11 +1,10 @@
 #if UNITY_EDITOR
 // NavMeshLinkSetup.cs — Issue #75 (AI Navigation 設定最適化)
-// InteractionSlot 間に NavMeshLink を自動配置するエディタツール。
-// RoomDefinition の Zone 間を明示的に NavMesh Link で接続し、
-// パスファインディングの品質と信頼性を向上させる。
+// NavMesh 島間の隙間を検出し、最短距離の NavMeshLink を自動配置するエディタツール。
 // SRS refs: FR-ROOM-01, FR-BEHAVIOR-SEQ-01
 
 using System.Collections.Generic;
+using System.Text;
 using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEngine;
@@ -17,20 +16,24 @@ namespace AITuber.Editor
     public static class NavMeshLinkSetup
     {
         private const string LinkTag = "AutoNavMeshLink";
+        private const float ProbeStep = 0.15f;   // NavMesh 境界探索のステップ幅
+        private const float MaxLinkDist = 3.0f;   // これ以上離れた隙間にはリンクを作らない
 
-        // ── 1. NavMesh 切断エリアに Link を自動配置 ─────────────────
+        // ── 1. NavMesh 島間ギャップに最短 Link を自動配置 ─────────────
 
         [MenuItem("AITuber/NavMesh/Links/Auto-Create Links Between Slots")]
         public static void AutoCreateLinks()
         {
-            var slots = Object.FindObjectsByType<InteractionSlot>(FindObjectsSortMode.None);
+            var slots = Object.FindObjectsByType<InteractionSlot>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
             if (slots.Length < 2)
             {
-                Debug.LogWarning("[NavMeshLink] InteractionSlot が 2 つ未満です。Play Mode で実行してください。");
+                Debug.LogWarning("[NavMeshLink] InteractionSlot が 2 つ未満です。");
                 return;
             }
 
-            int created = 0;
+            // Step 1: Identify disconnected slot pairs
+            var disconnectedPairs = new List<(InteractionSlot a, InteractionSlot b)>();
             var path = new NavMeshPath();
 
             for (int i = 0; i < slots.Length; i++)
@@ -40,30 +43,112 @@ namespace AITuber.Editor
                     Vector3 from = slots[i].StandPosition;
                     Vector3 to   = slots[j].StandPosition;
 
-                    // NavMesh 上の最寄り点
                     if (!NavMesh.SamplePosition(from, out NavMeshHit hitFrom, 2f, NavMesh.AllAreas)) continue;
                     if (!NavMesh.SamplePosition(to,   out NavMeshHit hitTo,   2f, NavMesh.AllAreas)) continue;
 
-                    // パスが完全なら Link 不要
                     bool ok = NavMesh.CalculatePath(hitFrom.position, hitTo.position, NavMesh.AllAreas, path);
-                    if (ok && path.status == NavMeshPathStatus.PathComplete) continue;
-
-                    // パスが不完全 → Link で接続
-                    CreateLink(slots[i].slotId, slots[j].slotId, hitFrom.position, hitTo.position);
-                    created++;
+                    if (!ok || path.status != NavMeshPathStatus.PathComplete)
+                        disconnectedPairs.Add((slots[i], slots[j]));
                 }
             }
 
+            if (disconnectedPairs.Count == 0)
+            {
+                Debug.Log("[NavMeshLink] 全スロット間のパスが到達可能です。追加 Link は不要です。");
+                return;
+            }
+
+            // Step 2: For each disconnected pair, probe from each side to find gap edges.
+            // Use the pair with the shortest gap per island-group as the bridge point.
+            var createdBridges = new HashSet<string>();
+            int created = 0;
+            var sb = new StringBuilder();
+            sb.AppendLine("[NavMeshLink] ═══ Auto-Link Gap Detection ═══");
+
+            foreach (var (slotA, slotB) in disconnectedPairs)
+            {
+                // Check if this pair is already bridged by a previous link
+                NavMesh.SamplePosition(slotA.StandPosition, out NavMeshHit checkA, 2f, NavMesh.AllAreas);
+                NavMesh.SamplePosition(slotB.StandPosition, out NavMeshHit checkB, 2f, NavMesh.AllAreas);
+                bool alreadyBridged = NavMesh.CalculatePath(checkA.position, checkB.position, NavMesh.AllAreas, path)
+                    && path.status == NavMeshPathStatus.PathComplete;
+                if (alreadyBridged) continue;
+
+                // Probe from A toward B and from B toward A to find NavMesh edges
+                Vector3 posA = checkA.position;
+                Vector3 posB = checkB.position;
+
+                Vector3 edgeA = ProbeNavMeshEdge(posA, posB);
+                Vector3 edgeB = ProbeNavMeshEdge(posB, posA);
+
+                float gapDist = Vector3.Distance(edgeA, edgeB);
+                string bridgeKey = $"{Mathf.Min(edgeA.GetHashCode(), edgeB.GetHashCode())}_{Mathf.Max(edgeA.GetHashCode(), edgeB.GetHashCode())}";
+
+                // Skip if gap is too large (probably a wall, not a floor gap)
+                if (gapDist > MaxLinkDist)
+                {
+                    sb.AppendLine($"  ─ [{slotA.slotId}]↔[{slotB.slotId}] gap={gapDist:F2}m > {MaxLinkDist}m → スキップ");
+                    continue;
+                }
+
+                // Skip duplicate bridges (same edge pair)
+                if (!createdBridges.Add(bridgeKey)) continue;
+
+                CreateLink($"{slotA.slotId}_gap", $"{slotB.slotId}_gap", edgeA, edgeB);
+                sb.AppendLine($"  ✓ [{slotA.slotId}]↔[{slotB.slotId}] edgeA={edgeA:F3} edgeB={edgeB:F3} gap={gapDist:F2}m");
+                created++;
+            }
+
+            sb.AppendLine($"\n  {created} 本の NavMeshLink を作成しました。");
+            Debug.Log(sb.ToString());
+
             if (created > 0)
             {
-                Debug.Log($"[NavMeshLink] {created} 本の NavMeshLink を作成しました。NavMesh を Rebake してください。");
                 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
                     UnityEngine.SceneManagement.SceneManager.GetActiveScene());
             }
-            else
+        }
+
+        /// <summary>
+        /// NavMesh の境界エッジを探索する。from から toward 方向にステップしながら
+        /// NavMesh 上にいる最後の位置を返す。
+        /// </summary>
+        private static Vector3 ProbeNavMeshEdge(Vector3 from, Vector3 toward)
+        {
+            Vector3 dir = (toward - from).normalized;
+            float totalDist = Vector3.Distance(from, toward);
+            Vector3 lastOnMesh = from;
+
+            for (float d = ProbeStep; d < totalDist; d += ProbeStep)
             {
-                Debug.Log("[NavMeshLink] 全スロット間のパスが到達可能です。追加 Link は不要です。");
+                Vector3 probe = from + dir * d;
+                if (NavMesh.SamplePosition(probe, out NavMeshHit hit, 0.3f, NavMesh.AllAreas))
+                {
+                    // Still on NavMesh — check it's still the same island
+                    var testPath = new NavMeshPath();
+                    bool connected = NavMesh.CalculatePath(from, hit.position, NavMesh.AllAreas, testPath)
+                        && testPath.status == NavMeshPathStatus.PathComplete;
+                    if (connected)
+                        lastOnMesh = hit.position;
+                    else
+                        break;  // Reached a different island
+                }
+                else
+                {
+                    break;  // Off NavMesh — this is the edge
+                }
             }
+
+            // Refine using FindClosestEdge for precision
+            if (NavMesh.FindClosestEdge(lastOnMesh, out NavMeshHit edgeHit, NavMesh.AllAreas))
+            {
+                // Only use edge if it's closer to the target direction
+                Vector3 toEdge = edgeHit.position - from;
+                if (Vector3.Dot(toEdge.normalized, dir) > 0.3f)
+                    return edgeHit.position;
+            }
+
+            return lastOnMesh;
         }
 
         // ── 2. 手動 Link 作成（2つの Transform を選択） ──────────────
@@ -95,7 +180,8 @@ namespace AITuber.Editor
         [MenuItem("AITuber/NavMesh/Links/Remove All Auto-Links")]
         public static void RemoveAutoLinks()
         {
-            var links = Object.FindObjectsByType<NavMeshLink>(FindObjectsSortMode.None);
+            var links = Object.FindObjectsByType<NavMeshLink>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
             int removed = 0;
             foreach (var link in links)
             {
@@ -120,10 +206,9 @@ namespace AITuber.Editor
             go.transform.position = (posA + posB) * 0.5f;
 
             var link = Undo.AddComponent<NavMeshLink>(go);
-            link.startTransform = null; // use startPoint offset
+            link.startTransform = null;
             link.endTransform   = null;
 
-            // NavMeshLink のローカル座標系での開始/終了点
             Vector3 center = go.transform.position;
             link.startPoint = posA - center;
             link.endPoint   = posB - center;

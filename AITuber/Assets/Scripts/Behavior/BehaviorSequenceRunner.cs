@@ -337,8 +337,12 @@ namespace AITuber.Behavior
 
             Debug.Log($"[BehaviorRunner] walk_to '{slot.slotId}': agent start={_avatarRoot.position} dest={dest}");
 
-            // Play walk animation
-            SendAvatarUpdate("walk", "neutral", "random");
+            // Play walk animation — use LocoBlend speed parameter only.
+            // Do NOT fire Walk trigger (SendAvatarUpdate("walk",...)) because it conflicts
+            // with LocoBlend: the trigger transitions to the WalkStart→Walk state machine
+            // while LocoBlend simultaneously blends idle→walk, causing double animation.
+            // Set emotion/look_target without gesture to keep face/eyes correct during walk.
+            _avatarController?.ApplyBehaviorGesture("none", "neutral", "random");
             GetLocomotionAnimator()?.SetFloat("speed", 1f);
 
             // Navigate using NavMeshAgent
@@ -365,11 +369,15 @@ namespace AITuber.Behavior
 
             while (elapsed < timeout)
             {
-                // Face movement direction
+                // Smooth face movement direction (avoid instant snap)
                 Vector3 vel = agent.velocity;
                 vel.y = 0f;
                 if (vel.sqrMagnitude > 0.01f)
-                    _avatarRoot.rotation = Quaternion.LookRotation(vel.normalized);
+                {
+                    Quaternion targetRot = Quaternion.LookRotation(vel.normalized);
+                    _avatarRoot.rotation = Quaternion.RotateTowards(
+                        _avatarRoot.rotation, targetRot, agent.angularSpeed * Time.deltaTime);
+                }
 
                 // Check arrival
                 if (!agent.pathPending && agent.remainingDistance <= arrivalThreshold)
