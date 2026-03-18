@@ -141,6 +141,9 @@ namespace AITuber.Avatar
         /// </summary>
         public void ResetGestureDedup() => _gesture.ResetGestureDedup();
 
+        /// <summary>Reset seated base-pose so walk transitions stand up properly.</summary>
+        public void ResetSeatedBasePose() => _gesture.ResetSeatedBasePose();
+
         private void HandleUpdate(AvatarUpdateParams p)
         {
             if (p == null) return;

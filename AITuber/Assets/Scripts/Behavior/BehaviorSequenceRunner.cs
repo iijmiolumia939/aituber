@@ -299,15 +299,34 @@ namespace AITuber.Behavior
                 yield break;
             }
 
+            // ── Exit seated Animator state before walking ──
+            // If currently in a loop state like SitEat/SitIdle (not LocoBlend),
+            // crossfade back to LocoBlend so the speed parameter can drive walk animation.
+            bool needsPostureWait = false;
+            var preWalkAnim = GetLocomotionAnimator();
+            if (preWalkAnim != null)
+            {
+                int locoHash = Animator.StringToHash("LocoBlend");
+                if (preWalkAnim.GetCurrentAnimatorStateInfo(0).shortNameHash != locoHash)
+                {
+                    Debug.Log($"[BehaviorRunner] walk_to '{slot.slotId}': exiting seated state → crossfade to LocoBlend");
+                    preWalkAnim.CrossFadeInFixedTime("LocoBlend", 0.25f, 0, 0f);
+                    preWalkAnim.SetFloat("speed", 0f);
+                    _avatarController?.ResetSeatedBasePose();
+                    needsPostureWait = true;
+                }
+            }
+
             // Smooth stand-up transition: if avatar is off NavMesh (e.g. seated on furniture),
             // Lerp to the nearest NavMesh point before enabling agent to avoid instant teleport.
+            // Runs concurrently with the posture crossfade above for a natural visual.
             Vector3 preWalkPos = _avatarRoot.position;
             if (NavMesh.SamplePosition(preWalkPos, out NavMeshHit preWalkHit, 5f, NavMesh.AllAreas))
             {
                 float distToNavMesh = Vector3.Distance(preWalkPos, preWalkHit.position);
                 if (distToNavMesh > 0.15f)
                 {
-                    float standUpDuration = Mathf.Clamp(distToNavMesh / 1.5f, 0.25f, 1.0f);
+                    float standUpDuration = Mathf.Clamp(distToNavMesh / 1.5f, 0.3f, 1.0f);
                     float standUpElapsed = 0f;
                     Debug.Log($"[BehaviorRunner] walk_to '{slot.slotId}': smooth stand-up from {preWalkPos} to NavMesh {preWalkHit.position} ({distToNavMesh:F2}m, {standUpDuration:F2}s)");
                     while (standUpElapsed < standUpDuration)
@@ -318,8 +337,13 @@ namespace AITuber.Behavior
                         yield return null;
                     }
                     _avatarRoot.position = preWalkHit.position;
+                    needsPostureWait = false; // Lerp duration already covered crossfade
                 }
             }
+
+            // If posture crossfade started but no position Lerp was needed, wait for it.
+            if (needsPostureWait)
+                yield return new WaitForSeconds(0.3f);
 
             walkGrounding.EnableAgentOnNavMesh();
             var agent = walkGrounding.Agent;

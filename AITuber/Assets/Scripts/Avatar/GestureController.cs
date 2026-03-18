@@ -200,6 +200,12 @@ namespace AITuber.Avatar
         public void ResetGestureDedup() => _lastAppliedGesture = "none";
 
         /// <summary>
+        /// Reset seated base-pose preference so ProcessDedupTransition
+        /// does not auto-restore SitIdle after a seated behavior is cancelled.
+        /// </summary>
+        public void ResetSeatedBasePose() => _preferSeatedBasePose = false;
+
+        /// <summary>
         /// Apply the idle-motion config and drive the <c>IdleMotionIndex</c> Animator float.
         /// </summary>
         public void SetIdleMotion(string idleMotion)
