@@ -12,6 +12,22 @@ public static class TriggerEatBehavior
         else Debug.LogWarning("[Debug] BehaviorSequenceRunner not found");
     }
 
+    [MenuItem("AITuber/Debug/Trigger go_stream")]
+    static void TriggerStream()
+    {
+        if (!Application.isPlaying) { Debug.LogWarning("Play mode only"); return; }
+        // Force-finish stuck snap via public API so BSR can proceed
+        var grounding = Object.FindFirstObjectByType<AITuber.Avatar.AvatarGrounding>();
+        if (grounding != null && grounding.IsSnapping)
+        {
+            Debug.LogWarning("[Debug] Snap stuck — forcing completion via ForceCompleteSnap");
+            grounding.ForceCompleteSnap();
+        }
+        var runner = Object.FindFirstObjectByType<AITuber.Behavior.BehaviorSequenceRunner>();
+        if (runner != null) { runner.StartBehavior("go_stream"); Debug.Log("[Debug] go_stream triggered"); }
+        else Debug.LogWarning("[Debug] BehaviorSequenceRunner not found");
+    }
+
     [MenuItem("AITuber/Debug/Dump Sofa Geometry")]
     static void DumpSofaGeometry()
     {

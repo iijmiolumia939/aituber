@@ -180,7 +180,21 @@ namespace AITuber.Behavior
             _warpDiagnosticWarnings.Clear();
             _visualDebugAnimator = null;
             _visualDebugBodyRenderer = null;
-            yield return WaitForAvatarReady();
+
+            // Quick-check: if avatar is already ready, skip the coroutine yield entirely.
+            // This avoids a 1-frame delay and potential coroutine scheduling issues.
+            {
+                bool snapOk = true;
+                if (_avatarRoot != null)
+                {
+                    var g = _avatarRoot.GetComponent<AvatarGrounding>();
+                    snapOk = g == null || !g.IsSnapping;
+                }
+                var loco = GetLocomotionAnimator();
+                bool animReady = loco != null && loco.runtimeAnimatorController != null;
+                if (!(snapOk && animReady))
+                    yield return WaitForAvatarReady();
+            }
 
             Debug.Log($"[BehaviorRunner] Start '{seq.behavior}' ({seq.display_name}" +
                       $") — {seq.steps?.Length ?? 0} step(s)");
@@ -223,6 +237,7 @@ namespace AITuber.Behavior
         {
             float wait = 0f;
             const float timeout = 5f;
+            bool loggedOnce = false;
 
             while (wait < timeout)
             {
@@ -236,6 +251,13 @@ namespace AITuber.Behavior
                 var locomotionAnimator = GetLocomotionAnimator();
                 bool animatorReady = locomotionAnimator != null
                     && locomotionAnimator.runtimeAnimatorController != null;
+
+                if (!loggedOnce)
+                {
+                    Debug.Log($"[BehaviorRunner] WaitForAvatarReady — avatarRoot={_avatarRoot != null}, snapping={snapping}, " +
+                              $"animatorReady={animatorReady}, locomotionAnimator={locomotionAnimator?.name ?? "null"}");
+                    loggedOnce = true;
+                }
 
                 if (!snapping && animatorReady)
                     yield break;

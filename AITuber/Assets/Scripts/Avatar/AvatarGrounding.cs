@@ -103,6 +103,8 @@ namespace AITuber.Avatar
 
         private void Update()
         {
+            // Deferred snap fallback: if BeginSnap started a deferred snap (for re-snap after
+            // a room switch mid-gameplay), advance the state machine in Update.
             if (_snapPhase != SnapPhase.Idle)
                 UpdateSnap();
         }
@@ -154,12 +156,12 @@ namespace AITuber.Avatar
             }
         }
 
-        // ── 部屋切り替えスナップ（Update state machine）──────────────
+        // ── 部屋切り替えスナップ ──────────────────────────────────
 
         /// <summary>
-        /// 部屋切り替え時に呼ぶ。pivot 補正 → 床ワープを Update ループで実行する。
-        /// コルーチンを使わないので MonoBehaviour の有効状態に依存しない。
-        /// RoomManager.DoSwitch() から呼ぶ。
+        /// Pivot 補正 + 床ワープを実行する。初回呼び出し時は同期実行、
+        /// 部屋切り替え時は同期で実行し即座に完了する。
+        /// RoomManager.DoSwitch() や Start() から呼ぶ。
         /// </summary>
         public void BeginSnap()
         {
@@ -169,27 +171,40 @@ namespace AITuber.Avatar
                 return;
             }
             IsSnapping = true;
+            _snapElapsed = 0f;
 
             // NavMeshAgent を無効化（直接 position を書き込むため）
             DisableAgent();
 
             Debug.Log($"[AvatarGrounding] BeginSnap — _pivotFixed={_pivotFixed}, _anim={((object)_anim != null ? _anim.gameObject.name : "null")}");
 
+            // Synchronous execution: pivot fix + floor drop immediately.
+            // Bone positions are valid from the Animator's initial bind-pose in Start().
+            // Previously used a deferred Update state machine (PivotWait1 → PivotWait2)
+            // which was unreliable in the Editor (Update() could stall).
             if (!_pivotFixed && _anim != null)
-            {
-                _snapPhaseTimer = 0f;
-                _snapPhase      = SnapPhase.PivotWait1;
-            }
-            else
-            {
-                StartFloorDrop();
-            }
+                DoFixPivot();
+            StartFloorDrop();
         }
 
+        /// <summary>
+        /// Update-based snap state machine — only used as a fallback for edge cases
+        /// where BeginSnap defers to the next frame (currently unused, kept for robustness).
+        /// </summary>
         private void UpdateSnap()
         {
             _snapElapsed += Time.deltaTime;
             _snapPhaseTimer += Time.deltaTime;
+
+            // Global timeout — PivotWait phases have no individual timeout,
+            // so enforce the global timeout for all pre-FloorDrop phases too.
+            if (_snapElapsed >= _snapTimeout && _snapPhase != SnapPhase.FloorDrop)
+            {
+                Debug.LogWarning($"[AvatarGrounding] Snap phase {_snapPhase} stuck for {_snapElapsed:F2}s — force-completing.");
+                if (!_pivotFixed) DoFixPivot();
+                StartFloorDrop();
+                return;
+            }
 
             switch (_snapPhase)
             {
@@ -300,6 +315,18 @@ namespace AITuber.Avatar
                       (_snapElapsed >= _snapTimeout ? " [TIMEOUT]" : $" [stable {_snapElapsed:F2}s]"));
             _snapPhase = SnapPhase.Idle;
             IsSnapping = false;
+        }
+
+        /// <summary>
+        /// Debug / Editor 用: スナップが固着した場合に外部から完了を強制する。
+        /// DoFixPivot + StartFloorDrop + NavMeshAgent 再有効化を含む完全なチェーンを実行する。
+        /// </summary>
+        public void ForceCompleteSnap()
+        {
+            if (!IsSnapping) return;
+            Debug.LogWarning("[AvatarGrounding] ForceCompleteSnap invoked — running full chain.");
+            if (!_pivotFixed) DoFixPivot();
+            StartFloorDrop();
         }
 
         // ── Foot IK ───────────────────────────────────────────────
