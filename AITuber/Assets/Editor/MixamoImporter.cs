@@ -38,10 +38,6 @@ namespace AITuber.Editor
             mi.animationType = ModelImporterAnimationType.Human;
             mi.sourceAvatar  = null;   // CopyFromOther を無効化
             mi.avatarSetup   = ModelImporterAvatarSetup.CreateFromThisModel;
-
-            // Euler→Quaternion リサンプルを無効化し、元のカーブを保持する
-            // QuQu と Mixamo の骨格プロポーション差で膝回転が劣化するのを防ぐ
-            mi.resampleCurves = false;
         }
 
         // ── clip 設定 (root motion bake) ─────────────────────────────
