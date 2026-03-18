@@ -634,33 +634,40 @@ namespace AITuber.Behavior
             // Measure hip height relative to root in the current sitting pose
             float hipAboveRoot = hip.position.y - _avatarRoot.position.y;
 
-            // Raycast straight down from above the avatar to find the seating surface
-            // (sofa cushion, chair, floor — whichever is directly below)
+            // Primary: raycast from well above the avatar downward to find the actual
+            // seat cushion surface. Use RaycastAll to skip the avatar's own colliders.
             Vector3 rayOrigin = new Vector3(_avatarRoot.position.x,
                                              hip.position.y + 0.5f,
                                              _avatarRoot.position.z);
-            float rayLen    = hip.position.y + 1.0f;
-            float surfaceY  = settledSeatHit.point.y;
+            float rayLen = hip.position.y + 1.0f;
+            float surfaceY = settledSeatHit.point.y;
             string surfName = settledSeatHit.collider != null ? settledSeatHit.collider.name : "(seat support)";
-            if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, rayLen))
+
+            RaycastHit[] allHits = Physics.RaycastAll(rayOrigin, Vector3.down, rayLen,
+                                                       Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            if (allHits.Length > 0)
             {
-                float seatDistance = Mathf.Abs(settledSeatHit.point.y - _avatarRoot.position.y);
-                float hitDistance = Mathf.Abs(hit.point.y - _avatarRoot.position.y);
-                if (hitDistance <= seatDistance + MaxSeatSupportDrop)
+                System.Array.Sort(allHits, (a, b) => a.distance.CompareTo(b.distance));
+                foreach (var h in allHits)
                 {
-                    surfaceY = hit.point.y;
-                    surfName = hit.collider.name;
+                    // Skip the avatar's own colliders
+                    if (h.collider.transform.IsChildOf(_avatarRoot)) continue;
+                    surfaceY = h.point.y;
+                    surfName = h.collider.name;
+                    break;
                 }
             }
 
-            // Target: hips sit 0.03 m above the surface
+            // Target: hips sit 0.03 m above the surface.
+            // Root goes BELOW the seat — the hip bone (above root) sits on the surface.
             float newRootY = (surfaceY + 0.03f) - hipAboveRoot;
-            float minSupportedRootY = Mathf.Max(_avatarRoot.position.y, surfaceY);
-            if (newRootY < minSupportedRootY)
+
+            // Sanity: if the computed root is unreasonably far below the surface, bail out
+            if (newRootY < surfaceY - 2f)
             {
                 Debug.LogWarning(
-                    $"[BehaviorRunner] sit_settle: clamped root Y from {newRootY:F3} to seat-supported {minSupportedRootY:F3}.");
-                newRootY = minSupportedRootY;
+                    $"[BehaviorRunner] sit_settle: computed root Y ({newRootY:F3}) is too far below surface ({surfaceY:F3}). Skipping.");
+                yield break;
             }
 
             Debug.Log($"[BehaviorRunner] sit_settle: surface='{surfName}' Y={surfaceY:F3} " +
