@@ -3,6 +3,7 @@
 // CharacterController を廃止し NavMeshAgent が唯一の位置オーナー。
 // QuQu(U.fbx) は Humanoid FBX。root origin がヒップ位置のため起動時に pivot を足裏へ補正する。
 
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -178,12 +179,27 @@ namespace AITuber.Avatar
 
             Debug.Log($"[AvatarGrounding] BeginSnap — _pivotFixed={_pivotFixed}, _anim={((object)_anim != null ? _anim.gameObject.name : "null")}");
 
-            // Synchronous execution: pivot fix + floor drop immediately.
-            // Bone positions are valid from the Animator's initial bind-pose in Start().
-            // Previously used a deferred Update state machine (PivotWait1 → PivotWait2)
-            // which was unreliable in the Editor (Update() could stall).
             if (!_pivotFixed && _anim != null)
-                DoFixPivot();
+            {
+                // Pivot fix requires animated bone positions (not bind-pose).
+                // The Animator hasn't evaluated yet during Start(), so defer by one frame
+                // to let the Animator process the default idle animation first.
+                // Set PivotWait1 to block re-entrant BeginSnap from RoomManager.
+                _snapPhase = SnapPhase.PivotWait1;
+                StartCoroutine(DeferredPivotAndFloorDrop());
+            }
+            else
+            {
+                StartFloorDrop();
+            }
+        }
+
+        private IEnumerator DeferredPivotAndFloorDrop()
+        {
+            // Wait one frame for the Animator to evaluate the idle animation pose.
+            yield return null;
+            if (!_pivotFixed) DoFixPivot();
+            _snapPhase = SnapPhase.Idle; // Reset so StartFloorDrop can proceed
             StartFloorDrop();
         }
 
@@ -246,7 +262,7 @@ namespace AITuber.Avatar
                 var lp       = avatarTr.localPosition;
                 lp.y        -= soleLocal;
                 avatarTr.localPosition = lp;
-                Debug.Log($"[AvatarGrounding] Pivot fixed: Avatar localY += {-soleLocal:F4}m");
+                Debug.Log($"[AvatarGrounding] Pivot fixed: Avatar localY += {-soleLocal:F4}m (ankleLocal={ankleLocal:F4})");
             }
             _pivotFixed = true;
         }
