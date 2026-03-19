@@ -576,9 +576,12 @@ namespace AITuber.Behavior
                 var slot      = InteractionSlot.FindNearest(step.slot_id, _avatarRoot.position);
                 if (slot != null)
                 {
-                    // Snap to the slot's transform position (seat height).
-                    // StandPosition is for walking (floor level); transform.position is the seat anchor.
+                    // Snap XZ + rotation to seat centre; keep current root Y.
+                    // After DoFixPivot the root is at foot-level (~1 m below hips),
+                    // so moving root to seat-surface Y would visually float the avatar.
+                    // sit_settle will adjust Y accurately after the sit animation blends in.
                     Vector3 targetPosition = slot.transform.position;
+                    targetPosition.y = _avatarRoot.position.y;
 
                     // Disable agent before position transition
                     var grounding = _avatarRoot.GetComponent<AvatarGrounding>();

@@ -3,7 +3,6 @@
 // CharacterController を廃止し NavMeshAgent が唯一の位置オーナー。
 // QuQu(U.fbx) は Humanoid FBX。root origin がヒップ位置のため起動時に pivot を足裏へ補正する。
 
-using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -16,7 +15,6 @@ namespace AITuber.Avatar
 
         [Header("Snap")]
         [SerializeField] private LayerMask _snapGroundLayers = ~0;
-        [SerializeField] private float     _snapTimeout      = 3.0f;
 
         [Header("Foot IK（段差補正・オプション）")]
         [SerializeField] private bool             _enableFootIK = false;
@@ -53,12 +51,6 @@ namespace AITuber.Avatar
         /// セット漏れによる Foot IK フリーズバグが発生しない。
         /// </summary>
         public bool IsLocomoting => _anim != null && _anim.GetFloat("speed") > 0.05f;
-
-        // ── Snap state machine ──────────────────────────────────────
-        private enum SnapPhase { Idle, PivotWait1, PivotWait2, FloorDrop }
-        private SnapPhase _snapPhase     = SnapPhase.Idle;
-        private float     _snapPhaseTimer;
-        private float     _snapElapsed;
 
         // ── Unity ─────────────────────────────────────────────────
 
@@ -100,14 +92,6 @@ namespace AITuber.Avatar
             // Phase 1: Trigger initial grounding at startup.
             // BeginSnap handles pivot fix (FBX hip-origin → sole-origin) + floor Warp.
             BeginSnap();
-        }
-
-        private void Update()
-        {
-            // Deferred snap fallback: if BeginSnap started a deferred snap (for re-snap after
-            // a room switch mid-gameplay), advance the state machine in Update.
-            if (_snapPhase != SnapPhase.Idle)
-                UpdateSnap();
         }
 
         // ── Public API ────────────────────────────────────────────
@@ -160,19 +144,18 @@ namespace AITuber.Avatar
         // ── 部屋切り替えスナップ ──────────────────────────────────
 
         /// <summary>
-        /// Pivot 補正 + 床ワープを実行する。初回呼び出し時は同期実行、
-        /// 部屋切り替え時は同期で実行し即座に完了する。
+        /// Pivot 補正 + 床ワープを同期実行する。
+        /// 初回呼び出し時は Animator.Update() で bone 位置を確定させてから pivot 補正する。
         /// RoomManager.DoSwitch() や Start() から呼ぶ。
         /// </summary>
         public void BeginSnap()
         {
-            if (_snapPhase != SnapPhase.Idle)
+            if (IsSnapping)
             {
-                Debug.LogWarning($"[AvatarGrounding] BeginSnap called while snap already in progress (phase={_snapPhase}) — ignoring.");
+                Debug.LogWarning("[AvatarGrounding] BeginSnap called while snap already in progress — ignoring.");
                 return;
             }
             IsSnapping = true;
-            _snapElapsed = 0f;
 
             // NavMeshAgent を無効化（直接 position を書き込むため）
             DisableAgent();
@@ -181,71 +164,13 @@ namespace AITuber.Avatar
 
             if (!_pivotFixed && _anim != null)
             {
-                // Pivot fix requires animated bone positions (not bind-pose).
-                // The Animator hasn't evaluated yet during Start(), so defer by one frame
-                // to let the Animator process the default idle animation first.
-                // Set PivotWait1 to block re-entrant BeginSnap from RoomManager.
-                _snapPhase = SnapPhase.PivotWait1;
-                StartCoroutine(DeferredPivotAndFloorDrop());
-            }
-            else
-            {
-                StartFloorDrop();
-            }
-        }
-
-        private IEnumerator DeferredPivotAndFloorDrop()
-        {
-            // Wait one frame for the Animator to evaluate the idle animation pose.
-            yield return null;
-            if (!_pivotFixed) DoFixPivot();
-            _snapPhase = SnapPhase.Idle; // Reset so StartFloorDrop can proceed
-            StartFloorDrop();
-        }
-
-        /// <summary>
-        /// Update-based snap state machine — only used as a fallback for edge cases
-        /// where BeginSnap defers to the next frame (currently unused, kept for robustness).
-        /// </summary>
-        private void UpdateSnap()
-        {
-            _snapElapsed += Time.deltaTime;
-            _snapPhaseTimer += Time.deltaTime;
-
-            // Global timeout — PivotWait phases have no individual timeout,
-            // so enforce the global timeout for all pre-FloorDrop phases too.
-            if (_snapElapsed >= _snapTimeout && _snapPhase != SnapPhase.FloorDrop)
-            {
-                Debug.LogWarning($"[AvatarGrounding] Snap phase {_snapPhase} stuck for {_snapElapsed:F2}s — force-completing.");
-                if (!_pivotFixed) DoFixPivot();
-                StartFloorDrop();
-                return;
+                // Force Animator to evaluate bone transforms so positions
+                // reflect the animation pose, not the FBX bind-pose.
+                _anim.Update(0.02f);
+                DoFixPivot();
             }
 
-            switch (_snapPhase)
-            {
-                case SnapPhase.PivotWait1:
-                    // Animator 初期化直後は Humanoid bone のワールド位置が安定しないことがある。
-                    if (_snapPhaseTimer >= 0.1f)
-                    {
-                        _snapPhaseTimer = 0f;
-                        _snapPhase = SnapPhase.PivotWait2;
-                    }
-                    break;
-
-                case SnapPhase.PivotWait2:
-                    if (_snapPhaseTimer >= 0.1f)
-                    {
-                        DoFixPivot();
-                        StartFloorDrop();
-                    }
-                    break;
-
-                case SnapPhase.FloorDrop:
-                    if (_snapElapsed >= _snapTimeout)
-                        FinishSnap();
-                    break;
-            }
+            StartFloorDrop();  // → FinishSnap() → IsSnapping = false
         }
 
         private void DoFixPivot()
@@ -262,7 +187,7 @@ namespace AITuber.Avatar
                 var lp       = avatarTr.localPosition;
                 lp.y        -= soleLocal;
                 avatarTr.localPosition = lp;
-                Debug.Log($"[AvatarGrounding] Pivot fixed: Avatar localY += {-soleLocal:F4}m (ankleLocal={ankleLocal:F4})");
+                Debug.Log($"[AvatarGrounding] Pivot fixed: localY={lp.y:F4} (ankleLocal={ankleLocal:F4})");
             }
             _pivotFixed = true;
         }
@@ -327,9 +252,7 @@ namespace AITuber.Avatar
 
         private void FinishSnap()
         {
-            Debug.Log($"[AvatarGrounding] Snap done — y={transform.position.y:F4}" +
-                      (_snapElapsed >= _snapTimeout ? " [TIMEOUT]" : $" [stable {_snapElapsed:F2}s]"));
-            _snapPhase = SnapPhase.Idle;
+            Debug.Log($"[AvatarGrounding] Snap done — y={transform.position.y:F4}");
             IsSnapping = false;
         }
 
