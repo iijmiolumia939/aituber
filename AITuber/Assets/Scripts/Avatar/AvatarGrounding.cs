@@ -3,6 +3,7 @@
 // CharacterController を廃止し NavMeshAgent が唯一の位置オーナー。
 // QuQu(U.fbx) は Humanoid FBX。root origin がヒップ位置のため起動時に pivot を足裏へ補正する。
 
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -164,13 +165,21 @@ namespace AITuber.Avatar
 
             if (!_pivotFixed && _anim != null)
             {
-                // Force Animator to evaluate bone transforms so positions
-                // reflect the animation pose, not the FBX bind-pose.
-                _anim.Update(0.02f);
-                DoFixPivot();
+                // Animator needs a full frame to evaluate humanoid bone positions.
+                // _anim.Update(0.02f) returns partial poses (ankleLocal≈0.14 vs correct ≈1.0).
+                StartCoroutine(DeferredPivotAndFloorDrop());
             }
+            else
+            {
+                StartFloorDrop();  // pivot already fixed → synchronous path
+            }
+        }
 
-            StartFloorDrop();  // → FinishSnap() → IsSnapping = false
+        private IEnumerator DeferredPivotAndFloorDrop()
+        {
+            yield return null;   // 1 frame で Animator が idle pose を完全評価
+            DoFixPivot();
+            StartFloorDrop();
         }
 
         private void DoFixPivot()
