@@ -642,9 +642,11 @@ namespace AITuber.Editor
                 }
 
                 EnsureTrigger(controller, trigger);
-                // IdleAlt 自身は exit 遷移不要（ループさせる）
+                // ループ系ステートは exit 遷移不要（IdleAlt, SitIdle, SadIdle 等）
+                bool isLoop = trigger is "IdleAlt" or "SitIdle" or "SadIdle"
+                    or "Thinking" or "Walk" or "SitRead" or "SitWrite" or "SleepIdle";
                 AddOrUpdateGestureState(rootSM, idleState, trigger, clip, trigger,
-                    addExitTransition: trigger != "IdleAlt");
+                    addExitTransition: !isLoop);
                 added++;
                 Debug.Log($"[Mixamo] Added state '{trigger}' with clip from {System.IO.Path.GetFileName(fbxPath)}");
             }

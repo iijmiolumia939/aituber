@@ -97,54 +97,62 @@ namespace AITuber.Editor
                 string trigger = kvp.Value.trigger;
                 bool   loop    = kvp.Value.loop;
 
-                // ── 既に登録済みならスキップ
-                if (existingStates.Contains(trigger))
-                {
-                    skipped++;
-                    continue;
-                }
-
-                // ── FBX からクリップ取得
-                string fbxPath = $"{MixamoFolder}{fbxName}.fbx";
-                AnimationClip clip = LoadClipFromFbx(fbxPath);
-                if (clip == null)
-                {
-                    Debug.LogWarning($"[AnimatorSetup] Clip not found: {fbxPath}  → Run 'AITuber/Register Gesture Triggers (Stubs)' for placeholder.");
-                    continue;
-                }
-
-                // ── Trigger パラメータ追加
+                // ── Trigger パラメータ追加（既存ステートでも必要）
                 if (!existingParams.Contains(trigger))
                 {
                     controller.AddParameter(trigger, AnimatorControllerParameterType.Trigger);
                     existingParams.Add(trigger);
                 }
 
-                // ── State 追加（グリッド配置）
-                Vector3 pos = GetGridPosition(added);
-                AnimatorState state = sm.AddState(trigger, pos);
-                state.motion             = clip;
-                state.writeDefaultValues = false;
+                AnimatorState state;
 
-                // ── Any State → 新 State のトランジション
-                AnimatorStateTransition anyTrans = sm.AddAnyStateTransition(state);
-                anyTrans.AddCondition(AnimatorConditionMode.If, 0f, trigger);
-                anyTrans.hasExitTime         = false;
-                anyTrans.duration            = 0.2f;
-                anyTrans.canTransitionToSelf = false;
-
-                // ── 一発再生ならば Idle へ戻る
-                if (!loop && idleState != null)
+                if (existingStates.Contains(trigger))
                 {
-                    AnimatorStateTransition exitTrans = state.AddTransition(idleState);
-                    exitTrans.hasExitTime  = true;
-                    exitTrans.exitTime     = 0.85f;
-                    exitTrans.duration     = 0.3f;
-                    exitTrans.hasFixedDuration = false;  // normalized time
+                    // ── 既存ステート: AnyState 遷移だけ補完する
+                    state = sm.states.First(s => s.state.name == trigger).state;
+                    skipped++;
+                }
+                else
+                {
+                    // ── FBX からクリップ取得
+                    string fbxPath = $"{MixamoFolder}{fbxName}.fbx";
+                    AnimationClip clip = LoadClipFromFbx(fbxPath);
+                    if (clip == null)
+                    {
+                        Debug.LogWarning($"[AnimatorSetup] Clip not found: {fbxPath}  → Run 'AITuber/Register Gesture Triggers (Stubs)' for placeholder.");
+                        continue;
+                    }
+
+                    // ── State 追加（グリッド配置）
+                    Vector3 pos = GetGridPosition(added);
+                    state = sm.AddState(trigger, pos);
+                    state.motion             = clip;
+                    state.writeDefaultValues = false;
+
+                    // ── 一発再生ならば Idle へ戻る
+                    if (!loop && idleState != null)
+                    {
+                        AnimatorStateTransition exitTrans = state.AddTransition(idleState);
+                        exitTrans.hasExitTime  = true;
+                        exitTrans.exitTime     = 0.85f;
+                        exitTrans.duration     = 0.3f;
+                        exitTrans.hasFixedDuration = false;  // normalized time
+                    }
+
+                    added++;
+                    Debug.Log($"[AnimatorSetup] + {trigger}  ← {fbxName}.fbx  (loop={loop})");
                 }
 
-                added++;
-                Debug.Log($"[AnimatorSetup] + {trigger}  ← {fbxName}.fbx  (loop={loop})");
+                // ── AnyState → State のトランジション（なければ追加）
+                if (!WsmHasAnyStateTo(sm, trigger))
+                {
+                    AnimatorStateTransition anyTrans = sm.AddAnyStateTransition(state);
+                    anyTrans.AddCondition(AnimatorConditionMode.If, 0f, trigger);
+                    anyTrans.hasExitTime         = false;
+                    anyTrans.duration            = 0.2f;
+                    anyTrans.canTransitionToSelf = false;
+                    Debug.Log($"[AnimatorSetup] + AnyState → {trigger}  (補完)");
+                }
             }
 
             EditorUtility.SetDirty(controller);
@@ -344,13 +352,26 @@ namespace AITuber.Editor
             sitIdleState.motion = seatedBaseClip;
             sitIdleState.writeDefaultValues = false;
 
+            // SitIdle 自身の exit 遷移をすべて除去（ループ維持 — 他トリガーでのみ離脱可能）
+            foreach (var t in sitIdleState.transitions
+                .Where(t => t.hasExitTime)
+                .ToList())
+            {
+                string destName = t.destinationState != null ? t.destinationState.name : "(exit)";
+                sitIdleState.RemoveTransition(t);
+                Debug.Log($"[AnimatorSetup] Removed SitIdle → {destName} exit transition (loop state should not auto-exit).");
+            }
+
             foreach (var stateName in new[] { "SitDown", "SitLaugh", "SitClap", "SitPoint", "SitDisbelief", "SitKick", "SitEat" })
             {
                 var state = sm.states.FirstOrDefault(s => s.state.name == stateName).state;
                 if (state == null)
                     continue;
 
-                foreach (var transition in state.transitions.Where(t => t.destinationState?.name == "Idle").ToList())
+                // SitIdle 以外への exit 遷移を除去（Idle, IdleAlt, LocoBlend 等）
+                foreach (var transition in state.transitions
+                    .Where(t => t.hasExitTime && t.destinationState?.name != "SitIdle")
+                    .ToList())
                     state.RemoveTransition(transition);
 
                 if (!WsmHasTransition(state, "SitIdle"))
