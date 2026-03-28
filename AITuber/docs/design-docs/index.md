@@ -5,6 +5,7 @@
 > 古くなったドキュメントはステータスを「⚠️要更新」に変更し、`tech-debt-tracker.md` に追記してください。
 
 | [rearch-2026-03.md](rearch-2026-03.md) | ✅ 最新 | アーキテクチャレビュー・SDK比較・リアーキ提案 (M21〜M26) | 2026-03-09 |
+| [reactive-broadcast-avatar-2026-03.md](reactive-broadcast-avatar-2026-03.md) | ✅ 最新 | 配信状態変化に対するアバターリアクション再設計（GameLoopEvent + system intent retry） | 2026-03-27 |
 
 ---
 

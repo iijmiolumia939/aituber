@@ -5,42 +5,9 @@ applyTo: 'AITuber/Assets/Tests/**/*.cs'
 
 # AITuber テストルール
 
-## アセンブリ定義
+> TC ID 体系の詳細は Aegis (`aegis_compile_context`) を参照。
 
-| テスト種別 | Assembly Name | asmdef パス |
-|---|---|---|
-| EditMode | `AITuber.Tests.EditMode` | `Assets/Tests/EditMode/AITuber.Tests.EditMode.asmdef` |
-| PlayMode | `AITuber.Tests.PlayMode` | `Assets/Tests/PlayMode/AITuber.Tests.PlayMode.asmdef` |
-
-両者とも `AITuber.Runtime` を参照。`Assembly-CSharp` は asmdef から参照不可。
-
-## テスト作成ルール
-
-- `UnityEngine.Object.DestroyImmediate(...)` と型を明示（`Object` は `System.Object` と曖昧になるため）
-- テスト内でシングルトンを置き換える場合は `InjectForTest` / `SetLogPathForTest` 等の public テスト用メソッドを使う
-- `internal` メソッドはテストアセンブリから参照不可 → 必要なメソッドは `public` にする
-
-## テストケース ID 体系
-
-| プレフィックス | 対象 |
-|---|---|
-| `TC-BPOL-xx` | BehaviorPolicyLoader |
-| `TC-GLOG-xx` | GapLogger |
-| `TC-ADSP-xx` | ActionDispatcher |
-| `TC-MSG-xx` | AvatarMessageParser |
-| `TC-INTG-xx` | Growth Integration (PlayMode) |
-| `TC-REFL-xx` | ReflectionRunner / ProposalValidator / PolicyUpdater (Python) |
-| `TC-DASH-xx` | GapDashboard (Python) — FR-DASH-01, FR-DASH-02 |
-| `TC-M4-xx` | PolicyGrowth / GapDashboardフィクスチャースイート (Python) |
-| `TC-M5-xx` | reflection_cli end-to-end Growth Loop pipeline (Python) |
-| `TC-M6-xx` | approve_cli 人間承認フロー + reflection_cli --output staging (Python) |
-| `TC-M7-xx` | GrowthLoop フル統合オーケストレーター: GrowthLoopResult dataclass + run() pipeline (Python) |
-| `TC-M8-xx` | ScopeConfig + LLMModuloValidator + Phase 2b WSインテントプロポーザルバリデーション (Python) |
-| `TC-ROOM-xx` | RoomDefinition ScriptableObject + RoomManager guards (Unity EditMode) |
-| `TC-OVL-xx` | OverlayServer — broadcast, dead-client cleanup, message format (Python) |
-| `TC-BSR-xx` | BehaviorSequenceRunner — state management, singleton safety, StopBehavior (Unity EditMode) |
-
-## 参考ドキュメント
-
-- [M1 実装設計（テストケース仕様含む）](../../AITuber/docs/m1-design.md)
-- [M2 ReflectionRunner 完了記録](../../AITuber/docs/exec-plans/completed/m2-reflection-runner.md)
+- EditMode: `AITuber.Tests.EditMode` / PlayMode: `AITuber.Tests.PlayMode` — 両方 `AITuber.Runtime` 参照
+- `DestroyImmediate` は `UnityEngine.Object.DestroyImmediate(...)` と型明示
+- シングルトン置換は `InjectForTest` 等の public メソッド経由
+- `internal` はテストアセンブリから不可 → `public` にする

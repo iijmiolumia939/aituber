@@ -69,7 +69,7 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Harness: Quality Gate (changed files)",
+			"label": "Harness: Review Packet",
 			"type": "shell",
 			"command": "powershell",
 			"args": [
@@ -77,12 +77,142 @@
 				"-ExecutionPolicy",
 				"Bypass",
 				"-File",
-				"${workspaceFolder}/scripts/copilot_quality_gate.ps1",
-				"-ChangedOnly"
+				"${workspaceFolder}/scripts/copilot_review_packet.ps1"
 			],
-			"isBackground": false,
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"problemMatcher": [],
 			"group": "test"
+		},
+		{
+			"label": "Harness: Setup Aegis Adapters",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}/scripts/setup_aegis.ps1"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Harness: Pre-commit Gate",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}/scripts/copilot_pre_commit.ps1"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Harness: Check Unity Validation Status",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}/scripts/copilot_unity_validation.ps1",
+				"-Action",
+				"status"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Harness: Mark Unity Validation Done",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}/scripts/copilot_unity_validation.ps1",
+				"-Action",
+				"mark"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "Harness: Publish Bundle",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}/scripts/publish_copilot_harness_bundle.ps1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Harness: Apply Bundle Targets",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"& .\\scripts\\apply_copilot_harness_bundle.ps1 -TargetRepo (Resolve-Path ..\\cat-simulator).Path -Force; & .\\scripts\\apply_copilot_harness_bundle.ps1 -TargetRepo (Resolve-Path ..\\neconnect).Path -Force"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Harness: Install Hooks Targets",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"Push-Location ..\\cat-simulator; & .\\scripts\\install_git_hooks.ps1; git config --local --get core.hooksPath; Pop-Location; Push-Location ..\\neconnect; & .\\scripts\\install_git_hooks.ps1; git config --local --get core.hooksPath; Pop-Location"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Locate NPX",
+			"type": "shell",
+			"command": "where.exe",
+			"args": [
+				"npx"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Aegis: Admin Bootstrap",
+			"type": "shell",
+			"command": "c:\\Users\\iijmi\\st\\aituber\\.venv\\Scripts\\python",
+			"args": [
+				"scripts/run_aegis_admin_bootstrap.py"
+			],
+			"isBackground": false
 		}
 	]
 }

@@ -1,0 +1,213 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>Game Frame 窶・YUI.A</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  /* FR-LAYOUT-02 窶・Game mode avatar corner frame overlay, WS port 31902
+     This overlay is placed in OBS on top of the Unity avatar camera source.
+     It provides a decorative frame + name badge + subtitle strip.
+
+     Responds to {"type":"layout","mode":"game","position":"...","size":"..."}.
+     Hidden when mode is not "game".
+
+     Position values : top-left | top-right | bottom-left | bottom-right
+     Size values     : sm (240px) | md (320px) | lg (400px)
+  */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --c-purple: #7c3aed;
+    --c-pink:   #db2777;
+    --c-dark:   #11111b;
+    --frame-size: 320px;
+    --frame-border: 3px;
+    --transition-ms: 400;
+  }
+
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    background: transparent;
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #cdd6f4;
+  }
+
+  /* 笏笏笏笏笏笏笏笏 Corner frame 笏笏笏笏笏笏笏笏 */
+  #frame-root {
+    position: absolute;
+    width: var(--frame-size);
+    height: var(--frame-size);
+
+    /* Default position: bottom-right (overridden by JS) */
+    bottom: 20px;
+    right:  20px;
+
+    opacity: 1;
+    transition:
+      opacity  calc(var(--transition-ms) * 1ms) ease,
+      width    calc(var(--transition-ms) * 1ms) ease,
+      height   calc(var(--transition-ms) * 1ms) ease,
+      top      calc(var(--transition-ms) * 1ms) ease,
+      bottom   calc(var(--transition-ms) * 1ms) ease,
+      left     calc(var(--transition-ms) * 1ms) ease,
+      right    calc(var(--transition-ms) * 1ms) ease;
+  }
+  #frame-root.hidden { opacity: 0; pointer-events: none; }
+
+  /* Hexagonal clip mask with soft glow border */
+  .avatar-clip {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    /* The avatar Unity camera source sits *under* this browser source in OBS;
+       the frame itself is transparent in the centre and provides only the border + glow. */
+    background: transparent;
+    box-shadow:
+      0 0 0 var(--frame-border) rgba(124,58,237,.9),
+      0 0 16px rgba(124,58,237,.6),
+      0 0 32px rgba(219,39,119,.3);
+    animation: frame-pulse 3s ease-in-out infinite;
+  }
+  @keyframes frame-pulse {
+    0%,100% { box-shadow:
+      0 0 0 var(--frame-border) rgba(124,58,237,.9),
+      0 0 16px rgba(124,58,237,.6),
+      0 0 32px rgba(219,39,119,.3); }
+    50% { box-shadow:
+      0 0 0 var(--frame-border) rgba(219,39,119,.9),
+      0 0 24px rgba(219,39,119,.7),
+      0 0 48px rgba(124,58,237,.4); }
+  }
+
+  /* Corner accent ticks */
+  .tick {
+    position: absolute;
+    width: 14px; height: 14px;
+    border-color: var(--c-pink);
+    border-style: solid;
+    border-width: 0;
+  }
+  .tick-tl { top: -2px; left: -2px; border-top-width:  3px; border-left-width:  3px; border-radius: 3px 0 0 0; }
+  .tick-tr { top: -2px; right:-2px; border-top-width:  3px; border-right-width: 3px; border-radius: 0 3px 0 0; }
+  .tick-bl { bottom:-2px; left: -2px; border-bottom-width:3px;border-left-width: 3px; border-radius: 0 0 0 3px; }
+  .tick-br { bottom:-2px; right:-2px; border-bottom-width:3px;border-right-width:3px; border-radius: 0 0 3px 0; }
+
+  /* Name badge 窶・bottom of the frame */
+  .name-badge {
+    position: absolute;
+    bottom: -34px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, rgba(124,58,237,.85), rgba(219,39,119,.85));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 20px;
+    padding: 4px 20px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    white-space: nowrap;
+    border: 1px solid rgba(205,214,244,.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,.4);
+  }
+
+  /* Arc decoration (top of circle) */
+  .arc-top {
+    position: absolute;
+    top: -10px; left: 50%;
+    transform: translateX(-50%);
+    width: 60px; height: 20px;
+    border-top: 2px solid rgba(124,58,237,.7);
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  }
+
+  /* Scanlines overlay on the avatar */
+  .scanlines {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent, transparent 4px,
+      rgba(0,0,0,.08) 4px, rgba(0,0,0,.08) 5px
+    );
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<div id="frame-root">
+  <div class="avatar-clip">
+    <div class="scanlines"></div>
+  </div>
+  <div class="tick tick-tl"></div>
+  <div class="tick tick-tr"></div>
+  <div class="tick tick-bl"></div>
+  <div class="tick tick-br"></div>
+  <div class="arc-top"></div>
+  <div class="name-badge">YUI.A</div>
+</div>
+
+<script>
+  /* FR-LAYOUT-02 窶・Dynamic frame positioning + size from WS layout events */
+
+  const MARGIN   = 20;  // px from screen edge
+  const SIZES    = { sm: 240, md: 320, lg: 400 };
+
+  const root     = document.getElementById('frame-root');
+
+  const POSITION_DEFAULTS = {
+    'top-left':     { top: MARGIN,  left:  MARGIN, bottom: 'auto', right: 'auto' },
+    'top-right':    { top: MARGIN,  right: MARGIN, bottom: 'auto', left:  'auto' },
+    'bottom-left':  { bottom: MARGIN, left:  MARGIN, top: 'auto',  right: 'auto' },
+    'bottom-right': { bottom: MARGIN, right: MARGIN, top: 'auto',  left:  'auto' },
+  };
+
+  function applyPosition(pos) {
+    const cfg = POSITION_DEFAULTS[pos] || POSITION_DEFAULTS['bottom-right'];
+    Object.entries(cfg).forEach(([prop, val]) => {
+      root.style[prop] = val === 'auto' ? 'auto' : `${val}px`;
+    });
+  }
+
+  function applySize(size) {
+    const px = SIZES[size] || SIZES.md;
+    root.style.setProperty('--frame-size', `${px}px`);
+    root.style.width  = `${px}px`;
+    root.style.height = `${px}px`;
+  }
+
+  const WS_PORT = 31902;
+  let ws, retryDelay = 1000;
+
+  function connect() {
+    ws = new WebSocket(`ws://127.0.0.1:${WS_PORT}`);
+    ws.onopen  = () => { retryDelay = 1000; };
+    ws.onclose = () => setTimeout(connect, retryDelay = Math.min(retryDelay * 1.5, 10000));
+    ws.onerror = () => ws.close();
+    ws.onmessage = ({ data }) => {
+      let msg;
+      try { msg = JSON.parse(data); } catch { return; }
+
+      if (msg.type === 'layout') {
+        if (msg.mode === 'game') {
+          root.classList.remove('hidden');
+          if (msg.position) applyPosition(msg.position);
+          if (msg.size)     applySize(msg.size);
+        } else {
+          root.classList.add('hidden');
+        }
+      }
+
+      if (msg.type === 'scene' && msg.scene !== 'game') {
+        root.classList.add('hidden');
+      }
+    };
+  }
+  connect();
+</script>
+</body>
+</html>
+

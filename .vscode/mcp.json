@@ -8,6 +8,16 @@
     "github": {
       "type": "http",
       "url": "https://api.githubcopilot.com/mcp/"
+    },
+    "aegis": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@fuwasegu/aegis", "--surface", "agent"]
+    },
+    "aegis-admin": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@fuwasegu/aegis", "--surface", "admin"]
     }
   }
 }

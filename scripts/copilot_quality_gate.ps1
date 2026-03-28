@@ -69,8 +69,11 @@ $repoRoot = Get-RepoRoot
 $projectRoot = Join-Path $repoRoot "AITuber"
 $python = Get-PythonCommand
 
-if (-not (Test-Path $projectRoot)) {
-    throw "AITuber project root was not found at $projectRoot"
+$isAituberMode = Test-Path $projectRoot
+if (-not $isAituberMode) {
+    Write-Host "[harness] skip quality gate: AITuber project root was not found at $projectRoot" -ForegroundColor DarkYellow
+    Write-Host "[harness] non-AITuber repository detected; no repository-specific Python gate configured" -ForegroundColor DarkYellow
+    return
 }
 
 $changedPaths = @()

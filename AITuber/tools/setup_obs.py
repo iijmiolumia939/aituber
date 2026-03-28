@@ -31,7 +31,11 @@ OBS_EXE = Path(r"C:\Program Files\obs-studio\bin\64bit\obs64.exe")
 
 COLLECTION_NAME = "AITuber"
 PROFILE_NAME = "AITuber"
-SCENE_NAME = "AITuber 配信"
+SCENE_OPENING = "Opening"
+SCENE_CHAT = "Chat_Main"
+SCENE_GAME = "Game_Main"
+SCENE_ENDING = "Ending"
+DEFAULT_SCENE = SCENE_CHAT
 
 # Canvas
 CANVAS_W = 1920
@@ -42,6 +46,23 @@ OBS_VERSION = 536870916
 
 # Well-known canvas UUID used by OBS for the main canvas
 MAIN_CANVAS_UUID = "6c69626f-6273-4c00-9d88-c5136d61696e"
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+OBS_AVATAR_WINDOW = os.environ.get("OBS_AVATAR_WINDOW", "AITuber:UnityWndClass:AITuber.exe")
+OBS_INCLUDE_DESKTOP_AUDIO = _env_flag("OBS_INCLUDE_DESKTOP_AUDIO", True)
+OBS_INCLUDE_MIC_AUDIO = _env_flag("OBS_INCLUDE_MIC_AUDIO", True)
+OBS_INCLUDE_GAME_AUDIO = _env_flag("OBS_INCLUDE_GAME_AUDIO", False)
+OBS_GAME_AUDIO_DEVICE_ID = os.environ.get("OBS_GAME_AUDIO_DEVICE_ID", "default")
+OBS_INCLUDE_STREAM_BGM = _env_flag("OBS_INCLUDE_STREAM_BGM", False)
+OBS_STREAM_BGM_FILE = os.environ.get("OBS_STREAM_BGM_FILE", "").strip()
+OBS_STREAM_BGM_LOOP = _env_flag("OBS_STREAM_BGM_LOOP", True)
 
 
 def _uuid() -> str:
@@ -161,21 +182,33 @@ def _scene_item(
 def build_scene_collection() -> dict:
     """Build the full OBS scene collection JSON."""
 
-    # UUIDs for each source
-    scene_uuid = _uuid()
+    # UUIDs for scene sources
+    scene_opening_uuid = _uuid()
+    scene_chat_uuid = _uuid()
+    scene_game_uuid = _uuid()
+    scene_ending_uuid = _uuid()
+
+    # UUIDs for common media sources
     avatar_uuid = _uuid()
+    game_capture_uuid = _uuid()
+    bg_uuid = _uuid()
     header_uuid = _uuid()
     chat_uuid = _uuid()
     subtitle_uuid = _uuid()
-    # chroma_uuid removed - no longer using chroma key (3D environment instead)
+    opening_uuid = _uuid()
+    ending_uuid = _uuid()
+    transition_uuid = _uuid()
+    game_frame_uuid = _uuid()
     desktop_audio_uuid = _uuid()
     mic_uuid = _uuid()
+    game_audio_uuid = _uuid()
+    stream_bgm_uuid = _uuid()
 
     # --- Audio devices (top-level) ---
-    desktop_audio = _audio_source(
-        "wasapi_output_capture", "デスクトップ音声", desktop_audio_uuid
-    )
+    desktop_audio = _audio_source("wasapi_output_capture", "デスクトップ音声", desktop_audio_uuid)
     mic_audio = _audio_source("wasapi_input_capture", "マイク", mic_uuid)
+    desktop_audio["muted"] = not OBS_INCLUDE_DESKTOP_AUDIO
+    mic_audio["muted"] = not OBS_INCLUDE_MIC_AUDIO
 
     # --- Avatar (Window Capture / WGC - more reliable than game_capture for Unity DX12) ---
     avatar_source = _base_source(
@@ -184,7 +217,7 @@ def build_scene_collection() -> dict:
         avatar_uuid,
         {
             "method": 2,  # 2 = WGC (Windows Graphics Capture), works with DX12/Vulkan
-            "window": "AITuber:UnityWndClass:AITuber.exe",
+            "window": OBS_AVATAR_WINDOW,
             "cursor": False,
             "client_area": False,
             "force_sdr": False,
@@ -193,7 +226,6 @@ def build_scene_collection() -> dict:
     )
 
     # --- Background (color source) ---
-    bg_uuid = _uuid()
     bg_source = _base_source(
         "color_source_v3",
         "Background",
@@ -205,10 +237,45 @@ def build_scene_collection() -> dict:
         },
     )
 
+    # --- Game capture (to be pointed to game window in OBS as needed) ---
+    game_capture_source = _base_source(
+        "game_capture",
+        "GameCapture",
+        game_capture_uuid,
+        {
+            "capture_mode": "any_fullscreen",
+            "window": "",
+            "capture_cursor": False,
+            "allow_transparency": False,
+        },
+    )
+
+    game_audio_source = _audio_source(
+        "wasapi_output_capture",
+        "ゲーム音声",
+        game_audio_uuid,
+        device_id=OBS_GAME_AUDIO_DEVICE_ID,
+    )
+    game_audio_source["muted"] = not OBS_INCLUDE_GAME_AUDIO
+
+    stream_bgm_source = _base_source(
+        "ffmpeg_source",
+        "配信BGM",
+        stream_bgm_uuid,
+        {
+            "is_local_file": True,
+            "local_file": OBS_STREAM_BGM_FILE,
+            "looping": OBS_STREAM_BGM_LOOP,
+            "restart_on_activate": False,
+            "close_when_inactive": False,
+            "clear_on_media_end": False,
+        },
+        mixers=255,
+    )
+    stream_bgm_source["muted"] = not OBS_INCLUDE_STREAM_BGM
+
     # --- Browser Sources (local HTML files) ---
-    def _browser_source(
-        name: str, src_uuid: str, html_file: str, width: int, height: int
-    ) -> dict:
+    def _browser_source(name: str, src_uuid: str, html_file: str, width: int, height: int) -> dict:
         local_path = str(OVERLAYS_DIR / html_file).replace("\\", "/")
         return _base_source(
             "browser_source",
@@ -229,18 +296,18 @@ def build_scene_collection() -> dict:
 
     header_source = _browser_source("Header", header_uuid, "header.html", 1920, 200)
     chat_source = _browser_source("Chat", chat_uuid, "chat.html", 420, 920)
-    subtitle_source = _browser_source(
-        "Subtitle", subtitle_uuid, "subtitle.html", 1200, 120
+    subtitle_source = _browser_source("Subtitle", subtitle_uuid, "subtitle.html", 1200, 120)
+    opening_source = _browser_source("OpeningOverlay", opening_uuid, "opening.html", 1920, 1080)
+    ending_source = _browser_source("EndingOverlay", ending_uuid, "ending.html", 1920, 1080)
+    transition_source = _browser_source(
+        "TransitionOverlay", transition_uuid, "transition.html", 1920, 1080
+    )
+    game_frame_source = _browser_source(
+        "GameFrameOverlay", game_frame_uuid, "game_frame.html", 1920, 1080
     )
 
-    # --- Scene ---
-    # Layout (Figma-based):
-    #   Header: top full-width (0,0) 1920x200
-    #   Chat:   right side (1480, 30) 420x920
-    #   Avatar: full canvas, green-screen keyed
-    #   Subtitle: bottom center (360, 940) 1200x120
-    scene_items = [
-        # Background — dark color fill, bottom layer
+    # --- Scene: Chat_Main ---
+    chat_items = [
         _scene_item(
             0,
             "Background",
@@ -251,7 +318,6 @@ def build_scene_collection() -> dict:
             bounds_y=float(CANVAS_H),
             bounds_type=2,
         ),
-        # Avatar — full canvas, bounds_type=2 (scale to inner bounds)
         _scene_item(
             1,
             "Avatar",
@@ -262,40 +328,135 @@ def build_scene_collection() -> dict:
             bounds_y=float(CANVAS_H),
             bounds_type=2,
         ),
-        # Header — top area
-        _scene_item(
-            2,
-            "Header",
-            header_uuid,
-            pos_x=0.0,
-            pos_y=0.0,
-        ),
-        # Chat — right side
-        _scene_item(
-            3,
-            "Chat",
-            chat_uuid,
-            pos_x=1480.0,
-            pos_y=30.0,
-        ),
-        # Subtitle — bottom center
-        _scene_item(
-            4,
-            "Subtitle",
-            subtitle_uuid,
-            pos_x=360.0,
-            pos_y=940.0,
-        ),
+        _scene_item(2, "Header", header_uuid, pos_x=0.0, pos_y=0.0),
+        _scene_item(3, "Chat", chat_uuid, pos_x=1480.0, pos_y=30.0),
+        _scene_item(4, "Subtitle", subtitle_uuid, pos_x=360.0, pos_y=940.0),
+        _scene_item(5, "TransitionOverlay", transition_uuid, pos_x=0.0, pos_y=0.0),
     ]
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        chat_items.append(_scene_item(len(chat_items), "配信BGM", stream_bgm_uuid))
 
-    scene_source = _base_source(
+    chat_scene_source = _base_source(
         "scene",
-        SCENE_NAME,
-        scene_uuid,
+        SCENE_CHAT,
+        scene_chat_uuid,
         {
             "custom_size": False,
-            "id_counter": len(scene_items) + 1,
-            "items": scene_items,
+            "id_counter": len(chat_items) + 1,
+            "items": chat_items,
+        },
+        hotkeys={"OBSBasic.SelectScene": []},
+        canvas_uuid=MAIN_CANVAS_UUID,
+    )
+
+    # --- Scene: Game_Main ---
+    # Avatar corner: 320x320 at bottom-right (x=1580, y=740 with 20px margin)
+    game_items = [
+        _scene_item(
+            0,
+            "GameCapture",
+            game_capture_uuid,
+            pos_x=0.0,
+            pos_y=0.0,
+            bounds_x=float(CANVAS_W),
+            bounds_y=float(CANVAS_H),
+            bounds_type=2,
+        ),
+        _scene_item(
+            1,
+            "Avatar",
+            avatar_uuid,
+            pos_x=1580.0,
+            pos_y=740.0,
+            bounds_x=320.0,
+            bounds_y=320.0,
+            bounds_type=2,
+        ),
+        _scene_item(2, "GameFrameOverlay", game_frame_uuid, pos_x=0.0, pos_y=0.0),
+        _scene_item(3, "Subtitle", subtitle_uuid, pos_x=360.0, pos_y=940.0),
+        _scene_item(4, "TransitionOverlay", transition_uuid, pos_x=0.0, pos_y=0.0),
+    ]
+    if OBS_INCLUDE_GAME_AUDIO:
+        game_items.append(_scene_item(len(game_items), "ゲーム音声", game_audio_uuid))
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        game_items.append(_scene_item(len(game_items), "配信BGM", stream_bgm_uuid))
+
+    game_scene_source = _base_source(
+        "scene",
+        SCENE_GAME,
+        scene_game_uuid,
+        {
+            "custom_size": False,
+            "id_counter": len(game_items) + 1,
+            "items": game_items,
+        },
+        hotkeys={"OBSBasic.SelectScene": []},
+        canvas_uuid=MAIN_CANVAS_UUID,
+    )
+
+    # --- Scene: Opening ---
+    opening_items = [
+        _scene_item(
+            0,
+            "Background",
+            bg_uuid,
+            pos_x=0.0,
+            pos_y=0.0,
+            bounds_x=float(CANVAS_W),
+            bounds_y=float(CANVAS_H),
+            bounds_type=2,
+        ),
+        _scene_item(1, "OpeningOverlay", opening_uuid, pos_x=0.0, pos_y=0.0),
+        _scene_item(2, "TransitionOverlay", transition_uuid, pos_x=0.0, pos_y=0.0),
+    ]
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        opening_items.append(_scene_item(len(opening_items), "配信BGM", stream_bgm_uuid))
+
+    opening_scene_source = _base_source(
+        "scene",
+        SCENE_OPENING,
+        scene_opening_uuid,
+        {
+            "custom_size": False,
+            "id_counter": len(opening_items) + 1,
+            "items": opening_items,
+        },
+        hotkeys={"OBSBasic.SelectScene": []},
+        canvas_uuid=MAIN_CANVAS_UUID,
+    )
+
+    # --- Scene: Ending ---
+    ending_items = [
+        _scene_item(
+            0,
+            "Background",
+            bg_uuid,
+            pos_x=0.0,
+            pos_y=0.0,
+            bounds_x=float(CANVAS_W),
+            bounds_y=float(CANVAS_H),
+            bounds_type=2,
+        ),
+        _scene_item(1, "EndingOverlay", ending_uuid, pos_x=0.0, pos_y=0.0),
+        _scene_item(2, "TransitionOverlay", transition_uuid, pos_x=0.0, pos_y=0.0),
+    ]
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        ending_items.append(_scene_item(len(ending_items), "配信BGM", stream_bgm_uuid))
+
+    extra_sources = []
+    if OBS_INCLUDE_GAME_AUDIO:
+        extra_sources.append(game_audio_source)
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        extra_sources.append(stream_bgm_source)
+
+    ending_scene_source = _base_source(
+        "scene",
+        SCENE_ENDING,
+        scene_ending_uuid,
+        {
+            "custom_size": False,
+            "id_counter": len(ending_items) + 1,
+            "items": ending_items,
         },
         hotkeys={"OBSBasic.SelectScene": []},
         canvas_uuid=MAIN_CANVAS_UUID,
@@ -304,18 +465,32 @@ def build_scene_collection() -> dict:
     return {
         "DesktopAudioDevice1": desktop_audio,
         "AuxAudioDevice1": mic_audio,
-        "current_scene": SCENE_NAME,
-        "current_program_scene": SCENE_NAME,
-        "scene_order": [{"name": SCENE_NAME}],
+        "current_scene": DEFAULT_SCENE,
+        "current_program_scene": DEFAULT_SCENE,
+        "scene_order": [
+            {"name": SCENE_OPENING},
+            {"name": SCENE_CHAT},
+            {"name": SCENE_GAME},
+            {"name": SCENE_ENDING},
+        ],
         "name": COLLECTION_NAME,
         "sources": [
-            scene_source,
+            opening_scene_source,
+            chat_scene_source,
+            game_scene_source,
+            ending_scene_source,
             bg_source,
             avatar_source,
+            game_capture_source,
             header_source,
             chat_source,
             subtitle_source,
-        ],
+            opening_source,
+            ending_source,
+            transition_source,
+            game_frame_source,
+        ]
+        + extra_sources,
         "groups": [],
         "quick_transitions": [
             {
@@ -458,16 +633,20 @@ def update_global_config() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="OBS Studio AITuber セットアップ")
-    parser.add_argument(
-        "--launch", action="store_true", help="セットアップ後に OBS を起動"
-    )
-    parser.add_argument(
-        "--force", action="store_true", help="既存のシーンコレクションを上書き"
-    )
+    parser.add_argument("--launch", action="store_true", help="セットアップ後に OBS を起動")
+    parser.add_argument("--force", action="store_true", help="既存のシーンコレクションを上書き")
     args = parser.parse_args()
 
     # Validate overlay files
-    for name in ("header.html", "chat.html", "subtitle.html"):
+    for name in (
+        "header.html",
+        "chat.html",
+        "subtitle.html",
+        "opening.html",
+        "ending.html",
+        "transition.html",
+        "game_frame.html",
+    ):
         path = OVERLAYS_DIR / name
         if not path.exists():
             print(f"ERROR: オーバーレイファイルが見つかりません: {path}", file=sys.stderr)
@@ -516,16 +695,34 @@ def main() -> None:
     print("=" * 50)
     print()
     print(f"  シーンコレクション : {COLLECTION_NAME}")
-    print(f"  シーン名           : {SCENE_NAME}")
+    print("  シーン名           : Opening / Chat_Main / Game_Main / Ending")
     print(f"  プロファイル       : {PROFILE_NAME}")
     print(f"  キャンバス         : {CANVAS_W}x{CANVAS_H}")
     print()
     print("ソース構成:")
-    print("  0. Background - カラーソース (#1a1a33)")
-    print("  1. Avatar     - ウィンドウキャプチャ(WGC) + クロマキー")
-    print("  2. Header     - ブラウザソース (header.html)")
-    print("  3. Chat       - ブラウザソース (chat.html)")
-    print("  4. Subtitle   - ブラウザソース (subtitle.html)")
+    print("  - Opening: opening.html + transition.html")
+    print("  - Chat_Main: Avatar + header/chat/subtitle + transition.html")
+    print("  - Game_Main: GameCapture + Avatar(corner) + game_frame/subtitle + transition.html")
+    print("  - Ending: ending.html + transition.html")
+    print("  ※ GameCapture の対象ウィンドウは OBS 側で選択してください")
+    print()
+    print("音声オプション:")
+    print(f"  - Desktop音声: {'ON' if OBS_INCLUDE_DESKTOP_AUDIO else 'OFF'}")
+    print(f"  - マイク: {'ON' if OBS_INCLUDE_MIC_AUDIO else 'OFF'}")
+    print(
+        f"  - ゲーム音声(ゲームシーン): {'ON' if OBS_INCLUDE_GAME_AUDIO else 'OFF'}"
+        + (f" [device={OBS_GAME_AUDIO_DEVICE_ID}]" if OBS_INCLUDE_GAME_AUDIO else "")
+    )
+    print(
+        "  - 配信BGM: "
+        + ("ON" if (OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE) else "OFF")
+        + (
+            f" [file={OBS_STREAM_BGM_FILE}]"
+            if (OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE)
+            else ""
+        )
+    )
+    print(f"  - Avatar window selector: {OBS_AVATAR_WINDOW}")
     print()
 
     # 5. Launch
@@ -544,7 +741,7 @@ def main() -> None:
                 "--profile",
                 PROFILE_NAME,
                 "--scene",
-                SCENE_NAME,
+                DEFAULT_SCENE,
             ],
             cwd=str(obs_cwd),
             creationflags=subprocess.DETACHED_PROCESS,
@@ -552,7 +749,7 @@ def main() -> None:
         print("OBS 起動完了")
     else:
         print("OBS を起動するには:")
-        print(f'  python tools/setup_obs.py --launch')
+        print(f"  python tools/setup_obs.py --launch")
         print()
         print("または手動で OBS を起動し、")
         print(f'  シーンコレクション → "{COLLECTION_NAME}" を選択')

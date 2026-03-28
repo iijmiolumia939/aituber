@@ -13,9 +13,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 try:
@@ -31,7 +32,7 @@ class OverlayConfig:
     """Configuration for the overlay WS server."""
 
     host: str = "127.0.0.1"
-    port: int = 31901
+    port: int = field(default_factory=lambda: int(os.environ.get("OVERLAY_WS_PORT", "31902")))
 
 
 class OverlayServer:
@@ -137,16 +138,53 @@ class OverlayServer:
         *,
         character_name: str = "",
         character_subtitle: str = "",
+        viewer_count: int | None = None,
+        subscriber_count: int | None = None,
     ) -> None:
         """Broadcast config (character info) to overlay clients."""
-        await self._broadcast(
-            {
-                "type": "config",
-                "character_name": character_name,
-                "character_subtitle": character_subtitle,
-            }
-        )
+        payload: dict[str, Any] = {
+            "type": "config",
+            "character_name": character_name,
+            "character_subtitle": character_subtitle,
+        }
+        if viewer_count is not None:
+            payload["viewer_count"] = viewer_count
+        if subscriber_count is not None:
+            payload["subscriber_count"] = subscriber_count
+        await self._broadcast(payload)
 
     async def clear_subtitle(self) -> None:
         """Clear the subtitle display."""
         await self._broadcast({"type": "subtitle", "text": "", "duration_sec": 0})
+
+    async def send_scene(self, scene: str) -> None:
+        """Broadcast scene change (opening | chat | game | ending).
+
+        FR-LAYOUT-01: All overlay HTML sources listen to this event and
+        show/hide themselves accordingly.
+        """
+        await self._broadcast({"type": "scene", "scene": scene})
+
+    async def send_layout(self, mode: str, **kwargs: Any) -> None:
+        """Broadcast dynamic layout parameters.
+
+        FR-LAYOUT-02: Allows AI to reconfigure overlay geometry at runtime.
+
+        Args:
+            mode: layout mode slug (e.g. "chat", "game", "opening", "ending").
+            **kwargs: arbitrary layout parameters forwarded as-is to clients
+                      (e.g. position="bottom-right", size="md").
+        """
+        await self._broadcast({"type": "layout", "mode": mode, **kwargs})
+
+    async def send_transition(self, name: str = "fade", *, direction: str = "in") -> None:
+        """Trigger a named transition animation on the transition overlay.
+
+        FR-TRANS-01: transition.html receives this event and plays the
+        corresponding animation (fade | glitch | scan | slide_left | slide_right).
+
+        Args:
+            name: transition name.
+            direction: "in" (to black / cover) or "out" (reveal).
+        """
+        await self._broadcast({"type": "transition", "name": name, "direction": direction})

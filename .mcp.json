@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "aegis": {
+      "command": "npx",
+      "args": ["-y", "@fuwasegu/aegis", "--surface", "agent"]
+    },
+    "aegis-admin": {
+      "command": "npx",
+      "args": ["-y", "@fuwasegu/aegis", "--surface", "admin"]
+    }
+  }
+}

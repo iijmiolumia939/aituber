@@ -28,6 +28,10 @@ dev = [
     "ruff>=0.4,<1",
     "black>=24,<26",
 ]
+live2d = [
+    "psd-tools>=1.10,<2",
+    "Pillow>=10,<12",
+]
 
 [project.scripts]
 aituber = "orchestrator.main:main"

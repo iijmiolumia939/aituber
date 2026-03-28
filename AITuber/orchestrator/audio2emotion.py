@@ -21,33 +21,32 @@ logger = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────────
 
-A2E_SR: Final[int] = 16_000          # model requires 16 kHz mono float32
-MIN_BUFFER_LEN: Final[int] = 5_000   # < 0.3 s — skip inference
+A2E_SR: Final[int] = 16_000  # model requires 16 kHz mono float32
+MIN_BUFFER_LEN: Final[int] = 5_000  # < 0.3 s — skip inference
 MAX_BUFFER_LEN: Final[int] = 60_000  # 3.75 s cap (from trt_info.json)
 OPT_BUFFER_LEN: Final[int] = 30_000  # 1.875 s optimal window
 
 # 6-class label ordering (matches network_info.json)
-_EMOTION_LABELS: Final[tuple[str, ...]] = (
-    "angry", "disgust", "fear", "happy", "neutral", "sad"
-)
+_EMOTION_LABELS: Final[tuple[str, ...]] = ("angry", "disgust", "fear", "happy", "neutral", "sad")
 # A2F 10-dim slot assignment (indices not listed → 0 / neutral)
 _EMO2A2F: Final[dict[str, int]] = {
-    "angry":   1,
+    "angry": 1,
     "disgust": 3,
-    "fear":    4,
-    "happy":   6,
-    "sad":     9,
+    "fear": 4,
+    "happy": 6,
+    "sad": 9,
 }
 
 # Post-processing hyperparameters (from post_process.py defaults)
-_EMOTION_CONTRAST: Final[float]        = 1.0
-_EMOTION_STRENGTH: Final[float]        = 0.6
-_LIVE_BLEND_COEF: Final[float]         = 0.7
-_MAX_EMOTIONS: Final[int]              = 6
+_EMOTION_CONTRAST: Final[float] = 1.0
+_EMOTION_STRENGTH: Final[float] = 0.6
+_LIVE_BLEND_COEF: Final[float] = 0.7
+_MAX_EMOTIONS: Final[int] = 6
 _NEUTRAL_CONFIDENCE_THRESHOLD: Final[float] = 0.20  # below → report "neutral"
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
+
 
 def _softmax(x: np.ndarray) -> np.ndarray:
     shifted = x - np.max(x)
@@ -62,6 +61,7 @@ def _resample_to_16k(pcm_int16: np.ndarray, src_rate: int) -> np.ndarray:
         return pcm_f
     try:
         from scipy.signal import resample_poly  # type: ignore[import-untyped]
+
         g = math.gcd(A2E_SR, src_rate)
         up, down = A2E_SR // g, src_rate // g
         return resample_poly(pcm_f, up, down).astype(np.float32)
@@ -181,8 +181,11 @@ class A2EInferer:
         # MapToA2FEmotionIndex: build 10-dim vector
         a2f = np.zeros(10, dtype=np.float32)
         for emo, src_idx in (
-            ("angry",   0), ("disgust", 1), ("fear",    2),
-            ("happy",   3), ("sad",     5),
+            ("angry", 0),
+            ("disgust", 1),
+            ("fear", 2),
+            ("happy", 3),
+            ("sad", 5),
         ):
             a2f[_EMO2A2F[emo]] = vec[src_idx]
 

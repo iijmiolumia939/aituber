@@ -1,0 +1,96 @@
+{
+  "character": "天導ルミナ",
+  "version": "phase1-minimum",
+  "parameters": [
+    {
+      "id": "ParamAngleX",
+      "display_name": "Angle X",
+      "range": {"min": -30, "default": 0, "max": 30},
+      "targets": ["Face_Base", "Hair_Bangs_C_01", "Hair_Side_L_01", "Hair_Side_R_01", "Brow_L_01", "Brow_R_01"]
+    },
+    {
+      "id": "ParamAngleY",
+      "display_name": "Angle Y",
+      "range": {"min": -30, "default": 0, "max": 30},
+      "targets": ["Face_Base", "Eye_White_L_01", "Eye_White_R_01", "Eye_Iris_L_01", "Eye_Iris_R_01", "Hair_Bangs_C_01"]
+    },
+    {
+      "id": "ParamAngleZ",
+      "display_name": "Angle Z",
+      "range": {"min": -30, "default": 0, "max": 30},
+      "targets": ["Face_Base", "Body_Upper_01", "Hair_Twin_L_01", "Hair_Twin_R_01"]
+    },
+    {
+      "id": "ParamBodyX",
+      "display_name": "Body X",
+      "range": {"min": -10, "default": 0, "max": 10},
+      "targets": ["Body_Upper_01", "Arm_Upper_L_01", "Arm_Upper_R_01", "Skirt_Base_01"]
+    },
+    {
+      "id": "ParamBodyZ",
+      "display_name": "Body Z",
+      "range": {"min": -10, "default": 0, "max": 10},
+      "targets": ["Body_Upper_01", "Ribbon_Chest_C_01", "Ribbon_Waist_C_01", "Skirt_Base_01"]
+    },
+    {
+      "id": "ParamEyeLOpen",
+      "display_name": "Eye L Open",
+      "range": {"min": 0, "default": 1, "max": 1},
+      "targets": ["Eyelid_Upper_L_01", "Eyelid_Lower_L_01"]
+    },
+    {
+      "id": "ParamEyeROpen",
+      "display_name": "Eye R Open",
+      "range": {"min": 0, "default": 1, "max": 1},
+      "targets": ["Eyelid_Upper_R_01", "Eyelid_Lower_R_01"]
+    },
+    {
+      "id": "ParamBrowLY",
+      "display_name": "Brow L Y",
+      "range": {"min": -1, "default": 0, "max": 1},
+      "targets": ["Brow_L_01"]
+    },
+    {
+      "id": "ParamBrowRY",
+      "display_name": "Brow R Y",
+      "range": {"min": -1, "default": 0, "max": 1},
+      "targets": ["Brow_R_01"]
+    },
+    {
+      "id": "ParamMouthOpenY",
+      "display_name": "Mouth Open",
+      "range": {"min": 0, "default": 0, "max": 1},
+      "targets": ["Mouth_Upper_01", "Mouth_Lower_01", "Mouth_Inner_01", "Tongue_01"]
+    },
+    {
+      "id": "ParamMouthForm",
+      "display_name": "Mouth Form",
+      "range": {"min": -1, "default": 0, "max": 1},
+      "targets": ["Mouth_Upper_01", "Mouth_Lower_01"]
+    },
+    {
+      "id": "ParamBreath",
+      "display_name": "Breath",
+      "range": {"min": 0, "default": 0.5, "max": 1},
+      "targets": ["Body_Upper_01", "Ribbon_Chest_C_01", "Skirt_Base_01"]
+    },
+    {
+      "id": "ParamHairFrontSwing",
+      "display_name": "Hair Front Swing",
+      "range": {"min": -1, "default": 0, "max": 1},
+      "targets": ["Hair_Bangs_C_01"]
+    },
+    {
+      "id": "ParamHairTwinLSwing",
+      "display_name": "Hair Twin L Swing",
+      "range": {"min": -1, "default": 0, "max": 1},
+      "targets": ["Hair_Twin_L_01"]
+    },
+    {
+      "id": "ParamHairTwinRSwing",
+      "display_name": "Hair Twin R Swing",
+      "range": {"min": -1, "default": 0, "max": 1},
+      "targets": ["Hair_Twin_R_01"]
+    }
+  ]
+}

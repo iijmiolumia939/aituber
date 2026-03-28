@@ -25,6 +25,7 @@ from orchestrator.main import (
     IntentItem,
     Orchestrator,
 )
+from orchestrator.safety import FilterResult, SafetyVerdict
 
 
 def _make_orch() -> Orchestrator:
@@ -68,7 +69,7 @@ class TestIntentItemOrdering:
         # put idle first, then life — life should come out first
         q.put_nowait(idle)
         q.put_nowait(life)
-        assert q.get_nowait() is life   # PRIORITY_LIFE(1) < PRIORITY_IDLE(2)
+        assert q.get_nowait() is life  # PRIORITY_LIFE(1) < PRIORITY_IDLE(2)
         assert q.get_nowait() is idle
 
 
@@ -89,9 +90,7 @@ class TestIntentDispatcher:
         orch._is_replying = False
         orch._running = True
 
-        item = IntentItem(
-            priority=PRIORITY_LIFE, seq=0, intent="life_ponder", source="life"
-        )
+        item = IntentItem(priority=PRIORITY_LIFE, seq=0, intent="life_ponder", source="life")
         await orch._intent_queue.put(item)
 
         async def _stop_after_dispatch() -> None:
@@ -144,9 +143,7 @@ class TestIntentDispatcher:
         orch._is_replying = True
         orch._running = True
 
-        item = IntentItem(
-            priority=PRIORITY_LIFE, seq=0, intent="life_ponder", source="life"
-        )
+        item = IntentItem(priority=PRIORITY_LIFE, seq=0, intent="life_ponder", source="life")
         await orch._intent_queue.put(item)
 
         async def _stop_quickly() -> None:
@@ -157,6 +154,41 @@ class TestIntentDispatcher:
         await asyncio.gather(orch._intent_dispatcher(), _stop_quickly())
 
         orch._avatar.send_avatar_intent.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_system_intent_retries_once_after_send_failure(self):
+        """TC-PRIO-07: source=system retries when first dispatch fails."""
+        orch = _make_orch()
+        orch._avatar = MagicMock()
+        orch._avatar.send_room_change = AsyncMock()
+
+        call_count = {"n": 0}
+
+        async def _flaky_send(*, intent, source):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise RuntimeError("boom")
+
+        orch._avatar.send_avatar_intent = AsyncMock(side_effect=_flaky_send)
+        orch._is_replying = False
+        orch._running = True
+
+        item = IntentItem(
+            priority=PRIORITY_INTERACTIVE,
+            seq=0,
+            intent="processing_lag",
+            source="system",
+            max_attempts=2,
+        )
+        await orch._intent_queue.put(item)
+
+        async def _stop_after_retry() -> None:
+            await asyncio.sleep(1.0)
+            orch._running = False
+
+        await asyncio.gather(orch._intent_dispatcher(), _stop_after_retry())
+
+        assert call_count["n"] >= 2
 
 
 # ── TC-PRIO-05: _reply_to flag management ────────────────────────────────────
@@ -233,6 +265,42 @@ class TestReplyToIsReplyingFlag:
 
         assert not orch._is_replying, "_is_replying must be False after _reply_to"
 
+    @pytest.mark.asyncio
+    async def test_reply_to_injects_sanitized_from_label(self):
+        """TC-NAME-01: LLM input includes sanitized [FROM] label."""
+        from orchestrator.chat_poller import ChatMessage
+        from orchestrator.llm_client import LLMResult
+
+        orch = _make_orch()
+        seen_inputs: list[str] = []
+
+        async def _stub_stream(text, *, avoidance_hint=None):
+            seen_inputs.append(text)
+            yield LLMResult(text="了解です", is_template=False)
+
+        async def _stub_speak(text, msg, *, is_safety_template=False):
+            pass
+
+        orch._speak = _stub_speak  # type: ignore[assignment]
+
+        msg = ChatMessage(
+            message_id="m-name",
+            text="こんにちは",
+            author_display_name="<script>太郎</script>",
+            author_channel_id="UC_name",
+            published_at="2025-01-01T00:00:00Z",
+        )
+
+        with (
+            patch.object(orch._llm, "generate_reply_stream", new=_stub_stream),
+            patch.object(orch._avatar, "send_event", new_callable=AsyncMock),
+            patch.object(orch._avatar, "send_update", new_callable=AsyncMock),
+        ):
+            await orch._reply_to(msg)
+
+        assert seen_inputs
+        assert "[FROM] script太郎script" in seen_inputs[0]
+
 
 # ── TC-PRIO-06: _idle_talk_loop gate ─────────────────────────────────────────
 
@@ -255,6 +323,7 @@ class TestIdleTalkLoopPriorityGate:
             nonlocal llm_called
             llm_called = True
             from orchestrator.llm_client import LLMResult
+
             return LLMResult(text="x", is_template=False)
 
         orch._llm.generate_idle_talk = _stub_idle  # type: ignore[assignment]
@@ -302,6 +371,7 @@ class TestIdleTalkLoopPriorityGate:
             nonlocal llm_called
             llm_called = True
             from orchestrator.llm_client import LLMResult
+
             return LLMResult(text="x", is_template=False)
 
         orch._llm.generate_idle_talk = _stub_idle  # type: ignore[assignment]
@@ -321,3 +391,127 @@ class TestIdleTalkLoopPriorityGate:
             await orch._idle_talk_loop()
 
         assert not llm_called, "LLM must NOT be called when reply_queue is non-empty"
+
+
+class TestSuperchatPriorityPath:
+    """FR-SPCHA-01: superchat bypasses Bandit and queues dedicated intent."""
+
+    @pytest.mark.asyncio
+    async def test_superchat_bypasses_bandit_and_enqueues_intent(self):
+        from orchestrator.chat_poller import ChatMessage
+
+        orch = _make_orch()
+        orch._overlay.send_chat = AsyncMock()
+        orch._reply_to = AsyncMock()  # type: ignore[assignment]
+        orch._event_bus.emit_simple = MagicMock()
+        orch._life.observe_comment = MagicMock()
+        orch._life.observe_intellectual_topic = MagicMock()
+        orch._bandit.select_action = MagicMock()
+
+        msg = ChatMessage(
+            message_id="m-super",
+            text="いつも応援してます",
+            author_display_name="supporter",
+            author_channel_id="UC_supporter",
+            published_at="2025-01-01T00:00:00Z",
+            message_type="liveChatPaidMessageEvent",
+            amount_micros=5_000_000_000,
+            amount_display="¥5000",
+        )
+
+        with patch(
+            "orchestrator.main.check_safety",
+            return_value=FilterResult(verdict=SafetyVerdict.OK),
+        ):
+            await orch._process_message(msg)
+
+        orch._bandit.select_action.assert_not_called()
+        orch._reply_to.assert_called_once()
+
+        queued = orch._intent_queue.get_nowait()
+        assert queued.source == "superchat"
+        assert queued.intent == "read_superchat_large"
+
+    @pytest.mark.asyncio
+    async def test_membership_bypasses_bandit_and_enqueues_member_intent(self):
+        from orchestrator.chat_poller import ChatMessage
+
+        orch = _make_orch()
+        orch._overlay.send_chat = AsyncMock()
+        orch._reply_to = AsyncMock()  # type: ignore[assignment]
+        orch._event_bus.emit_simple = MagicMock()
+        orch._life.observe_comment = MagicMock()
+        orch._life.observe_intellectual_topic = MagicMock()
+        orch._bandit.select_action = MagicMock()
+
+        msg = ChatMessage(
+            message_id="m-member",
+            text="メンバー入りました",
+            author_display_name="member01",
+            author_channel_id="UC_member",
+            published_at="2025-01-01T00:00:00Z",
+            message_type="liveChatMembershipItemEvent",
+        )
+
+        with patch(
+            "orchestrator.main.check_safety",
+            return_value=FilterResult(verdict=SafetyVerdict.OK),
+        ):
+            await orch._process_message(msg)
+
+        orch._bandit.select_action.assert_not_called()
+        orch._reply_to.assert_called_once()
+
+        queued = orch._intent_queue.get_nowait()
+        assert queued.source == "membership"
+        assert queued.intent == "welcome_member"
+
+
+class TestViewerFamiliarityReactions:
+    """FR-E3-01: newcomer/regular intent reactions from familiarity."""
+
+    @pytest.mark.asyncio
+    async def test_newcomer_welcome_is_queued_once_per_author(self):
+        from orchestrator.chat_poller import ChatMessage
+
+        orch = _make_orch()
+        orch._overlay.send_chat = AsyncMock()
+        orch._event_bus.emit_simple = MagicMock()
+        orch._life.observe_comment = MagicMock()
+        orch._life.observe_intellectual_topic = MagicMock()
+        orch._reply_to = AsyncMock()  # type: ignore[assignment]
+
+        decision = type("Decision", (), {"action": "ignore"})()
+        orch._bandit.select_action = MagicMock(return_value=decision)
+
+        msg = ChatMessage(
+            message_id="m-new-1",
+            text="はじめまして",
+            author_display_name="newviewer",
+            author_channel_id="UC_newviewer",
+            published_at="2025-01-01T00:00:00Z",
+            message_type="textMessageEvent",
+        )
+
+        with patch(
+            "orchestrator.main.check_safety",
+            return_value=FilterResult(verdict=SafetyVerdict.OK),
+        ):
+            await orch._process_message(msg)
+            await orch._process_message(
+                ChatMessage(
+                    message_id="m-new-2",
+                    text="またきたよ",
+                    author_display_name="newviewer",
+                    author_channel_id="UC_newviewer",
+                    published_at="2025-01-01T00:00:05Z",
+                    message_type="textMessageEvent",
+                )
+            )
+
+        queued_items: list[IntentItem] = []
+        while not orch._intent_queue.empty():
+            queued_items.append(orch._intent_queue.get_nowait())
+
+        newcomer_welcomes = [item for item in queued_items if item.intent == "welcome_newcomer"]
+        assert len(newcomer_welcomes) == 1

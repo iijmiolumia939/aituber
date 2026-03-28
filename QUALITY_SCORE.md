@@ -53,7 +53,7 @@
 | テスト戦略 (Python) | B | pytest 806件規模まで拡張済み。mock中心の統合が多く、実サービスe2eは限定的 |
 | テスト戦略 (C# Unity) | A | 61/61 テスト グリーン (EditMode 55 + PlayMode 6) |
 | CI/CD パイプライン | B | M13: ci.yml(Python ruff+black+pytest) + unity-ci.yml(game-ci EditMode/PlayMode) |
-| ドキュメント | B | 設計書あり。Harness Engineering 方式に刷新中 |
+| ドキュメント | B | 設計書あり。Harness review loop を追加したが、自動 multi-agent orchestration は未導入 |
 | セキュリティ | B | secrets 分離済み。GitHub Secret Scanning 有効 |
 
 ---

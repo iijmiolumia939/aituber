@@ -1,0 +1,92 @@
+[
+  {
+    "file_path": "AGENTS.md",
+    "doc_id": "aituber-agents-entrypoint",
+    "title": "AITuber repository entrypoint",
+    "kind": "guideline",
+    "edge_hints": [
+      {
+        "source_type": "path",
+        "source_value": "AGENTS.md",
+        "edge_type": "path_requires"
+      }
+    ],
+    "tags": ["entrypoint", "repo", "workflow"]
+  },
+  {
+    "file_path": ".github/copilot-instructions.md",
+    "doc_id": "aituber-copilot-instructions",
+    "title": "Copilot workspace instructions",
+    "kind": "constraint",
+    "edge_hints": [
+      {
+        "source_type": "path",
+        "source_value": ".github/copilot-instructions.md",
+        "edge_type": "path_requires"
+      },
+      {
+        "source_type": "path",
+        "source_value": "scripts/**",
+        "edge_type": "path_requires"
+      }
+    ],
+    "tags": ["copilot", "instructions", "harness"]
+  },
+  {
+    "file_path": "AITuber/.github/copilot-review-workflow.md",
+    "doc_id": "aituber-review-workflow",
+    "title": "Copilot review workflow",
+    "kind": "guideline",
+    "edge_hints": [
+      {
+        "source_type": "path",
+        "source_value": "AITuber/.github/copilot-review-workflow.md",
+        "edge_type": "path_requires"
+      },
+      {
+        "source_type": "path",
+        "source_value": "scripts/copilot*.ps1",
+        "edge_type": "path_requires"
+      }
+    ],
+    "tags": ["review", "quality-gate", "workflow"]
+  },
+  {
+    "file_path": "ARCHITECTURE.md",
+    "doc_id": "aituber-architecture",
+    "title": "AITuber architecture",
+    "kind": "reference",
+    "edge_hints": [
+      {
+        "source_type": "path",
+        "source_value": "AITuber/Assets/Scripts/**",
+        "edge_type": "path_requires"
+      },
+      {
+        "source_type": "path",
+        "source_value": "AITuber/orchestrator/**",
+        "edge_type": "path_requires"
+      }
+    ],
+    "tags": ["architecture", "domain-boundary", "dependency"]
+  },
+  {
+    "file_path": "QUALITY_SCORE.md",
+    "doc_id": "aituber-quality-score",
+    "title": "Quality score and known gaps",
+    "kind": "reference",
+    "edge_hints": [
+      {
+        "source_type": "path",
+        "source_value": "QUALITY_SCORE.md",
+        "edge_type": "path_requires"
+      },
+      {
+        "source_type": "path",
+        "source_value": "AITuber/docs/**",
+        "edge_type": "path_requires"
+      }
+    ],
+    "tags": ["quality", "risk", "tracking"]
+  }
+]

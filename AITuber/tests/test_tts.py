@@ -250,11 +250,11 @@ class TestEstimateVisemesFromText:
 
 # ── Helpers for VoicevoxBackend mock ────────────────────────────────
 
+
 def _make_query_json(vowels: list[str]) -> dict:
     """accent_phrases を持つ minimal audio_query JSON を作る。"""
     moras = [
-        {"consonant": "", "consonant_length": 0.0, "vowel": v, "vowel_length": 0.1}
-        for v in vowels
+        {"consonant": "", "consonant_length": 0.0, "vowel": v, "vowel_length": 0.1} for v in vowels
     ]
     return {"accent_phrases": [{"moras": moras}]}
 
@@ -355,8 +355,10 @@ class TestExtractVisemes:
                 {
                     "moras": [
                         {
-                            "consonant": "f", "consonant_length": 0.05,
-                            "vowel": "u", "vowel_length": 0.1,
+                            "consonant": "f",
+                            "consonant_length": 0.05,
+                            "vowel": "u",
+                            "vowel_length": 0.1,
                         }
                     ]
                 }
@@ -384,8 +386,12 @@ class TestExtractVisemes:
                 {
                     "pause_mora": {"vowel_length": 0.3},
                     "moras": [
-                        {"consonant": "", "consonant_length": 0.0,
-                         "vowel": "a", "vowel_length": 0.1},
+                        {
+                            "consonant": "",
+                            "consonant_length": 0.0,
+                            "vowel": "a",
+                            "vowel_length": 0.1,
+                        },
                     ],
                 }
             ]
@@ -403,16 +409,24 @@ class TestExtractVisemes:
             "accent_phrases": [
                 {
                     "moras": [
-                        {"consonant": "", "consonant_length": 0.0,
-                         "vowel": "a", "vowel_length": 0.1},
-                        {"consonant": "", "consonant_length": 0.0,
-                         "vowel": "i", "vowel_length": 0.2},
+                        {
+                            "consonant": "",
+                            "consonant_length": 0.0,
+                            "vowel": "a",
+                            "vowel_length": 0.1,
+                        },
+                        {
+                            "consonant": "",
+                            "consonant_length": 0.0,
+                            "vowel": "i",
+                            "vowel_length": 0.2,
+                        },
                     ]
                 }
             ]
         }
         events = extract_visemes(q)
-        assert events[0].t_ms == 0    # 'a' starts at 0
+        assert events[0].t_ms == 0  # 'a' starts at 0
         assert events[1].t_ms == 100  # 'i' starts after 0.1 s
         assert events[-1].t_ms == 300  # sil at 0.1 + 0.2 = 0.3 s
 

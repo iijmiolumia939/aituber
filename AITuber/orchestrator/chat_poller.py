@@ -41,6 +41,9 @@ class ChatMessage:
     text: str
     published_at: str  # ISO‑8601
     received_at: float = field(default_factory=time.monotonic)
+    message_type: str = "textMessageEvent"
+    amount_micros: int = 0
+    amount_display: str = ""
 
 
 # ── Seen‑set with TTL + capacity (FR-A3-02) ──────────────────────────
@@ -174,6 +177,18 @@ def _build_youtube_service(credentials_file: str | Path) -> object:
         scopes=token_data.get("scopes"),
     )
     return _build("youtube", "v3", credentials=creds, cache_discovery=False)
+
+
+def build_youtube_service_with_api_key(api_key: str) -> object:
+    """Build a googleapiclient YouTube v3 service from an API key."""
+    from googleapiclient.discovery import build as _build  # type: ignore[import-untyped]
+
+    return _build(
+        "youtube",
+        "v3",
+        developerKey=api_key,
+        cache_discovery=False,
+    )
 
 
 async def fetch_active_live_chat_id(
@@ -358,6 +373,13 @@ class YouTubeChatPoller:
             msg_id = item.get("id", "")
             snippet = item.get("snippet", {})
             author = item.get("authorDetails", {})
+            message_type = str(snippet.get("type", "textMessageEvent"))
+            paid = snippet.get("superChatDetails", {})
+            try:
+                amount_micros = int(paid.get("amountMicros", 0) or 0)
+            except (TypeError, ValueError):
+                amount_micros = 0
+            amount_display = str(paid.get("amountDisplayString", "") or "")
             if not self._seen.add(msg_id, now):
                 continue  # duplicate
             msg = ChatMessage(
@@ -367,6 +389,9 @@ class YouTubeChatPoller:
                 text=snippet.get("displayMessage", ""),
                 published_at=snippet.get("publishedAt", ""),
                 received_at=now,
+                message_type=message_type,
+                amount_micros=amount_micros,
+                amount_display=amount_display,
             )
             new_messages.append(msg)
             self._rate.record(now)

@@ -119,7 +119,8 @@ class TestAvatarWSServer:
         import websockets
 
         cfg = AvatarWSConfig(host="127.0.0.1", port=39108)
-        sender = AvatarWSSender(cfg)
+        with patch.dict("os.environ", {"USE_MSGPACK": "0"}):
+            sender = AvatarWSSender(cfg)
         await sender.start_server()
 
         ws = await websockets.connect("ws://127.0.0.1:39108")
@@ -154,7 +155,8 @@ class TestAvatarWSServer:
         import websockets
 
         cfg = AvatarWSConfig(host="127.0.0.1", port=39110)
-        sender = AvatarWSSender(cfg)
+        with patch.dict("os.environ", {"USE_MSGPACK": "0"}):
+            sender = AvatarWSSender(cfg)
         await sender.start_server()
 
         ws = await websockets.connect("ws://127.0.0.1:39110")
@@ -184,7 +186,8 @@ class TestAvatarWSServer:
         import websockets
 
         cfg = AvatarWSConfig(host="127.0.0.1", port=39111)
-        sender = AvatarWSSender(cfg)
+        with patch.dict("os.environ", {"USE_MSGPACK": "0"}):
+            sender = AvatarWSSender(cfg)
         await sender.start_server()
 
         ws = await websockets.connect("ws://127.0.0.1:39111")
@@ -212,7 +215,8 @@ class TestAvatarWSServer:
         import websockets
 
         cfg = AvatarWSConfig(host="127.0.0.1", port=39112)
-        sender = AvatarWSSender(cfg)
+        with patch.dict("os.environ", {"USE_MSGPACK": "0"}):
+            sender = AvatarWSSender(cfg)
         await sender.start_server()
 
         ws = await websockets.connect("ws://127.0.0.1:39112")
@@ -259,7 +263,7 @@ class TestAudioPlayer:
         played_arrays = []
 
         class MockSD:
-            def play(self, data, samplerate=24000, blocking=False):  # noqa: ARG002
+            def play(self, data, samplerate=24000, device=None, blocking=False):  # noqa: ARG002
                 played_arrays.append(data.copy())
 
         q: asyncio.Queue = asyncio.Queue()

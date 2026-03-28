@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 import numpy as np
 
@@ -37,6 +38,7 @@ async def play_audio_chunks(
     *,
     sample_rate: int = 24000,
     channels: int = 1,
+    output_device: str | int | None = None,
     blocksize: int = 1024,  # kept for API compat; unused with sd.play()
 ) -> None:
     """Play PCM int16 chunks from *audio_queue* through local speakers.
@@ -65,6 +67,14 @@ async def play_audio_chunks(
         return  # sounddevice not available; chunks already drained above
 
     all_pcm = np.concatenate(chunks).reshape(-1, channels)
+    device: Any = output_device
+    if isinstance(device, str):
+        device = device.strip()
+        if not device:
+            device = None
+        elif device.isdigit():
+            device = int(device)
+
     loop = asyncio.get_running_loop()
     try:
         # sd.play(blocking=True) plays the entire buffer and only returns
@@ -72,7 +82,12 @@ async def play_audio_chunks(
         # cutoff from manual stream.stop().
         await loop.run_in_executor(
             None,
-            lambda: sd.play(all_pcm, samplerate=sample_rate, blocking=True),
+            lambda: sd.play(
+                all_pcm,
+                samplerate=sample_rate,
+                device=device,
+                blocking=True,
+            ),
         )
     except Exception:
         logger.warning("Audio playback error", exc_info=True)

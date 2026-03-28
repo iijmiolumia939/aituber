@@ -90,6 +90,13 @@ class TTSConfig:
     aivisspeech_speaker_id: int = field(
         default_factory=lambda: int(os.environ.get("AIVISSPEECH_SPEAKER_ID", "888753760"))
     )
+    # Optional sounddevice output target. Examples:
+    #   AUDIO_OUTPUT_DEVICE=3
+    #   AUDIO_OUTPUT_DEVICE=VB-Audio Virtual Cable
+    # Empty means system default output device.
+    audio_output_device: str = field(
+        default_factory=lambda: os.environ.get("AUDIO_OUTPUT_DEVICE", "")
+    )
 
 
 @dataclass(frozen=True)
@@ -166,6 +173,40 @@ class GameBridgeConfig:
         default_factory=lambda: os.environ.get("GAME_REFLEX_ENABLED", "1") == "1"
     )
     reconnect_interval_sec: float = 5.0
+    # FR-LAYOUT-03: Optional game auto-launch from Orchestrator.
+    auto_launch_game: bool = field(
+        default_factory=lambda: os.environ.get("GAME_AUTO_LAUNCH", "0") == "1"
+    )
+    # Launch command example (Windows):
+    #   GAME_LAUNCH_COMMAND="start \"\" \"C:\\Path\\To\\Game.exe\""
+    game_launch_command: str = field(
+        default_factory=lambda: os.environ.get("GAME_LAUNCH_COMMAND", "")
+    )
+    # FR-LAYOUT-04: OBS GameCapture input auto-configuration on GAME scene enter.
+    game_capture_source_name: str = field(
+        default_factory=lambda: os.environ.get("GAME_CAPTURE_SOURCE_NAME", "GameCapture")
+    )
+    # OBS window selector string. Example:
+    #   GAME_CAPTURE_WINDOW="Minecraft*:GLFW30:javaw.exe"
+    # If empty, Orchestrator keeps existing OBS input setting unchanged.
+    game_capture_window: str = field(
+        default_factory=lambda: os.environ.get("GAME_CAPTURE_WINDOW", "")
+    )
+    # FR-LAYOUT-05: auto-relaunch game process when disconnected + exited.
+    relaunch_on_disconnect: bool = field(
+        default_factory=lambda: os.environ.get("GAME_RELAUNCH_ON_DISCONNECT", "1") == "1"
+    )
+    relaunch_cooldown_sec: float = field(
+        default_factory=lambda: float(os.environ.get("GAME_RELAUNCH_COOLDOWN_SEC", "20"))
+    )
+    # FR-LAYOUT-06: hide gameplay after grace period if bridge is down.
+    disconnect_grace_sec: float = field(
+        default_factory=lambda: float(os.environ.get("GAME_DISCONNECT_GRACE_SEC", "5"))
+    )
+    # opening | chat | ending
+    disconnect_hide_scene: str = field(
+        default_factory=lambda: os.environ.get("GAME_DISCONNECT_HIDE_SCENE", "opening")
+    )
 
 
 @dataclass(frozen=True)

@@ -48,6 +48,7 @@ _QUAT_BUF_T = ctypes.c_float * (BONE_COUNT * 4)
 
 # ── DLL path resolution ──────────────────────────────────────────────────────
 
+
 def _default_dll_path() -> str:
     """Return the A2GPlugin.dll path relative to the Assets folder."""
     here = Path(__file__).resolve()
@@ -57,6 +58,7 @@ def _default_dll_path() -> str:
 
 
 # ── ctypes bindings ──────────────────────────────────────────────────────────
+
 
 class A2GPlugin:
     """Thin ctypes wrapper around A2GPlugin.dll."""
@@ -73,9 +75,9 @@ class A2GPlugin:
         d.A2GPlugin_Create.restype = ctypes.c_void_p
         d.A2GPlugin_Create.argtypes = [
             ctypes.c_char_p,  # model_json_path (nullable)
-            ctypes.c_int,     # use_gpu
-            ctypes.c_int,     # frame_rate_num
-            ctypes.c_int,     # frame_rate_den
+            ctypes.c_int,  # use_gpu
+            ctypes.c_int,  # frame_rate_num
+            ctypes.c_int,  # frame_rate_den
         ]
 
         d.A2GPlugin_Destroy.restype = None
@@ -185,6 +187,7 @@ class A2GPlugin:
 
 # ── Connection handler ────────────────────────────────────────────────────────
 
+
 def _handle_client(
     conn: socket.socket, plugin: A2GPlugin, shutdown_event: threading.Event
 ) -> None:
@@ -226,6 +229,7 @@ def _handle_client(
                     conn.sendall(b"B" + payload)
                     # Log first non-identity frame
                     import struct as _s
+
                     q = _s.unpack_from("<4f", payload, 0)
                     print(f"[A2GWorker] Frame ready! Spine quat={q}", flush=True)
                 else:
@@ -258,6 +262,7 @@ def _recv_exact(conn: socket.socket, n: int) -> bytes | None:
 
 
 # ── Server main loop ──────────────────────────────────────────────────────────
+
 
 def serve(dll_path: str, port: int, model_path: str | None = None) -> None:
     print(f"[A2GWorker] Loading {dll_path} ...", flush=True)
@@ -301,6 +306,7 @@ def serve(dll_path: str, port: int, model_path: str | None = None) -> None:
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="NVIDIA Audio2Gesture out-of-process worker")

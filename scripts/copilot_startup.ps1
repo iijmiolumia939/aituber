@@ -23,6 +23,9 @@ try {
 
     Write-Host ""
     Write-Host "Recommended next commands:" -ForegroundColor Yellow
+    Write-Host "  Task: Harness: Review Packet"
+    Write-Host "  Task: Harness: Pre-commit Gate"
+    Write-Host "  Task: Harness: Check Unity Validation Status"
     Write-Host "  Task: Harness: Quality Gate (changed files)"
     Write-Host "  Task: Harness: Install Git Hooks"
     Write-Host ""

@@ -1,0 +1,232 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>Ending 窶・YUI.A</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* FR-LAYOUT-01 窶・Ending loop overlay, WS port 31902 */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --c-purple: #7c3aed;
+    --c-pink:   #db2777;
+    --c-dark:   #11111b;
+    --transition-ms: 800;
+  }
+
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    background: var(--c-dark);
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #cdd6f4;
+  }
+
+  /* Fading grid background */
+  .grid-bg {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(219,39,119,.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(219,39,119,.08) 1px, transparent 1px);
+    background-size: 100px 100px;
+    animation: grid-fade 10s ease-in-out infinite alternate;
+  }
+  @keyframes grid-fade {
+    from { opacity: .5; background-size: 100px 100px; }
+    to   { opacity: 1;  background-size: 120px 120px; }
+  }
+
+  /* Scanlines */
+  .scanlines {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent, transparent 3px,
+      rgba(0,0,0,.15) 3px, rgba(0,0,0,.15) 4px
+    );
+    pointer-events: none;
+  }
+
+  /* Soft radial glow 窶・pink toned */
+  .glow-orb {
+    position: absolute;
+    width: 1000px; height: 1000px;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(219,39,119,.18) 0%, transparent 68%);
+    animation: orb-breathe 5s ease-in-out infinite;
+  }
+  @keyframes orb-breathe {
+    0%,100% { transform: translate(-50%,-50%) scale(.95); opacity: .6; }
+    50%      { transform: translate(-50%,-50%) scale(1.05); opacity: 1; }
+  }
+
+  /* Logo */
+  .content {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 32px;
+    z-index: 10;
+  }
+
+  .logo-small {
+    font-size: 52px;
+    font-weight: 700;
+    letter-spacing: .2em;
+    background: linear-gradient(135deg, var(--c-purple), var(--c-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    opacity: .8;
+  }
+
+  /* Main thank-you message */
+  .main-text {
+    font-size: 72px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-align: center;
+    background: linear-gradient(135deg, #cdd6f4, var(--c-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: text-float 4s ease-in-out infinite;
+  }
+  @keyframes text-float {
+    0%,100% { transform: translateY(0); }
+    50%      { transform: translateY(-10px); }
+  }
+
+  /* Sub-message */
+  .sub-text {
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: .25em;
+    color: rgba(205,214,244,.55);
+    animation: sub-fade 5s ease-in-out infinite;
+  }
+  @keyframes sub-fade {
+    0%,100% { opacity: .4; }
+    50%      { opacity: .85; }
+  }
+
+  /* Separator */
+  .sep {
+    width: 600px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--c-pink), var(--c-purple), transparent);
+    animation: sep-glow 4s ease-in-out infinite;
+  }
+  @keyframes sep-glow {
+    0%,100% { opacity: .4; }
+    50%      { opacity: 1;  box-shadow: 0 0 20px var(--c-pink); }
+  }
+
+  /* Floating stars */
+  .stars { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .star {
+    position: absolute;
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: #cdd6f4;
+    opacity: 0;
+    animation: twinkle 6s ease-in-out infinite;
+  }
+  .star:nth-child(odd) { background: var(--c-pink); }
+
+  /* Positions + delays for 24 stars */
+  .star:nth-child(1)  { left:  3%; top: 15%; animation-delay: 0.0s; }
+  .star:nth-child(2)  { left: 10%; top: 70%; animation-delay: 1.5s; }
+  .star:nth-child(3)  { left: 17%; top: 35%; animation-delay: 0.7s; }
+  .star:nth-child(4)  { left: 25%; top: 85%; animation-delay: 2.1s; }
+  .star:nth-child(5)  { left: 32%; top: 20%; animation-delay: 0.3s; }
+  .star:nth-child(6)  { left: 40%; top: 60%; animation-delay: 1.9s; }
+  .star:nth-child(7)  { left: 48%; top: 10%; animation-delay: 0.9s; }
+  .star:nth-child(8)  { left: 55%; top: 75%; animation-delay: 2.4s; }
+  .star:nth-child(9)  { left: 63%; top: 30%; animation-delay: 0.5s; }
+  .star:nth-child(10) { left: 70%; top: 88%; animation-delay: 1.2s; }
+  .star:nth-child(11) { left: 78%; top: 45%; animation-delay: 0.1s; }
+  .star:nth-child(12) { left: 86%; top: 18%; animation-delay: 2.8s; }
+  .star:nth-child(13) { left: 93%; top: 65%; animation-delay: 0.6s; }
+  .star:nth-child(14) { left:  7%; top: 50%; animation-delay: 1.7s; }
+  .star:nth-child(15) { left: 22%; top:  5%; animation-delay: 3.1s; }
+  .star:nth-child(16) { left: 37%; top: 95%; animation-delay: 0.8s; }
+  .star:nth-child(17) { left: 52%; top: 42%; animation-delay: 2.0s; }
+  .star:nth-child(18) { left: 66%; top: 12%; animation-delay: 0.4s; }
+  .star:nth-child(19) { left: 81%; top: 78%; animation-delay: 1.3s; }
+  .star:nth-child(20) { left: 95%; top: 38%; animation-delay: 2.6s; }
+  .star:nth-child(21) { left: 14%; top: 92%; animation-delay: 0.2s; }
+  .star:nth-child(22) { left: 44%; top: 28%; animation-delay: 1.8s; }
+  .star:nth-child(23) { left: 73%; top:  8%; animation-delay: 3.3s; }
+  .star:nth-child(24) { left: 89%; top: 55%; animation-delay: 0.0s; }
+
+  @keyframes twinkle {
+    0%,100% { transform: scale(.5); opacity: 0; }
+    50%      { transform: scale(1.8); opacity: .9; }
+  }
+
+  /* Root visibility */
+  #root {
+    position: absolute; inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity calc(var(--transition-ms) * 1ms) ease;
+  }
+  #root.visible { opacity: 1; pointer-events: auto; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="grid-bg"></div>
+  <div class="scanlines"></div>
+  <div class="glow-orb"></div>
+  <div class="stars" id="stars"></div>
+
+  <div class="content">
+    <div class="logo-small">YUI.A</div>
+    <div class="sep"></div>
+    <div class="main-text">ご視聴ありがとうございました</div>
+    <div class="sub-text">また次の観測でお会いしましょう</div>
+  </div>
+</div>
+
+<script>
+  // Spawn star elements
+  const sc = document.getElementById('stars');
+  for (let i = 0; i < 24; i++) {
+    const el = document.createElement('div');
+    el.className = 'star';
+    sc.appendChild(el);
+  }
+
+  // WebSocket 窶・FR-LAYOUT-01
+  const WS_PORT = 31902;
+  let ws, retryDelay = 1000;
+
+  function connect() {
+    ws = new WebSocket(`ws://127.0.0.1:${WS_PORT}`);
+    ws.onopen  = () => { retryDelay = 1000; };
+    ws.onclose = () => setTimeout(connect, retryDelay = Math.min(retryDelay * 1.5, 10000));
+    ws.onerror = () => ws.close();
+    ws.onmessage = ({ data }) => {
+      let msg;
+      try { msg = JSON.parse(data); } catch { return; }
+
+      if (msg.type === 'scene') {
+        const root = document.getElementById('root');
+        if (msg.scene === 'ending') {
+          root.classList.add('visible');
+        } else {
+          root.classList.remove('visible');
+        }
+      }
+    };
+  }
+  connect();
+</script>
+</body>
+</html>
+

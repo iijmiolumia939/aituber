@@ -20,12 +20,19 @@
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Windows cp932 環境でも Unicode が出力できるよう stdout/stderr を utf-8 に統一
+if hasattr(sys.stdout, "buffer"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "buffer"):
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from dotenv import load_dotenv, set_key
 from googleapiclient.discovery import build
@@ -53,25 +60,29 @@ def create_broadcast(youtube, title: str | None = None) -> dict:
     now = datetime.now(timezone.utc).isoformat()
 
     # 配信枠を作成
-    broadcast = youtube.liveBroadcasts().insert(
-        part="snippet,status,contentDetails",
-        body={
-            "snippet": {
-                "title": title,
-                "scheduledStartTime": now,
-                "description": "人間を観測しているAI「YUI.A」のライブ配信です。",
+    broadcast = (
+        youtube.liveBroadcasts()
+        .insert(
+            part="snippet,status,contentDetails",
+            body={
+                "snippet": {
+                    "title": title,
+                    "scheduledStartTime": now,
+                    "description": "人間を観測しているAI「YUI.A」のライブ配信です。",
+                },
+                "status": {
+                    "privacyStatus": "unlisted",  # 限定公開
+                    "selfDeclaredMadeForKids": False,
+                },
+                "contentDetails": {
+                    "enableAutoStart": True,  # 映像が届いたら自動で配信開始
+                    "enableAutoStop": True,
+                    "enableLiveChatReplay": True,
+                },
             },
-            "status": {
-                "privacyStatus": "unlisted",  # 限定公開
-                "selfDeclaredMadeForKids": False,
-            },
-            "contentDetails": {
-                "enableAutoStart": True,  # 映像が届いたら自動で配信開始
-                "enableAutoStop": True,
-                "enableLiveChatReplay": True,
-            },
-        },
-    ).execute()
+        )
+        .execute()
+    )
 
     video_id = broadcast["id"]
     chat_id = broadcast["snippet"].get("liveChatId", "")
@@ -91,22 +102,30 @@ def create_broadcast(youtube, title: str | None = None) -> dict:
 
 def find_active_broadcast(youtube) -> dict | None:
     """自分のアクティブな配信を検索。"""
-    response = youtube.liveBroadcasts().list(
-        part="snippet,status",
-        broadcastStatus="active",
-        mine=True,
-        maxResults=5,
-    ).execute()
+    response = (
+        youtube.liveBroadcasts()
+        .list(
+            part="snippet,status",
+            broadcastStatus="active",
+            mine=True,
+            maxResults=5,
+        )
+        .execute()
+    )
 
     items = response.get("items", [])
     if not items:
         # upcoming もチェック
-        response = youtube.liveBroadcasts().list(
-            part="snippet,status",
-            broadcastStatus="upcoming",
-            mine=True,
-            maxResults=5,
-        ).execute()
+        response = (
+            youtube.liveBroadcasts()
+            .list(
+                part="snippet,status",
+                broadcastStatus="upcoming",
+                mine=True,
+                maxResults=5,
+            )
+            .execute()
+        )
         items = response.get("items", [])
 
     if not items:
@@ -129,10 +148,14 @@ def find_active_broadcast(youtube) -> dict | None:
 
 def _get_chat_id_from_video(youtube, video_id: str) -> str:
     """Video ID から liveChatId を取得。"""
-    response = youtube.videos().list(
-        part="liveStreamingDetails",
-        id=video_id,
-    ).execute()
+    response = (
+        youtube.videos()
+        .list(
+            part="liveStreamingDetails",
+            id=video_id,
+        )
+        .execute()
+    )
 
     items = response.get("items", [])
     if items:
@@ -210,7 +233,8 @@ def main() -> None:
         help="配信タイトル（新規作成時）",
     )
     parser.add_argument(
-        "--character", "-c",
+        "--character",
+        "-c",
         type=str,
         default="yuia",
         help="キャラクター名 (default: yuia)",

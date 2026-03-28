@@ -10,9 +10,11 @@ import asyncio
 import contextlib
 import dataclasses
 import logging
+import os
 import random
 import re
 import time
+from pathlib import Path
 
 from orchestrator.audio2emotion import A2EInferer
 from orchestrator.audio_player import play_audio_chunks
@@ -24,6 +26,8 @@ from orchestrator.avatar_ws import (
     LookTarget,
 )
 from orchestrator.bandit import BanditContext, ContextualBandit
+from orchestrator.bgm_manager import BGMManager
+from orchestrator.broadcast_layout import BroadcastLayoutManager
 from orchestrator.character import load_character
 from orchestrator.chat_poller import ChatMessage, YouTubeChatPoller, fetch_active_live_chat_id
 from orchestrator.config import AppConfig, TTSConfig, load_config
@@ -33,7 +37,7 @@ from orchestrator.emotion_gesture_selector import (
 )
 from orchestrator.episodic_store import EpisodicStore
 from orchestrator.event_bus import EventType, get_event_bus
-from orchestrator.game_loop import GameLoop
+from orchestrator.game_loop import GameLoop, GameLoopEvent
 from orchestrator.gap_trigger import GapTrigger
 from orchestrator.gesture_composer import GestureComposer
 from orchestrator.goal_memory import GoalMemory
@@ -48,6 +52,7 @@ from orchestrator.semantic_memory import SemanticMemory, extract_topics
 from orchestrator.summarizer import build_summary_prompt, cluster_messages, summarize_for_display
 from orchestrator.tom_estimator import TomEstimator
 from orchestrator.tts import TTSClient, TTSResult
+from orchestrator.viewer_count_monitor import ViewerCountMonitor
 from orchestrator.world_context import WorldContext
 
 logger = logging.getLogger(__name__)
@@ -56,6 +61,8 @@ logger = logging.getLogger(__name__)
 PRIORITY_INTERACTIVE = 0  # _queue_consumer — runs directly, not queued
 PRIORITY_LIFE = 1  # _life_loop
 PRIORITY_IDLE = 2  # _idle_talk_loop (unused as queue; only flag-gated)
+
+_SUPERCHAT_INTENT_THRESHOLD_MICROS = 5_000 * 1_000_000
 
 
 @dataclasses.dataclass(order=True)
@@ -67,6 +74,8 @@ class IntentItem:
     intent: str = dataclasses.field(compare=False)
     source: str = dataclasses.field(compare=False)
     room_id: str | None = dataclasses.field(compare=False, default=None)
+    attempts: int = dataclasses.field(compare=False, default=0)
+    max_attempts: int = dataclasses.field(compare=False, default=2)
 
 
 # Note: _ACTIVITY_TO_BEHAVIOR removed (Issue #44).
@@ -102,6 +111,15 @@ _INTELLECTUAL_KEYWORDS: frozenset[str] = frozenset(
 )
 
 
+def sanitize_display_name(name: str, max_len: int = 20) -> str:
+    """Return a short, prompt-safe display name."""
+    safe = re.sub(r"[^\w\s\-ぁ-んァ-ン一-龥ー]", "", name or "", flags=re.UNICODE)
+    safe = safe.strip()
+    if not safe:
+        return "視聴者"
+    return safe[:max_len]
+
+
 class Orchestrator:
     """Top-level pipeline that runs the AITuber stream loop."""
 
@@ -132,18 +150,34 @@ class Orchestrator:
                 chunk_samples=self._cfg.tts.chunk_samples,
                 sbv2_model_id=voice.sbv2_model_id,
                 sbv2_style=voice.sbv2_style,
+                aivisspeech_url=self._cfg.tts.aivisspeech_url,
+                aivisspeech_speaker_id=self._cfg.tts.aivisspeech_speaker_id,
+                audio_output_device=self._cfg.tts.audio_output_device,
             ),
             avatar_ws=self._cfg.avatar_ws,
             safety=self._cfg.safety,
             seen_set=self._cfg.seen_set,
             bandit=self._cfg.bandit,
+            game_bridge=self._cfg.game_bridge,
         )
 
-        self._poller = YouTubeChatPoller(self._cfg.youtube, self._cfg.seen_set)
+        self._youtube_client = None
+        self._poller = YouTubeChatPoller(
+            self._cfg.youtube,
+            self._cfg.seen_set,
+            api_client_factory=self._build_youtube_api_client,
+        )
         self._bandit = ContextualBandit(self._cfg.bandit)
         self._llm = LLMClient(self._cfg.llm, character=self._character)
         self._avatar = AvatarWSSender(self._cfg.avatar_ws)
         self._overlay = OverlayServer()
+        self._layout = BroadcastLayoutManager(
+            send_scene_fn=self._overlay.send_scene,
+            send_layout_fn=self._overlay.send_layout,
+            send_transition_fn=self._overlay.send_transition,
+            obs_switch_fn=self._switch_obs_scene,
+        )
+        self._bgm = BGMManager()
         self._tts = TTSClient(self._cfg.tts)
         self._idle_topics = self._character.idle_topics
         self._last_reply_time: float = 0.0
@@ -182,6 +216,47 @@ class Orchestrator:
         self._is_replying: bool = False
         self._intent_queue: asyncio.PriorityQueue[IntentItem] = asyncio.PriorityQueue()
         self._intent_seq: int = 0
+        self._last_system_reaction_at: dict[str, float] = {}
+        self._stream_greeting_queued = False
+        self._welcomed_newcomers: set[str] = set()
+        self._last_regular_reaction_at: dict[str, float] = {}
+        self._viewer_count = ViewerCountMonitor(
+            fetch_count=self._fetch_concurrent_viewers,
+            on_milestone=self._on_viewer_milestone,
+        )
+        self._peak_viewers_this_session: int = 0
+
+    def _build_youtube_api_client(self) -> object | None:
+        """Build/caches YouTube Data API client for chat polling."""
+        if self._youtube_client is not None:
+            return self._youtube_client
+
+        token_path = Path(__file__).resolve().parent.parent / "config" / "youtube_token.json"
+        if token_path.exists():
+            try:
+                from orchestrator.chat_poller import _build_youtube_service
+
+                self._youtube_client = _build_youtube_service(token_path)
+                return self._youtube_client
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "OAuth YouTube client init failed; falling back to API key: %s",
+                    exc,
+                )
+
+        api_key = (self._cfg.youtube.api_key or "").strip()
+        if api_key:
+            try:
+                from orchestrator.chat_poller import build_youtube_service_with_api_key
+
+                self._youtube_client = build_youtube_service_with_api_key(
+                    api_key,
+                )
+                return self._youtube_client
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("API-key YouTube client init failed: %s", exc)
+
+        return None
 
     async def start(self) -> None:
         """Start the orchestrator pipeline."""
@@ -210,21 +285,33 @@ class Orchestrator:
             await self._avatar.start_server()
             # FR-E4-01: register perception_update handler
             self._avatar.register_incoming_handler("perception_update", self._on_perception_update)
-        except Exception:
-            logger.warning("Avatar WS server failed to start; continuing without avatar.")
+        except Exception as exc:
+            logger.warning(
+                "Avatar WS server failed to start; continuing without avatar. (%s)",
+                exc,
+            )
 
         # Start overlay WS server (OBS browser sources connect to us)
         try:
             await self._overlay.start()
             # Send initial config so browser sources know the character
-            await self._overlay.send_config(
-                character_name=self._character.name,
+            await self._publish_overlay_config()
+        except Exception as exc:
+            logger.warning(
+                "Overlay WS server failed to start; continuing without overlay. (%s)",
+                exc,
             )
-        except Exception:
-            logger.warning("Overlay WS server failed to start; continuing without overlay.")
 
         # LLM ウォームアップ (ローカル LLM の初回レイテンシ回避)
         await self._llm.warmup()
+
+        if not self._stream_greeting_queued:
+            await self._queue_priority_intent(
+                intent="stream_greeting",
+                source="system",
+                priority=PRIORITY_INTERACTIVE,
+            )
+            self._stream_greeting_queued = True
 
         # LIVE_CHAT_ID 自動取得 (FR-CHATID-AUTO-01)
         if not self._no_youtube and not self._cfg.youtube.live_chat_id:
@@ -245,6 +332,7 @@ class Orchestrator:
             self._queue_consumer(),
             self._idle_talk_loop(),
             self._life_loop(),
+            self._viewer_count_loop(),
             self._intent_dispatcher(),
             self._narrative_loop(),
             self._memory_monitor(),
@@ -255,8 +343,289 @@ class Orchestrator:
                 self._tts,
                 self._avatar,
                 character_name=self._character.name,
+                layout_manager=self._layout,
+                on_event=self._on_game_loop_event,
             ).run(),
         )
+
+    async def _on_game_loop_event(self, event: GameLoopEvent) -> None:
+        """Translate GameLoop lifecycle events into high-priority avatar intents.
+
+        FR-GAME-06: reactive avatar behaviour for connection/crash transitions.
+        """
+        intent_map: dict[GameLoopEvent, str] = {
+            GameLoopEvent.CONNECTED: "record_observation",
+            GameLoopEvent.DISCONNECTED: "processing_lag",
+            GameLoopEvent.RELAUNCH_STARTED: "processing_lag",
+            GameLoopEvent.RELAUNCH_FAILED: "acknowledge_anomaly",
+        }
+        cooldown_sec_map: dict[GameLoopEvent, float] = {
+            GameLoopEvent.CONNECTED: 3.0,
+            GameLoopEvent.DISCONNECTED: 5.0,
+            GameLoopEvent.RELAUNCH_STARTED: 10.0,
+            GameLoopEvent.RELAUNCH_FAILED: 10.0,
+        }
+
+        if event == GameLoopEvent.CONNECTED:
+            # Keep life loop paused while game streaming is active.
+            self._is_live = True
+        elif event == GameLoopEvent.DISCONNECTED:
+            self._is_live = False
+
+        intent = intent_map.get(event)
+        if not intent:
+            return
+
+        now = time.monotonic()
+        cooldown = cooldown_sec_map.get(event, 0.0)
+        last_at = self._last_system_reaction_at.get(intent, 0.0)
+        if cooldown > 0 and (now - last_at) < cooldown:
+            return
+
+        self._last_system_reaction_at[intent] = now
+        await self._queue_priority_intent(
+            intent=intent,
+            source="system",
+            priority=PRIORITY_INTERACTIVE,
+        )
+        logger.info("[SystemReaction] event=%s -> intent=%s", event, intent)
+
+    async def _queue_priority_intent(self, *, intent: str, source: str, priority: int) -> None:
+        """Queue a priority intent with monotonically increasing sequence number."""
+        self._intent_seq += 1
+        await self._intent_queue.put(
+            IntentItem(
+                priority=priority,
+                seq=self._intent_seq,
+                intent=intent,
+                source=source,
+            )
+        )
+
+    async def _fetch_concurrent_viewers(self) -> int | None:
+        """Fetch concurrent viewers from YouTube liveBroadcasts statistics."""
+        yt_client = self._build_youtube_api_client()
+        if yt_client is not None:
+            loop = asyncio.get_running_loop()
+
+            def _fetch_via_oauth() -> int | None:
+                # NOTE:
+                # liveBroadcasts.list does not allow `broadcastStatus` with `mine`.
+                # Fetch owned broadcasts first, then select the live one and query
+                # concurrent viewers from videos.liveStreamingDetails.
+                response = (
+                    yt_client.liveBroadcasts()
+                    .list(part="id,status", mine=True, maxResults=25)
+                    .execute()
+                )
+                items = response.get("items", []) or []
+                live_items = [
+                    item
+                    for item in items
+                    if item.get("status", {}).get("lifeCycleStatus") == "live"
+                ]
+                if not live_items:
+                    return None
+
+                broadcast_id = live_items[0].get("id", "")
+                if not broadcast_id:
+                    return None
+
+                stats_resp = (
+                    yt_client.liveBroadcasts().list(part="statistics", id=broadcast_id).execute()
+                )
+                stats_items = stats_resp.get("items", []) or []
+                if stats_items:
+                    stats_raw = stats_items[0].get("statistics", {}).get("concurrentViewers")
+                    if stats_raw is not None:
+                        stats_count = int(stats_raw)
+                        return max(1, stats_count)
+
+                video_resp = (
+                    yt_client.videos().list(part="liveStreamingDetails", id=broadcast_id).execute()
+                )
+                video_items = video_resp.get("items", []) or []
+                if not video_items:
+                    return 1
+                raw = video_items[0].get("liveStreamingDetails", {}).get("concurrentViewers")
+                if raw is None:
+                    return 1
+                return max(1, int(raw))
+
+            try:
+                return await loop.run_in_executor(None, _fetch_via_oauth)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("viewer count fetch via OAuth failed: %s", exc)
+
+        if not self._cfg.youtube.api_key or not self._cfg.youtube.channel_id:
+            return None
+
+        import httpx
+
+        params = {
+            "part": "statistics",
+            "broadcastStatus": "active",
+            "channelId": self._cfg.youtube.channel_id,
+            "key": self._cfg.youtube.api_key,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://www.googleapis.com/youtube/v3/liveBroadcasts",
+                    params=params,
+                )
+                resp.raise_for_status()
+                items = resp.json().get("items", [])
+                if not items:
+                    return None
+                stats = items[0].get("statistics", {})
+                raw = stats.get("concurrentViewers")
+                if raw is None:
+                    return None
+                return max(1, int(raw))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("viewer count fetch failed: %s", exc)
+            return None
+
+    async def _fetch_subscriber_count(self) -> int | None:
+        """Fetch subscriber count from YouTube channels statistics."""
+        yt_client = self._build_youtube_api_client()
+        if yt_client is not None:
+            loop = asyncio.get_running_loop()
+
+            def _fetch_via_oauth() -> int | None:
+                response = yt_client.channels().list(part="statistics", mine=True).execute()
+                items = response.get("items", [])
+                if not items:
+                    return None
+                raw = items[0].get("statistics", {}).get("subscriberCount")
+                if raw is None:
+                    return None
+                return int(raw)
+
+            try:
+                return await loop.run_in_executor(None, _fetch_via_oauth)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("subscriber count fetch via OAuth failed: %s", exc)
+
+        if not self._cfg.youtube.api_key or not self._cfg.youtube.channel_id:
+            return None
+
+        import httpx
+
+        params = {
+            "part": "statistics",
+            "id": self._cfg.youtube.channel_id,
+            "key": self._cfg.youtube.api_key,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://www.googleapis.com/youtube/v3/channels",
+                    params=params,
+                )
+                resp.raise_for_status()
+                items = resp.json().get("items", [])
+                if not items:
+                    return None
+                raw = items[0].get("statistics", {}).get("subscriberCount")
+                if raw is None:
+                    return None
+                return int(raw)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("subscriber count fetch failed: %s", exc)
+            return None
+
+    async def _publish_overlay_config(self) -> None:
+        """Send character + metrics snapshot to overlay browser sources."""
+        viewer_count = await self._fetch_concurrent_viewers()
+        subscriber_count = await self._fetch_subscriber_count()
+        if viewer_count is None:
+            viewer_count = 0
+        if subscriber_count is None:
+            subscriber_count = 0
+        character_subtitle = getattr(self._character, "subtitle", "")
+        await self._overlay.send_config(
+            character_name=self._character.name,
+            character_subtitle=character_subtitle,
+            viewer_count=viewer_count,
+            subscriber_count=subscriber_count,
+        )
+
+    async def _on_viewer_milestone(self, current: int, milestone: int) -> None:
+        """Queue celebration intent when concurrent-viewer milestone is reached."""
+        self._peak_viewers_this_session = max(self._peak_viewers_this_session, current)
+        await self._queue_priority_intent(
+            intent="celebrate_milestone",
+            source="viewer_count",
+            priority=PRIORITY_INTERACTIVE,
+        )
+        logger.info("[ViewerCount] milestone reached: %s (current=%s)", milestone, current)
+
+    async def _viewer_count_loop(self) -> None:
+        """Periodic concurrent-viewer monitor loop."""
+        if self._no_youtube:
+            return
+        while self._running:
+            await self._viewer_count.check_once()
+            try:
+                await self._publish_overlay_config()
+            except Exception:
+                logger.debug("Overlay config send failed", exc_info=True)
+            await asyncio.sleep(60.0)
+
+    def _switch_obs_scene(self, scene_name: str) -> bool:
+        """Switch OBS program scene via obs-websocket (best-effort).
+
+        FR-LAYOUT-01: Used by BroadcastLayoutManager.
+        """
+        try:
+            import obsws_python as obs  # type: ignore[import]
+
+            host = os.environ.get("OBS_WS_HOST", "127.0.0.1")
+            port = int(os.environ.get("OBS_WS_PORT", "4455"))
+            password = os.environ.get("OBS_WS_PASSWORD", "")
+            client = obs.ReqClient(host=host, port=port, password=password)
+            if scene_name == "Game_Main":
+                self._configure_game_capture_input(client)
+            client.set_current_program_scene(scene_name)
+            self._bgm.switch_for_scene(scene_name=scene_name, obs_client=client)
+            logger.info("[Layout] OBS scene switched to %s", scene_name)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[Layout] OBS scene switch failed (%s): %s", scene_name, exc)
+            return False
+
+    def _configure_game_capture_input(self, obs_client: object) -> None:
+        """Apply optional OBS GameCapture target settings from config/env.
+
+        FR-LAYOUT-04: When GAME_CAPTURE_WINDOW is provided, Orchestrator updates
+        the GameCapture input before switching to Game_Main.
+        """
+        source = self._cfg.game_bridge.game_capture_source_name
+        target_window = self._cfg.game_bridge.game_capture_window.strip()
+        if not target_window:
+            return
+
+        # ReqClient offers set_input_settings; keep this best-effort and non-fatal.
+        set_input_settings = getattr(obs_client, "set_input_settings", None)
+        if callable(set_input_settings):
+            set_input_settings(
+                source,
+                {
+                    "capture_mode": "window",
+                    "window": target_window,
+                },
+                True,
+            )
+            logger.info(
+                "[Layout] GameCapture target updated: source=%s window=%s",
+                source,
+                target_window,
+            )
+            return
+
+        logger.warning("[Layout] OBS client has no set_input_settings; skip GameCapture update")
 
     # ── Live Chat ID resolver (FR-CHATID-AUTO-01) ──────────────────────
 
@@ -286,7 +655,11 @@ class Orchestrator:
                 new_youtube_cfg = dataclasses.replace(self._cfg.youtube, live_chat_id=chat_id)
                 self._cfg = dataclasses.replace(self._cfg, youtube=new_youtube_cfg)
                 # Recreate the poller so it uses the new config
-                self._poller = YouTubeChatPoller(self._cfg.youtube, self._cfg.seen_set)
+                self._poller = YouTubeChatPoller(
+                    self._cfg.youtube,
+                    self._cfg.seen_set,
+                    api_client_factory=self._build_youtube_api_client,
+                )
                 return
 
             logger.info(
@@ -297,6 +670,9 @@ class Orchestrator:
 
     async def stop(self) -> None:
         self._running = False
+        with contextlib.suppress(Exception):
+            await self._avatar.send_avatar_intent(intent="stream_farewell", source="system")
+            await asyncio.sleep(0.1)
         await self._tts.close()
         await self._avatar.disconnect()
         await self._overlay.stop()
@@ -588,7 +964,17 @@ class Orchestrator:
                     item.source,
                 )
             except Exception:
-                logger.warning("[IntentDispatcher] send failed; item dropped")
+                if item.source == "system" and item.attempts < item.max_attempts:
+                    item.attempts += 1
+                    await asyncio.sleep(0.2)
+                    await self._intent_queue.put(item)
+                    logger.warning(
+                        "[IntentDispatcher] system intent send failed; retry=%d intent='%s'",
+                        item.attempts,
+                        item.intent,
+                    )
+                else:
+                    logger.warning("[IntentDispatcher] send failed; item dropped")
             finally:
                 self._intent_queue.task_done()
 
@@ -796,6 +1182,56 @@ class Orchestrator:
                 await self._speak(safety_result.template_response, msg, is_safety_template=True)
             return
 
+        # FR-SPCHA-01: Superchat is a priority path that bypasses Bandit.
+        if msg.message_type == "liveChatPaidMessageEvent":
+            superchat_intent = (
+                "read_superchat_large"
+                if msg.amount_micros >= _SUPERCHAT_INTENT_THRESHOLD_MICROS
+                else "read_superchat"
+            )
+            await self._queue_priority_intent(
+                intent=superchat_intent,
+                source="superchat",
+                priority=PRIORITY_INTERACTIVE,
+            )
+            await self._reply_to(msg, avoidance_hint=safety_result.avoidance_hint)
+            return
+
+        if msg.message_type == "liveChatMembershipItemEvent":
+            await self._queue_priority_intent(
+                intent="welcome_member",
+                source="membership",
+                priority=PRIORITY_INTERACTIVE,
+            )
+            await self._reply_to(msg, avoidance_hint=safety_result.avoidance_hint)
+            return
+
+        if msg.message_type == "textMessageEvent":
+            episode_count = len(self._episodic.get_by_author(msg.author_display_name))
+            familiarity = self._tom.estimate(
+                msg.text,
+                msg.author_display_name,
+                episode_count,
+            ).familiarity
+            is_new_author = msg.author_display_name not in self._welcomed_newcomers
+            if familiarity == "newcomer" and is_new_author:
+                self._welcomed_newcomers.add(msg.author_display_name)
+                await self._queue_priority_intent(
+                    intent="welcome_newcomer",
+                    source="viewer_familiarity",
+                    priority=PRIORITY_INTERACTIVE,
+                )
+            elif familiarity in ("regular", "superchatter"):
+                now = time.monotonic()
+                last = self._last_regular_reaction_at.get(msg.author_display_name, 0.0)
+                if (now - last) >= 60.0:
+                    self._last_regular_reaction_at[msg.author_display_name] = now
+                    await self._queue_priority_intent(
+                        intent="acknowledge_regular",
+                        source="viewer_familiarity",
+                        priority=PRIORITY_INTERACTIVE,
+                    )
+
         # 2) NFR-COST-01: ソフトリミット超過時は応答率を削減
         cost_ratio = self._llm.cost_tracker.template_ratio
         if cost_ratio > 0 and random.random() < cost_ratio * 0.5:
@@ -868,6 +1304,7 @@ class Orchestrator:
         # FR-E3-01: Theory of Mind — classify viewer intent before LLM call
         episode_count = len(self._episodic.get_by_author(msg.author_display_name))
         tom_est = self._tom.estimate(msg.text, msg.author_display_name, episode_count)
+        safe_name = sanitize_display_name(msg.author_display_name)
         # FR-E2-01: Inject episodic memory fragment into LLM context
         mem_frag = self._episodic.to_prompt_fragment(
             msg.text,
@@ -921,19 +1358,34 @@ class Orchestrator:
         sentence_queue: asyncio.Queue[LLMResult | None] = asyncio.Queue()
         accumulated: list[str] = []
         first_sr: LLMResult | None = None
+        llm_input_text = (
+            f"[FROM] {safe_name}\n"
+            f"[VIEWER_FAMILIARITY] {tom_est.familiarity}\n"
+            f"[INSTRUCTION] 返答の冒頭で『{safe_name}さん、』と呼びかけてください。\n"
+            f"comment={msg.text}"
+        )
+        if msg.message_type == "liveChatPaidMessageEvent":
+            amount_label = msg.amount_display or f"{msg.amount_micros / 1_000_000:.0f}"
+            llm_input_text = (
+                f"[FROM] {safe_name}\n"
+                f"[VIEWER_FAMILIARITY] {tom_est.familiarity}\n"
+                f"[INSTRUCTION] 返答の冒頭で『{safe_name}さん、』と呼びかけてください。\n"
+                f"[SUPERCHAT] author={msg.author_display_name} amount={amount_label}\n"
+                f"comment={msg.text}"
+            )
 
         async def _generate() -> None:
             nonlocal first_sr
             try:
                 # FR-LLM-REACT-01 L1: opt-in ReAct path (REACT_ENABLED=1)
                 if self._llm._cfg.react_enabled:
-                    sr = await self._llm.generate_with_react(msg.text)
+                    sr = await self._llm.generate_with_react(llm_input_text)
                     accumulated.append(sr.text)
                     first_sr = sr
                     await sentence_queue.put(sr)
                 else:
                     async for sr in self._llm.generate_reply_stream(
-                        msg.text, avoidance_hint=avoidance_hint
+                        llm_input_text, avoidance_hint=avoidance_hint
                     ):
                         accumulated.append(sr.text)
                         if first_sr is None:
@@ -1244,7 +1696,13 @@ class Orchestrator:
 
             fwd_task = asyncio.create_task(_forward_and_send_viseme())
             lip_task = asyncio.create_task(self._avatar.run_lip_sync_loop(lip_queue))
-            play_task = asyncio.create_task(play_audio_chunks(playback_queue, sample_rate=24000))
+            play_task = asyncio.create_task(
+                play_audio_chunks(
+                    playback_queue,
+                    sample_rate=self._cfg.tts.sample_rate,
+                    output_device=self._cfg.tts.audio_output_device,
+                )
+            )
             tts_result = (await asyncio.gather(fwd_task, lip_task, play_task))[0]
             self._event_bus.emit_simple(
                 EventType.TTS_COMPLETE,

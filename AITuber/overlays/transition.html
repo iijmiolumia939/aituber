@@ -1,0 +1,262 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>Transition 窶・YUI.A</title>
+<style>
+  /* FR-TRANS-01 窶・Full-screen transition overlay, WS port 31902
+     Named transitions: fade | glitch | scan | slide_left | slide_right
+     Always starts invisible; activated by {"type":"transition","name":"...","direction":"in"|"out"}.
+  */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    background: transparent;
+    position: relative;
+  }
+
+  /* ---------- Base layer ------------------------------------------- */
+  #overlay {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    /* Hidden by default */
+    opacity: 0;
+  }
+
+  /* ---------- fade -------------------------------------------------- */
+  .layer-fade {
+    position: absolute; inset: 0;
+    background: #0a0a12;
+  }
+
+  /* ---------- glitch ------------------------------------------------ */
+  .layer-glitch {
+    position: absolute; inset: 0;
+    background: #0a0a12;
+  }
+  .glitch-bar {
+    position: absolute;
+    left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #7c3aed, #db2777, #7c3aed);
+    opacity: 0;
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+  .glitch-rgb-r {
+    position: absolute; inset: 0;
+    background: rgba(255,0,68,.25);
+    mix-blend-mode: screen;
+    opacity: 0;
+    transform: translateX(0);
+  }
+  .glitch-rgb-b {
+    position: absolute; inset: 0;
+    background: rgba(0,102,255,.20);
+    mix-blend-mode: screen;
+    opacity: 0;
+    transform: translateX(0);
+  }
+
+  /* ---------- scan -------------------------------------------------- */
+  .layer-scan {
+    position: absolute; inset: 0;
+    background: #0a0a12;
+    clip-path: inset(100% 0 0 0);   /* starts fully clipped from top */
+  }
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, transparent, #7c3aed 20%, #db2777 50%, #7c3aed 80%, transparent);
+    top: 0;
+    opacity: 0;
+    box-shadow: 0 0 20px #db2777, 0 0 60px rgba(219,39,119,.4);
+  }
+
+  /* ---------- slide_left / slide_right ------------------------------ */
+  .layer-slide {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, #11111b 60%, #1e1e2e);
+  }
+
+  /* ---------- active classes (set by JS) ---------------------------- */
+  /* Each animation is ~500 ms; JS times the switch using same duration */
+
+  /* fade-in: opacity 0 竊・1 */
+  #overlay.fade-in  { animation: fade-in 500ms ease forwards; }
+  /* fade-out: opacity 1 竊・0 */
+  #overlay.fade-out { animation: fade-out 500ms ease forwards; }
+
+  @keyframes fade-in  { from { opacity:0 } to { opacity:1 } }
+  @keyframes fade-out { from { opacity:1 } to { opacity:0 } }
+
+  /* glitch-in -------------------------------------------------------- */
+  #overlay.glitch-in  { animation: glitch-in 600ms steps(1) forwards; }
+  #overlay.glitch-out { animation: glitch-out 600ms steps(1) forwards; }
+
+  @keyframes glitch-in {
+    0%   { opacity:0; }
+    10%  { opacity:1; }
+    20%  { opacity:.7; }
+    35%  { opacity:1; }
+    50%  { opacity:.8; }
+    70%  { opacity:1; }
+    100% { opacity:1; }
+  }
+  @keyframes glitch-out {
+    0%   { opacity:1; }
+    30%  { opacity:.6; }
+    50%  { opacity:1; }
+    70%  { opacity:.4; }
+    90%  { opacity:.9; }
+    100% { opacity:0; }
+  }
+
+  /* scan-in / scan-out ----------------------------------------------- */
+  #overlay.scan-in  { opacity:1; }
+  #overlay.scan-in  .layer-scan { animation: scan-wipe-in  500ms ease forwards; }
+  #overlay.scan-in  .scan-line  { animation: scan-lead-in  500ms ease forwards; }
+
+  #overlay.scan-out { opacity:1; }
+  #overlay.scan-out .layer-scan { animation: scan-wipe-out 500ms ease forwards; }
+  #overlay.scan-out .scan-line  { animation: scan-lead-out 500ms ease forwards; }
+
+  @keyframes scan-wipe-in  { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+  @keyframes scan-wipe-out { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 100% 0); } }
+  @keyframes scan-lead-in  { from { top:0%;   opacity:1; } to { top:100%; opacity:0; } }
+  @keyframes scan-lead-out { from { top:100%; opacity:0; } to { bottom:0; opacity:1; top:auto; } }
+
+  /* slide_left-in / slide_left-out ----------------------------------- */
+  #overlay.slide-left-in  { opacity:1; }
+  #overlay.slide-left-in  .layer-slide { animation: slide-from-right-in  500ms ease forwards; }
+  #overlay.slide-left-out { opacity:1; }
+  #overlay.slide-left-out .layer-slide { animation: slide-to-left-out    500ms ease forwards; }
+
+  @keyframes slide-from-right-in  { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  @keyframes slide-to-left-out    { from { transform: translateX(0);    } to { transform: translateX(-100%); } }
+
+  /* slide_right-in / slide_right-out --------------------------------- */
+  #overlay.slide-right-in  { opacity:1; }
+  #overlay.slide-right-in  .layer-slide { animation: slide-from-left-in   500ms ease forwards; }
+  #overlay.slide-right-out { opacity:1; }
+  #overlay.slide-right-out .layer-slide { animation: slide-to-right-out   500ms ease forwards; }
+
+  @keyframes slide-from-left-in   { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+  @keyframes slide-to-right-out   { from { transform: translateX(0);     } to { transform: translateX(100%); } }
+</style>
+</head>
+<body>
+<div id="overlay">
+  <!-- fade -->
+  <div class="layer-fade" id="layer-fade"></div>
+
+  <!-- glitch -->
+  <div class="layer-glitch" id="layer-glitch">
+    <div class="glitch-rgb-r" id="glitch-r"></div>
+    <div class="glitch-rgb-b" id="glitch-b"></div>
+    <div class="glitch-bar" id="glitch-bar1" style="top:30%"></div>
+    <div class="glitch-bar" id="glitch-bar2" style="top:65%"></div>
+  </div>
+
+  <!-- scan -->
+  <div class="layer-scan" id="layer-scan">
+    <div class="scan-line" id="scan-line"></div>
+  </div>
+
+  <!-- slide -->
+  <div class="layer-slide" id="layer-slide"></div>
+</div>
+
+<script>
+  /* FR-TRANS-01 窶・Transition overlay controller */
+
+  const ANIM_DURATION_MS = 550;  // slightly longer than CSS 500ms for safety
+
+  const overlay = document.getElementById('overlay');
+
+  // Map: transition name 竊・which layer(s) to show
+  const LAYER_MAP = {
+    fade:        ['layer-fade'],
+    glitch:      ['layer-glitch'],
+    scan:        ['layer-scan'],
+    slide_left:  ['layer-slide'],
+    slide_right: ['layer-slide'],
+  };
+
+  // All layer ids (to hide the rest)
+  const ALL_LAYERS = ['layer-fade', 'layer-glitch', 'layer-scan', 'layer-slide'];
+
+  function normName(name) {
+    // Accept both "slide_left" and "slide-left" from the server
+    return (name || 'fade').replace(/-/g, '_');
+  }
+
+  function cssClass(name, direction) {
+    const cn = normName(name);
+    const dir = direction === 'out' ? 'out' : 'in';
+    // e.g. fade-in, glitch-out, slide-left-in
+    return cn.replace('_', '-') + '-' + dir;
+  }
+
+  function showLayer(name) {
+    const active = LAYER_MAP[normName(name)] || ['layer-fade'];
+    ALL_LAYERS.forEach(id => {
+      document.getElementById(id).style.display = active.includes(id) ? '' : 'none';
+    });
+  }
+
+  function playTransition(name, direction) {
+    const cls = cssClass(name, direction);
+
+    // Remove all previous animation classes
+    const existing = Array.from(overlay.classList).filter(c =>
+      c.endsWith('-in') || c.endsWith('-out')
+    );
+    existing.forEach(c => overlay.classList.remove(c));
+
+    showLayer(name);
+
+    // Trigger reflow before adding new class to restart animations
+    void overlay.offsetWidth;
+    overlay.classList.add(cls);
+
+    // After animation, hide if this was an "out" transition
+    if (direction === 'out') {
+      setTimeout(() => {
+        overlay.classList.remove(cls);
+        overlay.style.opacity = '0';
+      }, ANIM_DURATION_MS);
+    }
+  }
+
+  // WebSocket 窶・FR-TRANS-01
+  const WS_PORT = 31902;
+  let ws, retryDelay = 1000;
+
+  function connect() {
+    ws = new WebSocket(`ws://127.0.0.1:${WS_PORT}`);
+    ws.onopen  = () => { retryDelay = 1000; };
+    ws.onclose = () => setTimeout(connect, retryDelay = Math.min(retryDelay * 1.5, 10000));
+    ws.onerror = () => ws.close();
+    ws.onmessage = ({ data }) => {
+      let msg;
+      try { msg = JSON.parse(data); } catch { return; }
+
+      if (msg.type === 'transition') {
+        const name       = msg.name      || 'fade';
+        const direction  = msg.direction || 'in';
+        // Reset opacity so CSS animation has full control
+        overlay.style.opacity = '';
+        playTransition(name, direction);
+      }
+    };
+  }
+  connect();
+</script>
+</body>
+</html>
+

@@ -4,7 +4,7 @@ TC-OVL-01 ~ TC-OVL-20
 
 Coverage:
   OVL-01  OverlayConfig default host is '127.0.0.1'
-  OVL-02  OverlayConfig default port is 31901
+    OVL-02  OverlayConfig default port is 31902
   OVL-03  OverlayConfig custom host/port applied
   OVL-04  OverlayServer.client_count is 0 initially
   OVL-05  OverlayServer._server is None initially
@@ -75,10 +75,10 @@ class TestOverlayConfig:
         cfg = OverlayConfig()
         assert cfg.host == "127.0.0.1"
 
-    # [TC-OVL-02] デフォルト port は 31901
+    # [TC-OVL-02] デフォルト port は 31902
     def test_default_port(self) -> None:
         cfg = OverlayConfig()
-        assert cfg.port == 31901
+        assert cfg.port == 31902
 
     # [TC-OVL-03] カスタム host / port が適用される
     def test_custom_values(self) -> None:
@@ -103,7 +103,7 @@ class TestOverlayServerInit:
     def test_default_config_applied(self) -> None:
         server = OverlayServer()
         assert server._cfg.host == "127.0.0.1"
-        assert server._cfg.port == 31901
+        assert server._cfg.port == 31902
 
 
 # ── TC-OVL-07 ~ 09: send_chat ────────────────────────────────────────────────

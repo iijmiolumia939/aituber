@@ -1,146 +1,247 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chat Overlay</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap');
+  :root {
+    --ink: #3b2d43;
+    --muted: #7f6a8d;
+    --card: rgba(255,255,255,0.74);
+    --pink: #ff77b7;
+    --mint: #31d7b5;
+  }
+  *{ margin:0; padding:0; box-sizing:border-box }
   body {
     background: transparent;
     overflow: hidden;
-    font-family: 'Noto Sans JP', sans-serif;
-    width: 420px;
-    height: 920px;
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    width: 100vw; height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
 
-  .panel {
-    width: 100%;
-    height: 100%;
-    background: rgba(17,17,27,0.90);
-    backdrop-filter: blur(16px);
-    border-radius: 20px;
-    border: 1px solid rgba(139,92,246,0.3);
-    display: flex;
-    flex-direction: column;
+  .scene { position: relative; width: 100%; height: 100%; }
+
+  /* ── Cloud SVG (generated dynamically) ── */
+  .cloud-svg {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    filter: drop-shadow(0 6px 16px rgba(64,35,63,0.16));
+  }
+
+  /* ── Content area (inside cloud) ── */
+  .content {
+    position: absolute;
+    top: 36px; left: 36px; right: 36px; bottom: 36px;
+    z-index: 2;
+    display: flex; flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    border-radius: 10px;
+  }
+  .content::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 12% 10%, rgba(255,255,255,0.5) 0 18%, transparent 19%),
+      radial-gradient(circle at 87% 16%, rgba(255,255,255,0.35) 0 14%, transparent 15%);
+    pointer-events: none; z-index: 0;
+  }
+  .content::after {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.45) 1.4px, transparent 1.4px);
+    background-size: 14px 14px;
+    opacity: 0.22;
+    pointer-events: none; z-index: 0;
   }
 
-  /* Header */
+  /* ── Header ── */
   .panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 20px 12px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 16px 12px 16px;
+    border-bottom: 2px dashed rgba(122,74,108,0.22);
+    position: relative; z-index: 1;
   }
   .panel-header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #c4b5fd;
-    font-weight: 700;
-    font-size: 15px;
+    display: flex; align-items: center; gap: 10px;
+    color: var(--ink); font-weight: 800; font-size: 14px; letter-spacing: 0.04em;
   }
   .msg-icon {
-    width: 28px; height: 28px;
-    background: rgba(139,92,246,0.25);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
+    width: 34px; height: 34px;
+    background: linear-gradient(140deg, rgba(255,119,183,0.42), rgba(49,215,181,0.4));
+    border-radius: 11px; border: 2px solid rgba(122,74,108,0.28);
+    display: flex; align-items: center; justify-content: center;
   }
   .msg-count {
-    background: rgba(139,92,246,0.35);
-    color: #c4b5fd;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 999px;
+    background: rgba(255,255,255,0.75); color: var(--ink);
+    font-size: 12px; font-weight: 800; padding: 4px 11px;
+    border-radius: 999px; border: 2px solid rgba(122,74,108,0.24);
   }
 
-  /* Messages */
+  /* ── Messages ── */
   .messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex: 1; overflow-y: auto;
+    padding: 10px 10px 12px 10px;
+    display: flex; flex-direction: column; gap: 8px;
     scrollbar-width: none;
+    position: relative; z-index: 1;
   }
   .messages::-webkit-scrollbar { display: none; }
 
   .msg {
-    padding: 12px 14px;
-    border-radius: 14px;
-    background: rgba(31,31,46,0.80);
-    animation: fadeIn 0.3s ease-out;
+    padding: 10px 12px; border-radius: 14px;
+    background: var(--card);
+    border: 2px solid rgba(122,74,108,0.2);
+    box-shadow: 0 3px 0 rgba(122,74,108,0.16);
+    animation: popIn 0.28s ease-out;
+    position: relative;
   }
-  .msg.member {
-    border-left: 3px solid #22c55e;
-    background: rgba(34,197,94,0.08);
+  .msg::after {
+    content: ''; position: absolute;
+    left: 14px; bottom: -8px; width: 14px; height: 14px;
+    background: var(--card);
+    border-left: 2px solid rgba(122,74,108,0.2);
+    border-bottom: 2px solid rgba(122,74,108,0.2);
+    transform: rotate(-45deg);
   }
-  .msg.superchat {
-    background: linear-gradient(135deg, rgba(234,179,8,0.25), rgba(249,115,22,0.18));
-    border: 1px solid rgba(234,179,8,0.35);
+  .msg.member { border-color: rgba(49,215,181,0.58); background: rgba(255,255,255,0.82); }
+  .msg.superchat { border-color: rgba(255,173,51,0.65); background: linear-gradient(160deg, rgba(255,242,212,0.92), rgba(255,255,255,0.82)); }
+  .msg.member::after { border-left-color: rgba(49,215,181,0.45); border-bottom-color: rgba(49,215,181,0.45); }
+  .msg.superchat::after { border-left-color: rgba(255,173,51,0.45); border-bottom-color: rgba(255,173,51,0.45); }
+  @keyframes popIn {
+    from { opacity:0; transform:translateY(8px) scale(0.98); }
+    to   { opacity:1; transform:translateY(0) scale(1); }
   }
 
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .msg-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 5px;
-  }
-  .msg-author {
-    font-size: 12px;
-    font-weight: 700;
-    color: #c4b5fd;
-  }
-  .msg-time {
-    font-size: 10px;
-    color: rgba(156,163,175,0.65);
-  }
-  .msg-body {
-    color: #e5e7eb;
-    font-size: 14px;
-    line-height: 1.55;
-    word-break: break-word;
-  }
+  .msg-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .msg-author { font-size:12px; font-weight:800; color:var(--ink); }
+  .msg-time { font-size:10px; color:var(--muted); }
+  .msg-body { color:#4a3a54; font-size:13.5px; line-height:1.55; word-break:break-word; }
   .sc-amount {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(234,179,8,0.30);
-    color: #fde68a;
-    font-weight: 700;
-    font-size: 12px;
-    padding: 2px 10px;
-    border-radius: 999px;
-    margin-bottom: 6px;
+    display:inline-flex; align-items:center; gap:4px;
+    background:rgba(255,189,69,0.2); color:#8f5500;
+    font-weight:800; font-size:12px; padding:2px 9px;
+    border-radius:999px; margin-bottom:5px;
+    border:2px solid rgba(255,173,51,0.38);
   }
 </style>
 </head>
 <body>
-<div class="panel">
-  <div class="panel-header">
-    <div class="panel-header-left">
-      <div class="msg-icon">💬</div>
-      ライブチャット
+<div class="scene">
+  <svg class="cloud-svg" id="cloudSvg"></svg>
+  <div class="content">
+    <div class="panel-header">
+      <div class="panel-header-left">
+        <div class="msg-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f8fafc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        ライブチャット
+      </div>
+      <div class="msg-count" id="count">0</div>
     </div>
-    <div class="msg-count" id="count">0</div>
+    <div class="messages" id="messages"></div>
   </div>
-  <div class="messages" id="messages"></div>
 </div>
 
 <script>
+  /* ── Dynamic cloud path generator ── */
+  function buildCloudPath(W, H) {
+    /*
+     * Generates an SVG path with semicircular arc bumps along all 4 edges.
+     * Each bump is a perfect semicircle (rx = ry = chord/2).
+     * Bump sizes vary slightly for a natural cloud look.
+     */
+    const pad = 28;                       // baseline inset from edge
+    const iw = W - 2 * pad;              // inner width
+    const ih = H - 2 * pad;              // inner height
+    const targetChord = 52;               // desired bump diameter
+
+    const nT = Math.max(2, Math.round(iw / targetChord));  // bumps on top/bottom
+    const nS = Math.max(3, Math.round(ih / targetChord));   // bumps on left/right
+
+    /* Vary bump sizes with a deterministic pseudo-random pattern */
+    function vary(count, totalLen) {
+      const weights = [];
+      for (let i = 0; i < count; i++) {
+        weights.push(1 + 0.22 * Math.sin(i * 2.7 + 0.5) + 0.12 * Math.cos(i * 4.1));
+      }
+      const sum = weights.reduce((a, b) => a + b, 0);
+      return weights.map(w => (w / sum) * totalLen);
+    }
+
+    const topChords = vary(nT, iw);
+    const bottomChords = vary(nT, iw);
+    const rightChords = vary(nS, ih);
+    const leftChords = vary(nS, ih);
+
+    let x = pad, y = pad;
+    let d = `M ${f(x)} ${f(y)}`;
+
+    /* Top edge: left → right, bumps go UP (sweep=1) */
+    for (let i = 0; i < nT; i++) {
+      const c = topChords[i];
+      const r = c / 2;
+      x += c;
+      d += ` A ${f(r)} ${f(r)} 0 0 1 ${f(x)} ${f(y)}`;
+    }
+
+    /* Right edge: top → bottom, bumps go RIGHT (sweep=1) */
+    for (let i = 0; i < nS; i++) {
+      const c = rightChords[i];
+      const r = c / 2;
+      y += c;
+      d += ` A ${f(r)} ${f(r)} 0 0 1 ${f(x)} ${f(y)}`;
+    }
+
+    /* Bottom edge: right → left, bumps go DOWN (sweep=1) */
+    for (let i = nT - 1; i >= 0; i--) {
+      const c = bottomChords[i];
+      const r = c / 2;
+      x -= c;
+      d += ` A ${f(r)} ${f(r)} 0 0 1 ${f(x)} ${f(y)}`;
+    }
+
+    /* Left edge: bottom → top, bumps go LEFT (sweep=1) */
+    for (let i = nS - 1; i >= 0; i--) {
+      const c = leftChords[i];
+      const r = c / 2;
+      y -= c;
+      d += ` A ${f(r)} ${f(r)} 0 0 1 ${f(x)} ${f(y)}`;
+    }
+
+    d += ' Z';
+    return d;
+  }
+
+  function f(v) { return v.toFixed(1); }
+
+  function renderCloud() {
+    const el = document.querySelector('.scene');
+    const W = el.offsetWidth;
+    const H = el.offsetHeight;
+    const svg = document.getElementById('cloudSvg');
+    const path = buildCloudPath(W, H);
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML =
+      '<defs>' +
+        '<linearGradient id="cg" x1="0" y1="0" x2="' + W + '" y2="' + H + '" gradientUnits="userSpaceOnUse">' +
+          '<stop offset="0%" stop-color="#ffd9eb"/>' +
+          '<stop offset="100%" stop-color="#c9f7ef"/>' +
+        '</linearGradient>' +
+      '</defs>' +
+      '<path d="' + path + '" fill="url(#cg)" stroke="rgba(122,74,108,0.22)" stroke-width="2.5" stroke-linejoin="round"/>';
+  }
+
+  window.addEventListener('load', renderCloud);
+  window.addEventListener('resize', renderCloud);
+
+  /* ── Chat messages ── */
   const msgsEl = document.getElementById('messages');
   const countEl = document.getElementById('count');
   let msgCount = 0;
@@ -168,10 +269,7 @@
     msgCount++;
     countEl.textContent = msgCount;
 
-    /* trim old */
     while (msgsEl.children.length > MAX_MSGS) msgsEl.removeChild(msgsEl.firstChild);
-
-    /* auto-scroll */
     msgsEl.scrollTop = msgsEl.scrollHeight;
   }
 
@@ -181,21 +279,31 @@
     return el.innerHTML;
   }
 
-  /* WebSocket */
-  const WS_URL = 'ws://127.0.0.1:31901';
+  const WS_URLS = [
+    'ws://127.0.0.1:31902',
+    'ws://localhost:31902',
+    'ws://127.0.0.1:31901',
+    'ws://localhost:31901'
+  ];
+  let wsIndex = 0;
   let ws;
   function connect() {
-    ws = new WebSocket(WS_URL);
+    const url = WS_URLS[wsIndex % WS_URLS.length];
+    ws = new WebSocket(url);
     ws.onmessage = (ev) => {
       const d = JSON.parse(ev.data);
       if (d.type === 'chat') {
-        addMsg(d.author || '匿名', d.text || '', d.badge || '', d.timestamp || '');
+        addMsg(d.author || '匿名', d.text || '', d.badge || '', d.ts || d.timestamp || '');
       }
     };
-    ws.onclose = () => setTimeout(connect, 3000);
+    ws.onclose = () => {
+      wsIndex += 1;
+      setTimeout(connect, 1500);
+    };
     ws.onerror = () => ws.close();
   }
   connect();
 </script>
 </body>
 </html>
+

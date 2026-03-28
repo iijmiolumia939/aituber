@@ -85,6 +85,24 @@
         { "type": "walk_to", "slot_id": "sit_work", "duration": 2.0 },
         { "type": "gesture", "gesture": "walk_stop", "emotion": "neutral", "look_target": "camera" }
       ]
+    },
+    {
+      "behavior": "stream_opening",
+      "display_name": "配信開始挨拶",
+      "steps": [
+        { "type": "gesture", "gesture": "wave", "emotion": "happy", "look_target": "camera" },
+        { "type": "wait", "duration": 0.6 },
+        { "type": "gesture", "gesture": "nod", "emotion": "happy", "look_target": "camera" }
+      ]
+    },
+    {
+      "behavior": "stream_ending",
+      "display_name": "配信終了挨拶",
+      "steps": [
+        { "type": "gesture", "gesture": "bow", "emotion": "happy", "look_target": "camera" },
+        { "type": "wait", "duration": 0.6 },
+        { "type": "gesture", "gesture": "wave", "emotion": "happy", "look_target": "camera" }
+      ]
     }
   ]
 }

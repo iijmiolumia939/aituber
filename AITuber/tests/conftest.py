@@ -23,6 +23,6 @@ def _gc_after_test() -> None:  # type: ignore[return]
     asyncio_mode=auto の async テストは event loop が閉じた直後に
     この fixture が yield 後処理を実行するため、loop 内オブジェクトも回収される。
     """
-    gc.collect()   # 前テスト残留を先に解放
+    gc.collect()  # 前テスト残留を先に解放
     yield
-    gc.collect()   # 今テストの残留を解放
+    gc.collect()  # 今テストの残留を解放

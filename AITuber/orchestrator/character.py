@@ -38,6 +38,7 @@ class CharacterConfig:
     """キャラクター設定。"""
 
     name: str = "YUI.A"
+    subtitle: str = ""
     system_prompt: str = ""
     template_responses: list[str] = field(default_factory=list)
     idle_topics: list[str] = field(default_factory=list)
@@ -169,6 +170,7 @@ def _load_from_file(resolved: Path) -> CharacterConfig:
 
         config = CharacterConfig(
             name=data.get("name", "YUI.A"),
+            subtitle=data.get("subtitle", ""),
             system_prompt=system_prompt,
             template_responses=(
                 template_responses if template_responses else _default_templates()
@@ -213,6 +215,7 @@ def _default_idle_topics() -> list[str]:
 def _default_character() -> CharacterConfig:
     return CharacterConfig(
         name="YUI.A",
+        subtitle="AI観測者",
         system_prompt=(
             "あなたは YouTube ライブ配信の AI 観測者「YUI.A」です。\n"
             "\n"

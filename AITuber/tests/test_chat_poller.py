@@ -15,14 +15,29 @@ from orchestrator.config import SeenSetConfig, YouTubeConfig
 # ── Helpers: mock YouTube API ─────────────────────────────────────────
 
 
-def _make_item(msg_id: str, text: str = "hello", author: str = "user1") -> dict:
+def _make_item(
+    msg_id: str,
+    text: str = "hello",
+    author: str = "user1",
+    *,
+    message_type: str = "textMessageEvent",
+    amount_micros: int = 0,
+    amount_display: str = "",
+) -> dict:
     """Build a single YouTube LiveChatMessages.list item."""
+    snippet: dict[str, object] = {
+        "displayMessage": text,
+        "publishedAt": "2025-01-01T00:00:00Z",
+        "type": message_type,
+    }
+    if amount_micros > 0 or amount_display:
+        snippet["superChatDetails"] = {
+            "amountMicros": amount_micros,
+            "amountDisplayString": amount_display,
+        }
     return {
         "id": msg_id,
-        "snippet": {
-            "displayMessage": text,
-            "publishedAt": "2025-01-01T00:00:00Z",
-        },
+        "snippet": snippet,
         "authorDetails": {
             "channelId": f"UC_{author}",
             "displayName": author,
@@ -260,6 +275,34 @@ class TestPollerMockAPI:
         msgs, interval_ms = await poller.poll_once()
         assert msgs == []
         assert interval_ms == 5000
+
+    @pytest.mark.asyncio
+    async def test_superchat_metadata_is_parsed(self):
+        """FR-SPCHA-01: paid message type and amount fields are preserved."""
+        resp = {
+            "items": [
+                _make_item(
+                    "m_paid",
+                    text="いつもありがとう",
+                    author="supporter",
+                    message_type="liveChatPaidMessageEvent",
+                    amount_micros=5_000_000_000,
+                    amount_display="¥5000",
+                )
+            ],
+            "pollingIntervalMillis": 5000,
+        }
+        cfg = YouTubeConfig(live_chat_id="LC_TEST")
+        poller = YouTubeChatPoller(
+            cfg,
+            api_client_factory=_mock_api_factory([resp]),
+        )
+
+        msgs, _ = await poller.poll_once()
+        assert len(msgs) == 1
+        assert msgs[0].message_type == "liveChatPaidMessageEvent"
+        assert msgs[0].amount_micros == 5_000_000_000
+        assert msgs[0].amount_display == "¥5000"
 
 
 # ── TC-A3-02: seen_set TTL and cap ──────────────────────────────────

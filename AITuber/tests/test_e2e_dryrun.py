@@ -2,11 +2,11 @@
 
 TC-E2E-01 : VOICEVOX HTTP :50021 — /speakers 応答確認
 TC-E2E-02 : VOICEVOX speaker_id=47 (ナースロボ＿タイプＴ) 存在確認
-TC-E2E-03 : Overlay WS :31901 — 接続＋chat イベント送信確認
+TC-E2E-03 : Overlay WS :31902 — 接続＋chat イベント送信確認
 TC-E2E-04 : yuia キャラクター設定確認 (speaker_id=47, yui.a name)  ← always-green
 TC-E2E-05 : Unity WS :31900 — 接続確認
 TC-E2E-06 : Unity WS :31900 — avatar_update コマンド往復確認
-TC-E2E-07 : Overlay WS :31901 — subtitle イベント送信確認
+TC-E2E-07 : Overlay WS :31902 — subtitle イベント送信確認
 
 サービス依存テスト (TC-E2E-01〜03, 05〜07) はサービス未起動時に自動スキップ → CI 常時グリーン。
 手動配信前ドライランとして実行: pytest tests/test_e2e_dryrun.py -v -m e2e
@@ -26,7 +26,7 @@ import pytest_asyncio  # noqa: F401 (ensures asyncio_mode=auto)
 # ---------------------------------------------------------------------------
 
 VOICEVOX_URL = "http://127.0.0.1:50021"
-OVERLAY_WS_URL = "ws://127.0.0.1:31901"
+OVERLAY_WS_URL = "ws://127.0.0.1:31902"
 UNITY_WS_URL = "ws://127.0.0.1:31900"
 
 
@@ -44,7 +44,7 @@ def _voicevox_available() -> bool:
 
 
 def _overlay_available() -> bool:
-    return _tcp_reachable("127.0.0.1", 31901)
+    return _tcp_reachable("127.0.0.1", 31902)
 
 
 def _unity_ws_available() -> bool:
@@ -97,14 +97,14 @@ async def test_voicevox_speaker_47_exists():
 
 
 # ---------------------------------------------------------------------------
-# TC-E2E-03 : Overlay WS :31901 — chat イベント送信
+# TC-E2E-03 : Overlay WS :31902 — chat イベント送信
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.e2e
-@pytest.mark.skipif(not _overlay_available(), reason="Overlay WS not running on :31901")
+@pytest.mark.skipif(not _overlay_available(), reason="Overlay WS not running on :31902")
 async def test_overlay_chat_event():
-    """TC-E2E-03: Overlay WS :31901 に chat イベントを送信できる。"""
+    """TC-E2E-03: Overlay WS :31902 に chat イベントを送信できる。"""
     import websockets
 
     async with websockets.connect(OVERLAY_WS_URL, open_timeout=3) as ws:
@@ -192,14 +192,14 @@ async def test_unity_ws_avatar_update():
 
 
 # ---------------------------------------------------------------------------
-# TC-E2E-07 : Overlay WS :31901 — subtitle イベント送信
+# TC-E2E-07 : Overlay WS :31902 — subtitle イベント送信
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.e2e
-@pytest.mark.skipif(not _overlay_available(), reason="Overlay WS not running on :31901")
+@pytest.mark.skipif(not _overlay_available(), reason="Overlay WS not running on :31902")
 async def test_overlay_subtitle_event():
-    """TC-E2E-07: Overlay WS :31901 に subtitle イベントを送信できる。"""
+    """TC-E2E-07: Overlay WS :31902 に subtitle イベントを送信できる。"""
     import websockets
 
     async with websockets.connect(OVERLAY_WS_URL, open_timeout=3) as ws:

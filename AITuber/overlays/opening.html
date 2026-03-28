@@ -1,0 +1,260 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>Opening 窶・YUI.A</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* FR-LAYOUT-01 窶・Opening loop overlay, WS port 31902 */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --c-purple: #7c3aed;
+    --c-pink:   #db2777;
+    --c-dark:   #11111b;
+    --c-dark2:  #1e1e2e;
+    --transition-ms: 800;
+  }
+
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    background: var(--c-dark);
+    font-family: 'Noto Sans JP', sans-serif;
+    color: #cdd6f4;
+  }
+
+  /* Grid lines background */
+  .grid-bg {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(124,58,237,.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124,58,237,.12) 1px, transparent 1px);
+    background-size: 80px 80px;
+    animation: grid-drift 20s linear infinite;
+  }
+  @keyframes grid-drift {
+    from { background-position: 0 0; }
+    to   { background-position: 80px 80px; }
+  }
+
+  /* Scanlines */
+  .scanlines {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0,0,0,.18) 3px,
+      rgba(0,0,0,.18) 4px
+    );
+    pointer-events: none;
+  }
+
+  /* Radial glow */
+  .glow-orb {
+    position: absolute;
+    width: 900px; height: 900px;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(124,58,237,.22) 0%, transparent 70%);
+    animation: orb-pulse 4s ease-in-out infinite;
+  }
+  @keyframes orb-pulse {
+    0%,100% { transform: translate(-50%,-50%) scale(1); opacity: .7; }
+    50%      { transform: translate(-50%,-50%) scale(1.15); opacity: 1; }
+  }
+
+  /* Content */
+  .content {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 28px;
+    z-index: 10;
+  }
+
+  /* Logo */
+  .logo {
+    font-size: 120px;
+    font-weight: 900;
+    letter-spacing: .1em;
+    background: linear-gradient(135deg, var(--c-purple), var(--c-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: logo-glitch 6s linear infinite;
+    text-shadow: none;
+    position: relative;
+  }
+  .logo::before, .logo::after {
+    content: 'YUI.A';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, var(--c-purple), var(--c-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .logo::before {
+    animation: glitch-a 6s linear infinite;
+    clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+  }
+  .logo::after {
+    animation: glitch-b 6s linear infinite;
+    clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+  }
+  @keyframes glitch-a {
+    0%,90%,100% { transform: none; opacity: 0; }
+    92%  { transform: translateX(-6px); opacity: .7; filter: hue-rotate(160deg); }
+    94%  { transform: translateX( 6px); opacity: .7; filter: hue-rotate(200deg); }
+    96%  { transform: none; opacity: 0; }
+  }
+  @keyframes glitch-b {
+    0%,90%,100% { transform: none; opacity: 0; }
+    93%  { transform: translateX( 8px); opacity: .6; filter: hue-rotate(-60deg); }
+    95%  { transform: translateX(-4px); opacity: .6; }
+    97%  { transform: none; opacity: 0; }
+  }
+  @keyframes logo-glitch {
+    0%,89%,100% { letter-spacing: .1em; }
+    91%  { letter-spacing: .3em; }
+    93%  { letter-spacing: .05em; }
+  }
+
+  /* Tagline */
+  .tagline {
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: .3em;
+    color: rgba(205,214,244,.6);
+    text-transform: uppercase;
+  }
+
+  /* Separator */
+  .sep {
+    width: 400px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--c-purple), var(--c-pink), transparent);
+    animation: sep-anim 3s ease-in-out infinite;
+  }
+  @keyframes sep-anim {
+    0%,100% { opacity: .5; width: 300px; }
+    50%      { opacity: 1;  width: 500px; }
+  }
+
+  /* Wait text */
+  .wait-text {
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: .2em;
+    color: rgba(205,214,244,.55);
+    animation: wait-pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes wait-pulse {
+    0%,100% { opacity: .4; }
+    50%      { opacity: .9; }
+  }
+
+  /* Decorative hex particles */
+  .particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .particle {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--c-purple);
+    opacity: 0;
+    animation: float-particle 8s ease-in-out infinite;
+  }
+  .particle:nth-child(odd) { background: var(--c-pink); }
+
+  /* Generate 20 float particles via nth-child offsets */
+  .particle:nth-child(1)  { left:  5%; animation-delay:  0s;   animation-duration: 7s; }
+  .particle:nth-child(2)  { left: 12%; animation-delay:  1.2s; animation-duration: 9s; }
+  .particle:nth-child(3)  { left: 20%; animation-delay:  0.4s; animation-duration: 8s; }
+  .particle:nth-child(4)  { left: 28%; animation-delay:  2.0s; animation-duration:10s; }
+  .particle:nth-child(5)  { left: 36%; animation-delay:  0.8s; animation-duration: 7s; }
+  .particle:nth-child(6)  { left: 44%; animation-delay:  1.6s; animation-duration: 9s; }
+  .particle:nth-child(7)  { left: 52%; animation-delay:  0.2s; animation-duration: 8s; }
+  .particle:nth-child(8)  { left: 60%; animation-delay:  2.4s; animation-duration:11s; }
+  .particle:nth-child(9)  { left: 68%; animation-delay:  1.0s; animation-duration: 7s; }
+  .particle:nth-child(10) { left: 76%; animation-delay:  0.6s; animation-duration: 9s; }
+  .particle:nth-child(11) { left: 84%; animation-delay:  1.8s; animation-duration: 8s; }
+  .particle:nth-child(12) { left: 92%; animation-delay:  0.0s; animation-duration:10s; }
+  .particle:nth-child(13) { left:  8%; animation-delay:  3.0s; animation-duration: 7s; }
+  .particle:nth-child(14) { left: 16%; animation-delay:  2.6s; animation-duration: 9s; }
+  .particle:nth-child(15) { left: 24%; animation-delay:  1.4s; animation-duration: 8s; }
+  .particle:nth-child(16) { left: 32%; animation-delay:  3.2s; animation-duration:10s; }
+  .particle:nth-child(17) { left: 56%; animation-delay:  2.2s; animation-duration: 7s; }
+  .particle:nth-child(18) { left: 72%; animation-delay:  0.8s; animation-duration: 9s; }
+  .particle:nth-child(19) { left: 88%; animation-delay:  1.4s; animation-duration: 8s; }
+  .particle:nth-child(20) { left: 48%; animation-delay:  2.8s; animation-duration:11s; }
+
+  @keyframes float-particle {
+    0%   { transform: translateY(1100px) scale(.5); opacity: 0;  }
+    10%  { opacity: .8; }
+    90%  { opacity: .6; }
+    100% { transform: translateY(-50px)   scale(1.4); opacity: 0; }
+  }
+
+  /* Root visibility 窶・controlled by WS scene events */
+  #root {
+    position: absolute; inset: 0;
+    opacity: 1;
+    transition: opacity calc(var(--transition-ms) * 1ms) ease;
+  }
+  #root.hidden { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="grid-bg"></div>
+  <div class="scanlines"></div>
+  <div class="glow-orb"></div>
+  <div class="particles" id="particles"></div>
+
+  <div class="content">
+    <div class="logo">YUI.A</div>
+    <div class="tagline">AI Observer × 人工知能配信者</div>
+    <div class="sep"></div>
+    <div class="wait-text">配信開始まで少々お待ちください</div>
+  </div>
+</div>
+
+<script>
+  // Spawn particle elements
+  const pc = document.getElementById('particles');
+  for (let i = 0; i < 20; i++) {
+    const el = document.createElement('div');
+    el.className = 'particle';
+    pc.appendChild(el);
+  }
+
+  // WebSocket 窶・FR-LAYOUT-01
+  const WS_PORT = 31902;
+  let ws, retryDelay = 1000;
+
+  function connect() {
+    ws = new WebSocket(`ws://127.0.0.1:${WS_PORT}`);
+    ws.onopen  = () => { retryDelay = 1000; };
+    ws.onclose = () => setTimeout(connect, retryDelay = Math.min(retryDelay * 1.5, 10000));
+    ws.onerror = () => ws.close();
+    ws.onmessage = ({ data }) => {
+      let msg;
+      try { msg = JSON.parse(data); } catch { return; }
+
+      if (msg.type === 'scene') {
+        const root = document.getElementById('root');
+        if (msg.scene === 'opening') {
+          root.classList.remove('hidden');
+        } else {
+          root.classList.add('hidden');
+        }
+      }
+    };
+  }
+  connect();
+</script>
+</body>
+</html>
+

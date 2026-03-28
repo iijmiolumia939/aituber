@@ -116,8 +116,10 @@ bandit_log.jsonl
 # OAuth / secrets
 config/client_secret.json
 config/youtube_token.json
+config/youtube_token.expired-*.json
 AITuber/config/client_secret.json
 AITuber/config/youtube_token.json
+AITuber/config/youtube_token.expired-*.json
 AITuber/config/episodic_memory.jsonl
 AITuber/config/goal_memory.jsonl
 AITuber/config/narrative_log.jsonl
@@ -159,3 +161,9 @@ AITuber/output/
 
 # Temp / local utility
 copilot-temp/
+
+# Live2D pipeline output / cache
+AITuber/live2d_auto_pipeline_enhanced/
+
+# Large image assets (use LFS if needed)
+AITuber/lumina*.png

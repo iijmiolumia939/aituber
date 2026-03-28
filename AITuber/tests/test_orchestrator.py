@@ -15,7 +15,7 @@ import pytest
 from orchestrator.chat_poller import ChatMessage
 from orchestrator.config import AppConfig, LLMConfig
 from orchestrator.episodic_store import EpisodeEntry
-from orchestrator.main import Orchestrator
+from orchestrator.main import Orchestrator, sanitize_display_name
 
 
 def _make_msg(text: str, msg_id: str = "test_msg") -> ChatMessage:
@@ -184,6 +184,65 @@ class TestGrayZonePipeline:
             # Banditがignore以外を選ぶ保証はないが、少なくとも呼ばれる
             await orch._process_message(_make_msg("宗教について教えて"))
             spy.assert_called_once()
+
+
+class TestStreamRituals:
+    """FR-BCAST-02: stream greeting/farewell ritual intent hooks."""
+
+    @pytest.mark.asyncio
+    async def test_queue_priority_intent_enqueues_with_seq(self):
+        cfg = AppConfig(llm=LLMConfig(max_retries=0))
+        orch = Orchestrator(config=cfg)
+
+        await orch._queue_priority_intent(intent="stream_greeting", source="system", priority=0)
+
+        item = orch._intent_queue.get_nowait()
+        assert item.intent == "stream_greeting"
+        assert item.source == "system"
+        assert item.seq == 1
+
+    @pytest.mark.asyncio
+    async def test_stop_sends_stream_farewell_intent(self):
+        cfg = AppConfig(llm=LLMConfig(max_retries=0))
+        orch = Orchestrator(config=cfg)
+        orch._avatar.send_avatar_intent = AsyncMock()
+        orch._tts.close = AsyncMock()
+        orch._avatar.disconnect = AsyncMock()
+        orch._overlay.stop = AsyncMock()
+
+        await orch.stop()
+
+        orch._avatar.send_avatar_intent.assert_called_once_with(
+            intent="stream_farewell",
+            source="system",
+        )
+
+
+class TestViewerCountMilestoneReaction:
+    """FR-VIEWCNT-01: milestone callback enqueues celebrate intent."""
+
+    @pytest.mark.asyncio
+    async def test_on_viewer_milestone_enqueues_celebration(self):
+        cfg = AppConfig(llm=LLMConfig(max_retries=0))
+        orch = Orchestrator(config=cfg)
+
+        await orch._on_viewer_milestone(current=120, milestone=100)
+
+        queued = orch._intent_queue.get_nowait()
+        assert queued.intent == "celebrate_milestone"
+        assert queued.source == "viewer_count"
+        assert orch._peak_viewers_this_session == 120
+
+
+class TestDisplayNameSanitization:
+    def test_sanitize_display_name_removes_symbols(self):
+        assert sanitize_display_name("<script>abc!!!") == "scriptabc"
+
+    def test_sanitize_display_name_fallback_when_empty(self):
+        assert sanitize_display_name("$$$") == "視聴者"
+
+    def test_sanitize_display_name_truncates(self):
+        assert sanitize_display_name("abcdefghijklmnopqrstuvwxyz") == "abcdefghijklmnopqrst"
 
 
 class TestLifeLoopOnAirSkip:

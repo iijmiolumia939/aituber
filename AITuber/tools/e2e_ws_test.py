@@ -19,15 +19,17 @@ async def handler(ws):
 
     # Wait briefly then send a test avatar_update
     await asyncio.sleep(0.5)
-    update = json.dumps({
-        "type": "avatar_update",
-        "payload": {
-            "emotion": "joy",
-            "gesture": "nod",
-            "mouth_open": 0.0,
-            "look_target": "camera",
-        },
-    })
+    update = json.dumps(
+        {
+            "type": "avatar_update",
+            "payload": {
+                "emotion": "joy",
+                "gesture": "nod",
+                "mouth_open": 0.0,
+                "look_target": "camera",
+            },
+        }
+    )
     await ws.send(update)
     print(f"[E2E] Sent: {update}")
 
