@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import struct
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -51,22 +50,19 @@ def create_layered_psd(
 ) -> None:
     """Create a multi-layer PSD file using psd-tools internal API."""
     try:
-        from psd_tools import PSDImage
-        from psd_tools.api.layers import PixelLayer
-        from psd_tools.constants import ChannelID, ColorMode, Compression
-        from psd_tools.psd import PSD
-        from psd_tools.psd.descriptor import Descriptor
-        from psd_tools.psd.header import FileHeader
+        from psd_tools.constants import ChannelID, ColorMode, Compression  # noqa: F401
+        from psd_tools.psd import PSD  # noqa: F401
+        from psd_tools.psd.header import FileHeader  # noqa: F401
         from psd_tools.psd.layer_and_mask import (
-            ChannelData,
-            ChannelDataList,
-            ChannelInfo,
-            GlobalLayerMaskInfo,
-            LayerAndMaskInformation,
-            LayerFlags,
-            LayerRecord,
-            LayerRecordList,
-            Layers,
+            ChannelData,  # noqa: F401
+            ChannelDataList,  # noqa: F401
+            ChannelImageData,  # noqa: F401
+            ChannelInfo,  # noqa: F401
+            LayerAndMaskInformation,  # noqa: F401
+            LayerFlags,  # noqa: F401
+            LayerInfo,  # noqa: F401
+            LayerRecord,  # noqa: F401
+            LayerRecords,  # noqa: F401
         )
     except ImportError:
         print("WARNING: psd-tools internal API not fully available.")
@@ -100,27 +96,26 @@ def _create_psd_lowlevel(
     canvas_size: tuple[int, int],
 ) -> None:
     """Create multi-layer PSD using psd-tools low-level API."""
-    from psd_tools.constants import ChannelID, ColorMode, Compression
+    from psd_tools.constants import BlendMode, ChannelID, ColorMode, Compression
     from psd_tools.psd import PSD
     from psd_tools.psd.header import FileHeader
     from psd_tools.psd.layer_and_mask import (
         ChannelData,
         ChannelDataList,
+        ChannelImageData,
         ChannelInfo,
-        GlobalLayerMaskInfo,
         LayerAndMaskInformation,
         LayerFlags,
+        LayerInfo,
         LayerRecord,
-        LayerRecordList,
-        Layers,
+        LayerRecords,
     )
-    import struct
 
     width, height = canvas_size
 
     header = FileHeader(
         version=1,
-        num_channels=4,
+        channels=4,
         height=height,
         width=width,
         depth=8,
@@ -171,10 +166,9 @@ def _create_psd_lowlevel(
         channel_data_list = []
 
         for ch_id, raw_data in channels:
-            # Compression type (0 = raw) + data
-            compressed = struct.pack(">H", 0) + raw_data
+            # length = 2 bytes compression header + raw data
             channel_info_list.append(
-                ChannelInfo(id=ch_id, length=len(compressed) + 2)
+                ChannelInfo(id=ch_id, length=len(raw_data) + 2)
             )
             channel_data_list.append(
                 ChannelData(compression=Compression.RAW, data=raw_data)
@@ -185,30 +179,26 @@ def _create_psd_lowlevel(
             bottom=bottom,
             left=left,
             right=right,
-            num_channels=4,
             channel_info=channel_info_list,
             signature=b"8BIM",
-            blend_mode=b"norm",
+            blend_mode=BlendMode.NORMAL,
             opacity=255,
-            clipping=0,
             flags=LayerFlags(),
             name=name,
-            tagged_blocks=None,
         )
 
         layer_records.append(record)
-        channel_data_items.append(ChannelDataList(data=channel_data_list))
+        channel_data_items.append(ChannelDataList(items=channel_data_list))
 
     try:
-        layer_list = Layers(
+        layer_info = LayerInfo(
             layer_count=len(layers),
-            layer_records=LayerRecordList(data=layer_records),
-            channel_data=channel_data_items,
+            layer_records=LayerRecords(items=layer_records),
+            channel_image_data=ChannelImageData(items=channel_data_items),
         )
 
         layer_and_mask = LayerAndMaskInformation(
-            layers=layer_list,
-            global_layer_mask_info=GlobalLayerMaskInfo(),
+            layer_info=layer_info,
         )
 
         psd = PSD(header=header, layer_and_mask_information=layer_and_mask)
