@@ -37,5 +37,5 @@ YouTube Live コメント → Orchestrator (Python) → Unity Avatar (C#) の自
 上記ハード制約 + `QUALITY_SCORE.md` 該当ドメイン更新 + 負債発生時は `tech-debt-tracker.md` 追記。
 
 <!-- aegis:start -->
-> Aegis プロセス詳細は [CLAUDE.md](CLAUDE.md) を参照。実装・質問とも `aegis_compile_context` を必ず呼ぶこと。
+> 実装・質問とも `aegis_compile_context` を必ず呼ぶこと。
 <!-- aegis:end -->
