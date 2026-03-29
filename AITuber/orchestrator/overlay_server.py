@@ -188,3 +188,89 @@ class OverlayServer:
             direction: "in" (to black / cover) or "out" (reveal).
         """
         await self._broadcast({"type": "transition", "name": name, "direction": direction})
+
+    # ── THA avatar events (Issue #87) ─────────────────────────────
+
+    async def send_tha_frame(self, base64_png: str) -> None:
+        """Broadcast a THA rendered frame to the tha_avatar overlay.
+
+        FR-A7-01: THA レンダラーが生成した PNG を base64 で送信。
+        tha_avatar.html がこれを受信してアバター画像を更新。
+        """
+        await self._broadcast({"type": "tha_frame", "data": base64_png})
+
+    async def send_tha_frame_binary(self, png_bytes: bytes) -> None:
+        """Broadcast a THA rendered frame as raw binary to all clients.
+
+        高帯域・低レイテンシ版。base64 エンコード不要で tha_avatar.html が
+        ArrayBuffer として直接受信。
+        """
+        if not self._clients:
+            return
+
+        _dead_exc: tuple[type[Exception], ...] = (ConnectionError, OSError)
+        if _WsConnectionClosed is not None:
+            _dead_exc = (_WsConnectionClosed, ConnectionError, OSError)
+
+        dead: set = set()
+        async with self._lock:
+            for ws in self._clients:
+                try:
+                    await ws.send(png_bytes)
+                except _dead_exc:  # type: ignore[misc]
+                    dead.add(ws)
+        self._clients -= dead
+
+    async def send_tha_state(self, *, speaking: bool = False) -> None:
+        """Broadcast THA avatar speaking state.
+
+        tha_avatar.html がアイドル / 話し中のアニメーションを切り替え。
+        """
+        await self._broadcast({"type": "tha_state", "speaking": speaking})
+
+    async def send_background(
+        self,
+        *,
+        image: str = "",
+        room: bool = False,
+        time_period: str = "",
+    ) -> None:
+        """Broadcast background configuration to background.html overlay.
+
+        Args:
+            image: 背景画像 URL or base64。空文字でデフォルトグラデーション。
+            room: 窓枠風フレーム表示。
+            time_period: "morning" | "afternoon" | "evening" | "night"。
+        """
+        payload: dict[str, Any] = {"type": "background"}
+        if image:
+            payload["image"] = image
+        payload["room"] = room
+        if time_period:
+            payload["time"] = time_period
+        await self._broadcast(payload)
+
+    async def send_menu(self, items: list[dict[str, Any]]) -> None:
+        """Broadcast menu items to tha_broadcast.html overlay.
+
+        Args:
+            items: メニュー項目 e.g. [{"text": "ゲームプレイ", "done": True}]
+        """
+        await self._broadcast({"type": "menu", "items": items})
+
+    async def send_info(self, panel: int, *, title: str = "", content: str = "") -> None:
+        """Broadcast info panel content to tha_broadcast.html overlay.
+
+        Args:
+            panel: 1 or 2 (左 or 右の情報パネル)
+            title: パネルタイトル
+            content: パネル内容テキスト
+        """
+        await self._broadcast(
+            {
+                "type": "info",
+                "panel": panel,
+                "title": title,
+                "content": content,
+            }
+        )

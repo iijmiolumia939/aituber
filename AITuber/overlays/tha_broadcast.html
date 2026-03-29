@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>THA Broadcast Overlay</title>
+<style>
+  /* FR-A7-01 / FR-LAYOUT-01 — THA 配信画面 統合オーバーレイ
+     Issue #87: 配信画面構成
+
+     画像アセットベースの UI。assets/ に PNG パーツを配置。
+     アセット未配置でも CSS フォールバックで動作。
+
+     OBS ブラウザソース: 1920×1080, 単一ソース
+  */
+  @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap');
+
+  :root {
+    --ink: #3b2d43;
+    --muted: #7f6a8d;
+    --pink: #ff77b7;
+    --pink-light: #ffd6eb;
+    --mint: #31d7b5;
+    --card: rgba(255,255,255,0.82);
+    --card-border: rgba(240,160,200,0.55);
+    --shadow: rgba(91,48,78,0.18);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    background: transparent;
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ================================================================
+     Layer 0 — 背景
+     ================================================================ */
+  #bg-layer {
+    position: absolute; inset: 0; z-index: 0;
+  }
+  #bg-image {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  /* CSS フォールバック背景 (画像未読み込み時) */
+  .bg-fallback {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(255,200,230,0.6) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(180,240,230,0.5) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(220,200,255,0.4) 0%, transparent 60%),
+      linear-gradient(160deg, #ffeef8 0%, #f0f4ff 30%, #e8faf6 60%, #fff5fb 100%);
+  }
+
+  /* ================================================================
+     Layer 1 — アバター
+     ================================================================ */
+  #avatar-layer {
+    position: absolute; z-index: 1;
+    left: 300px; top: 50px;
+    width: 780px; height: 840px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    transition: left 0.6s ease, top 0.6s ease, width 0.6s ease, height 0.6s ease;
+  }
+  #avatar-img {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 24px rgba(60,30,60,0.18));
+    transition: opacity 0.15s ease;
+  }
+  /* 呼吸 */
+  #avatar-layer.breathing #avatar-img {
+    animation: breathe 3.5s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+  }
+  /* 話し中 */
+  #avatar-layer.speaking #avatar-img {
+    animation: speak-bounce 0.4s ease-in-out infinite alternate;
+  }
+  @keyframes speak-bounce {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-3px); }
+  }
+
+  /* ================================================================
+     Layer 2 — UI フレーム (画像)
+     ================================================================ */
+  #ui-layer {
+    position: absolute; inset: 0; z-index: 2;
+    pointer-events: none;
+  }
+  #ui-layer > * { pointer-events: auto; }
+
+  /* ── 共通パネルスタイル (CSS フォールバック) ── */
+  .panel {
+    position: absolute;
+    border-radius: 20px;
+    overflow: hidden;
+  }
+  .panel-frame {
+    position: absolute; inset: 0;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    z-index: 1;
+  }
+  /* 画像フレームが無い場合の CSS フォールバック */
+  .panel-fallback {
+    position: absolute; inset: 0;
+    background: var(--card);
+    border: 3px solid var(--card-border);
+    border-radius: 20px;
+    box-shadow: 0 4px 16px var(--shadow);
+    z-index: 0;
+  }
+  .panel-header {
+    position: relative; z-index: 2;
+    padding: 14px 18px;
+    font-weight: 800; font-size: 16px;
+    color: var(--ink);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-header-icon {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+  .panel-body {
+    position: relative; z-index: 2;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── メニューパネル (top-left) ── */
+  #menu-panel {
+    left: 30px; top: 30px;
+    width: 300px; height: 450px;
+    display: flex; flex-direction: column;
+  }
+  #menu-panel .panel-header {
+    border-bottom: 2px dashed rgba(240,160,200,0.35);
+  }
+  .menu-list {
+    padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 14px;
+    position: relative; z-index: 2;
+  }
+  .menu-item {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 18px; font-weight: 700;
+    color: var(--ink);
+    opacity: 0.9;
+  }
+  .menu-check {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #ff92c5, #ff77b7);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 16px; font-weight: 900;
+    box-shadow: 0 2px 6px rgba(255,119,183,0.3);
+    flex-shrink: 0;
+  }
+  .menu-check.pending {
+    background: rgba(200,180,210,0.3);
+    color: transparent;
+  }
+
+  /* ── チャットパネル (right) ── */
+  #chat-panel {
+    right: 30px; top: 30px;
+    width: 580px; height: 780px;
+    display: flex; flex-direction: column;
+  }
+  #chat-panel .panel-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 2px dashed rgba(240,160,200,0.35);
+  }
+  .chat-count {
+    background: rgba(255,255,255,0.75);
+    color: var(--ink);
+    font-size: 12px; font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 2px solid rgba(240,160,200,0.3);
+  }
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    scrollbar-width: none;
+    position: relative; z-index: 2;
+  }
+  .chat-messages::-webkit-scrollbar { display: none; }
+
+  .chat-msg {
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.74);
+    border: 2px solid rgba(240,160,200,0.3);
+    box-shadow: 0 3px 0 rgba(122,74,108,0.12);
+    animation: msg-in 0.28s ease-out;
+  }
+  .chat-msg.member {
+    border-color: rgba(49,215,181,0.5);
+    background: rgba(255,255,255,0.85);
+  }
+  .chat-msg.superchat {
+    border-color: rgba(255,173,51,0.6);
+    background: linear-gradient(160deg, rgba(255,242,212,0.92), rgba(255,255,255,0.82));
+  }
+  @keyframes msg-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .chat-msg-top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 4px;
+  }
+  .chat-msg-author {
+    font-size: 12px; font-weight: 800; color: var(--ink);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .chat-msg-badge {
+    font-size: 14px;
+  }
+  .chat-msg-time {
+    font-size: 10px; color: var(--muted);
+  }
+  .chat-msg-body {
+    color: #4a3a54; font-size: 14px; line-height: 1.55;
+    word-break: break-word;
+  }
+  .sc-amount {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(255,189,69,0.2); color: #8f5500;
+    font-weight: 800; font-size: 12px; padding: 2px 9px;
+    border-radius: 999px; margin-bottom: 5px;
+    border: 2px solid rgba(255,173,51,0.38);
+  }
+
+  /* ── ネームプレート (bottom-left) ── */
+  #nameplate {
+    position: absolute;
+    left: 20px; bottom: 15px;
+    width: 460px; height: 220px;
+    z-index: 3;
+  }
+  #nameplate-img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+  }
+  /* CSS フォールバックネームプレート */
+  .nameplate-fallback {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg,
+      rgba(255,255,255,0.85) 0%,
+      rgba(255,230,240,0.9) 100%);
+    border: 3px solid var(--card-border);
+    border-radius: 24px;
+    box-shadow: 0 6px 20px var(--shadow);
+    display: flex; flex-direction: column;
+    align-items: flex-start; justify-content: center;
+    padding: 20px 30px;
+  }
+  .nameplate-name {
+    font-family: 'Zen Maru Gothic', 'M PLUS Rounded 1c', sans-serif;
+    font-size: 48px; font-weight: 900;
+    color: var(--ink);
+    line-height: 1.1;
+    text-shadow: 0 2px 8px rgba(255,119,183,0.15);
+  }
+  .nameplate-title {
+    font-size: 16px; font-weight: 700;
+    color: var(--pink);
+    margin-top: 6px;
+    letter-spacing: 0.15em;
+  }
+
+  /* ── 情報パネル (bottom) ── */
+  .info-panel {
+    position: absolute;
+    width: 380px; height: 170px;
+    display: flex; flex-direction: column;
+  }
+  #info-panel-1 { left: 500px; bottom: 20px; }
+  #info-panel-2 { left: 900px; bottom: 20px; }
+  .info-panel .panel-header {
+    font-size: 14px; padding: 10px 16px;
+    border-bottom: 2px dashed rgba(240,160,200,0.3);
+  }
+  .info-content {
+    flex: 1;
+    padding: 10px 16px;
+    font-size: 15px; font-weight: 700;
+    color: var(--ink);
+    position: relative; z-index: 2;
+    display: flex; align-items: center;
+  }
+
+  /* ── 字幕バー (bottom-center) ── */
+  #subtitle-bar {
+    position: absolute;
+    left: 480px; bottom: 200px;
+    width: 760px; height: 80px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.35s cubic-bezier(0.34,1.4,0.64,1),
+                transform 0.35s cubic-bezier(0.34,1.4,0.64,1);
+    z-index: 4;
+    display: flex; align-items: center;
+  }
+  #subtitle-bar.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .subtitle-fallback {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg,
+      rgba(255,255,255,0.88) 0%,
+      rgba(255,240,248,0.92) 100%);
+    border: 3px solid var(--card-border);
+    border-radius: 20px;
+    box-shadow: 0 4px 16px var(--shadow);
+  }
+  .subtitle-frame {
+    position: absolute; inset: 0;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    z-index: 1;
+    pointer-events: none;
+  }
+  #subtitle-text {
+    position: relative; z-index: 2;
+    width: 100%;
+    padding: 0 24px;
+    font-size: 22px; font-weight: 700;
+    color: var(--ink);
+    text-align: center;
+    line-height: 1.4;
+  }
+  /* 話し中インジケーター */
+  .speaking-indicator {
+    position: absolute;
+    left: -40px; top: 50%;
+    transform: translateY(-50%);
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 12px rgba(34,197,94,0.5);
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .speaking-indicator.active {
+    opacity: 1;
+    animation: speak-pulse 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes speak-pulse {
+    from { transform: translateY(-50%) scale(1); box-shadow: 0 0 12px rgba(34,197,94,0.5); }
+    to   { transform: translateY(-50%) scale(1.15); box-shadow: 0 0 20px rgba(34,197,94,0.7); }
+  }
+
+  /* ── LIVE バッジ ── */
+  #live-badge {
+    position: absolute;
+    left: 30px; bottom: 245px;
+    z-index: 5;
+  }
+  .live-badge-inner {
+    display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(145deg, #ff7faf, #ff5ea8);
+    border-radius: 14px;
+    padding: 8px 18px;
+    box-shadow: 0 4px 0 rgba(170,44,110,0.35);
+  }
+  .live-dot {
+    width: 10px; height: 10px;
+    background: #fff;
+    border-radius: 50%;
+    animation: live-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .live-text {
+    color: #fff; font-weight: 800; font-size: 14px;
+    letter-spacing: 0.12em;
+  }
+
+  /* ── パーティクルデコレーション (tsParticles) ── */
+  #particles-layer {
+    position: absolute; inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  /* 光の粒子: Canvas に blur + brightness でグロー効果 */
+  #particles-layer canvas {
+    filter: blur(5px) brightness(1.6);
+  }
+
+  /* ── ステータス ── */
+  .status-dot {
+    position: absolute;
+    top: 12px; left: 12px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(34,197,94,0.5);
+    animation: status-blink 2s ease-in-out infinite;
+    z-index: 10;
+  }
+  .status-dot.disconnected {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239,68,68,0.5);
+  }
+  @keyframes status-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+  }
+
+  /* ── ローディング ── */
+  .loading-overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 16px; z-index: 20;
+    background: rgba(255,240,248,0.6);
+    transition: opacity 0.5s ease;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-spinner {
+    width: 48px; height: 48px;
+    border: 4px solid rgba(255,119,183,0.2);
+    border-top-color: var(--pink);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    color: var(--muted); font-size: 14px; font-weight: 700;
+  }
+
+  /* ── シーン制御 ── */
+  #root {
+    position: absolute; inset: 0;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+  }
+  #root.hidden { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="root">
+
+  <!-- Layer 0: Background -->
+  <div id="bg-layer">
+    <div class="bg-fallback" id="bgFallback"></div>
+    <img id="bg-image" src="assets/bg.png" alt=""
+         onerror="this.style.display='none'"
+         onload="document.getElementById('bgFallback').style.display='none'">
+  </div>
+
+  <!-- Layer 1: Avatar -->
+  <div id="avatar-layer" class="breathing">
+    <img id="avatar-img" alt="">
+  </div>
+
+  <!-- Layer 2: UI Panels -->
+  <div id="ui-layer">
+
+    <!-- Menu Panel -->
+    <div id="menu-panel" class="panel">
+      <div class="panel-fallback" id="menuFallback"></div>
+      <div class="panel-frame" id="menuFrame"
+           style="background-image: url('assets/frame_menu.png')"></div>
+      <div class="panel-header">
+        <span class="panel-header-icon">💖</span>
+        きょうのメニュー
+      </div>
+      <div class="panel-body">
+        <div class="menu-list" id="menuList">
+          <!-- WS で動的に設定される -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div id="chat-panel" class="panel">
+      <div class="panel-fallback" id="chatFallback"></div>
+      <div class="panel-frame" id="chatFrame"
+           style="background-image: url('assets/frame_chat.png')"></div>
+      <div class="panel-header">
+        <span class="panel-header-icon">💬</span>
+        チャット
+        <span class="chat-count" id="chatCount">0</span>
+      </div>
+      <div class="panel-body">
+        <div class="chat-messages" id="chatMessages"></div>
+      </div>
+    </div>
+
+    <!-- Nameplate -->
+    <div id="nameplate">
+      <div class="nameplate-fallback" id="nameplateFallback">
+        <div class="nameplate-name" id="nameplateNameFb">天導・ルミナ</div>
+        <div class="nameplate-title" id="nameplateTitleFb">ポップ種族AITuber</div>
+      </div>
+      <img id="nameplate-img" src="assets/nameplate.png" alt=""
+           onerror="this.style.display='none'"
+           onload="document.getElementById('nameplateFallback').style.display='none'">
+    </div>
+
+    <!-- Info Panels -->
+    <div id="info-panel-1" class="panel info-panel">
+      <div class="panel-fallback"></div>
+      <div class="panel-frame"
+           style="background-image: url('assets/frame_info.png')"></div>
+      <div class="panel-header">
+        <span class="panel-header-icon">🎵</span>
+        <span id="info1Title">ウーノの旅割</span>
+      </div>
+      <div class="panel-body">
+        <div class="info-content" id="info1Content"></div>
+      </div>
+    </div>
+
+    <div id="info-panel-2" class="panel info-panel">
+      <div class="panel-fallback"></div>
+      <div class="panel-frame"
+           style="background-image: url('assets/frame_info.png')"></div>
+      <div class="panel-header">
+        <span class="panel-header-icon">📢</span>
+        <span id="info2Title">渡割アウスグライボー</span>
+      </div>
+      <div class="panel-body">
+        <div class="info-content" id="info2Content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Subtitle Bar -->
+  <div id="subtitle-bar">
+    <div class="subtitle-fallback" id="subtitleFallback"></div>
+    <div class="subtitle-frame" id="subtitleFrame"
+         style="background-image: url('assets/frame_subtitle.png')"></div>
+    <div class="speaking-indicator" id="speakIndicator"></div>
+    <div id="subtitle-text"></div>
+  </div>
+
+  <!-- LIVE Badge -->
+  <div id="live-badge">
+    <div class="live-badge-inner">
+      <div class="live-dot"></div>
+      <span class="live-text">LIVE</span>
+    </div>
+  </div>
+
+  <!-- Particle Decorations (tsParticles) -->
+  <div id="particles-layer"></div>
+
+  <!-- Status Dot -->
+  <div class="status-dot" id="statusDot"></div>
+
+  <!-- Loading -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">アバター接続中…</div>
+  </div>
+</div>
+
+<script>
+  /* ================================================================
+     THA Broadcast Overlay Controller
+     WS events:
+       { type: "tha_frame", data: "<base64 PNG>" }
+       { type: "tha_state", speaking: true/false }
+       { type: "chat", author, text, badge }
+       { type: "subtitle", text, duration_sec }
+       { type: "config", character_name, character_subtitle }
+       { type: "scene", scene: "opening"|"chat"|"game"|"ending" }
+       { type: "layout", mode: "tha", position: {x,y}, size: {w,h} }
+       { type: "background", image: "url" }
+       { type: "menu", items: [{text, done}] }
+       { type: "info", panel: 1|2, title, content }
+     ================================================================ */
+
+  const avatarLayer = document.getElementById('avatar-layer');
+  const avatarImg   = document.getElementById('avatar-img');
+  const statusDot   = document.getElementById('statusDot');
+  const loading     = document.getElementById('loadingOverlay');
+  const root        = document.getElementById('root');
+  const chatMessages = document.getElementById('chatMessages');
+  const chatCount   = document.getElementById('chatCount');
+  const subtitleBar = document.getElementById('subtitle-bar');
+  const subtitleText = document.getElementById('subtitle-text');
+  const speakInd    = document.getElementById('speakIndicator');
+  const menuList    = document.getElementById('menuList');
+  const bgImage     = document.getElementById('bg-image');
+  const bgFallback  = document.getElementById('bgFallback');
+
+  let frameReceived = false;
+  let lastFrameTime = 0;
+  let msgTotal = 0;
+  let subtitleTimer = null;
+  const MAX_MESSAGES = 80;
+
+  /* ── 画像フレーム検出: 読み込み成功時にフォールバック非表示 ── */
+  document.querySelectorAll('.panel-frame').forEach(frame => {
+    const img = new Image();
+    const url = frame.style.backgroundImage.slice(5, -2);
+    img.onload = () => {
+      const panel = frame.closest('.panel') || frame.parentElement;
+      const fb = panel.querySelector('.panel-fallback');
+      if (fb) fb.style.display = 'none';
+    };
+    img.onerror = () => {
+      frame.style.display = 'none';
+    };
+    if (url) img.src = url;
+  });
+
+  /* 字幕フレーム検出 */
+  {
+    const sf = document.getElementById('subtitleFrame');
+    const img = new Image();
+    img.onload = () => {
+      document.getElementById('subtitleFallback').style.display = 'none';
+    };
+    img.onerror = () => { sf.style.display = 'none'; };
+    const url = sf.style.backgroundImage.slice(5, -2);
+    if (url) img.src = url;
+  }
+
+  /* ── Avatar frame handling ── */
+  function onFrame(base64Data) {
+    avatarImg.src = 'data:image/png;base64,' + base64Data;
+    if (!frameReceived) {
+      frameReceived = true;
+      loading.classList.add('hidden');
+      statusDot.classList.remove('disconnected');
+    }
+    lastFrameTime = performance.now();
+  }
+
+  function onSpeakingState(speaking) {
+    avatarLayer.classList.toggle('breathing', !speaking);
+    avatarLayer.classList.toggle('speaking', speaking);
+    speakInd.classList.toggle('active', speaking);
+  }
+
+  function applyLayout(data) {
+    if (data.position) {
+      if (data.position.x != null) avatarLayer.style.left = data.position.x + 'px';
+      if (data.position.y != null) avatarLayer.style.top  = data.position.y + 'px';
+    }
+    if (data.size) {
+      if (data.size.w != null) avatarLayer.style.width  = data.size.w + 'px';
+      if (data.size.h != null) avatarLayer.style.height = data.size.h + 'px';
+    }
+  }
+
+  /* ── Chat ── */
+  function escapeHtml(s) {
+    const el = document.createElement('span');
+    el.textContent = s;
+    return el.innerHTML;
+  }
+
+  function addChat(author, text, badge) {
+    msgTotal++;
+    chatCount.textContent = msgTotal;
+
+    const isMember = badge === 'member';
+    const isSuper  = badge === 'superchat' || badge === 'sc';
+    const cls = isMember ? ' member' : isSuper ? ' superchat' : '';
+
+    const now = new Date();
+    const time = now.getHours().toString().padStart(2,'0') + ':' +
+                 now.getMinutes().toString().padStart(2,'0');
+
+    /* スパチャ紙吹雪 */
+    if (isSuper) triggerConfetti();
+
+    const div = document.createElement('div');
+    div.className = 'chat-msg' + cls;
+    div.innerHTML =
+      '<div class="chat-msg-top">' +
+        '<span class="chat-msg-author">' +
+          (badge ? '<span class="chat-msg-badge">' +
+            (isMember ? '🟢' : isSuper ? '💰' : '💬') +
+          '</span>' : '') +
+          escapeHtml(author) +
+        '</span>' +
+        '<span class="chat-msg-time">' + time + '</span>' +
+      '</div>' +
+      '<div class="chat-msg-body">' + escapeHtml(text) + '</div>';
+
+    chatMessages.appendChild(div);
+
+    /* 古いメッセージ削除 */
+    while (chatMessages.children.length > MAX_MESSAGES) {
+      chatMessages.removeChild(chatMessages.firstChild);
+    }
+
+    /* 自動スクロール */
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  /* ── Subtitle ── */
+  function showSubtitle(text, durationSec) {
+    if (subtitleTimer) clearTimeout(subtitleTimer);
+    if (!text) {
+      subtitleBar.classList.remove('visible');
+      return;
+    }
+    subtitleText.textContent = text;
+    subtitleBar.classList.add('visible');
+    if (durationSec > 0) {
+      subtitleTimer = setTimeout(() => {
+        subtitleBar.classList.remove('visible');
+      }, durationSec * 1000);
+    }
+  }
+
+  /* ── Menu ── */
+  function updateMenu(items) {
+    menuList.innerHTML = '';
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'menu-item';
+      div.innerHTML =
+        '<span class="menu-check' + (item.done ? '' : ' pending') + '">' +
+          (item.done ? '✓' : '') +
+        '</span>' +
+        '<span>' + escapeHtml(item.text) + '</span>';
+      menuList.appendChild(div);
+    });
+  }
+
+  /* ── Frame stall detection (5s) ── */
+  setInterval(() => {
+    if (frameReceived && performance.now() - lastFrameTime > 5000) {
+      statusDot.classList.add('disconnected');
+    }
+  }, 2000);
+
+  /* ── tsParticles デコレーション ── */
+
+  /* ── パーティクル動作パターン定義 ── */
+  const PARTICLE_BASE = {
+    fullScreen: { enable: false },
+    detectRetina: true
+  };
+  const PARTICLE_COLORS = ['#ff77b7', '#ffaa44', '#7ecfff', '#a78bfa', '#34d399', '#ffd700'];
+
+  const PARTICLE_PATTERNS = {
+    /* float: ランダムにふわふわ漂う (デフォルト) */
+    float: {
+      particles: {
+        number: { value: 35, density: { enable: true, area: 1000 } },
+        shape: { type: 'circle' },
+        color: { value: PARTICLE_COLORS },
+        opacity: { value: { min: 0.2, max: 0.7 }, animation: { enable: true, speed: 0.5, minimumValue: 0.1, sync: false } },
+        size:    { value: { min: 5, max: 16 },   animation: { enable: true, speed: 1.5, minimumValue: 3, sync: false } },
+        move: { enable: true, speed: { min: 0.15, max: 0.6 }, direction: 'none', random: true, outModes: { default: 'bounce' } }
+      }
+    },
+    /* rise: 下から上へゆっくり上昇 */
+    rise: {
+      particles: {
+        number: { value: 25, density: { enable: true, area: 1000 } },
+        shape: { type: 'circle' },
+        color: { value: PARTICLE_COLORS },
+        opacity: { value: { min: 0.15, max: 0.6 }, animation: { enable: true, speed: 0.4, minimumValue: 0.05, sync: false } },
+        size:    { value: { min: 4, max: 14 },    animation: { enable: true, speed: 1.2, minimumValue: 2, sync: false } },
+        move: { enable: true, speed: { min: 0.3, max: 1.0 }, direction: 'top', outModes: { default: 'out', bottom: 'out' }, drift: { min: -0.4, max: 0.4 } }
+      }
+    },
+    /* snow: 上からゆっくり降る */
+    snow: {
+      particles: {
+        number: { value: 40, density: { enable: true, area: 1200 } },
+        shape: { type: 'circle' },
+        color: { value: ['#ffffff', '#e0f0ff', '#c8e6ff', '#fff5ee'] },
+        opacity: { value: { min: 0.3, max: 0.8 }, animation: { enable: true, speed: 0.3, minimumValue: 0.2, sync: false } },
+        size:    { value: { min: 3, max: 12 },    animation: { enable: true, speed: 1.0, minimumValue: 2, sync: false } },
+        move: { enable: true, speed: { min: 0.3, max: 1.2 }, direction: 'bottom', outModes: { default: 'out', top: 'out' }, drift: { min: -0.5, max: 0.5 },
+                wobble: { enable: true, distance: 10, speed: 5 } }
+      }
+    },
+    /* firefly: ホタルのようにゆっくり明滅しながら漂う */
+    firefly: {
+      particles: {
+        number: { value: 20, density: { enable: true, area: 800 } },
+        shape: { type: 'circle' },
+        color: { value: ['#ffd700', '#ffec8b', '#fffacd', '#ffefd5'] },
+        opacity: { value: { min: 0.05, max: 0.8 }, animation: { enable: true, speed: 1.5, minimumValue: 0.02, sync: false } },
+        size:    { value: { min: 3, max: 12 },    animation: { enable: true, speed: 2.5, minimumValue: 2, sync: false } },
+        move: { enable: true, speed: { min: 0.05, max: 0.3 }, direction: 'none', random: true, outModes: { default: 'bounce' } }
+      }
+    },
+    /* sakura: 桜の花びら風 (ピンク系、斜め落下) */
+    sakura: {
+      particles: {
+        number: { value: 22, density: { enable: true, area: 1000 } },
+        shape: { type: 'circle' },
+        color: { value: ['#ffb7c5', '#ff77b7', '#ffc0cb', '#fff0f5', '#ff69b4'] },
+        opacity: { value: { min: 0.3, max: 0.7 }, animation: { enable: true, speed: 0.3, minimumValue: 0.15, sync: false } },
+        size:    { value: { min: 5, max: 14 },    animation: { enable: true, speed: 1.0, minimumValue: 3, sync: false } },
+        move: { enable: true, speed: { min: 0.5, max: 1.5 }, direction: 'bottom-right', outModes: { default: 'out' }, drift: { min: -0.3, max: 0.8 },
+                wobble: { enable: true, distance: 15, speed: 3 } },
+        rotate: { value: { min: 0, max: 360 }, animation: { enable: true, speed: 3 } }
+      }
+    },
+    /* off: パーティクル無効 */
+    off: {
+      particles: { number: { value: 0 } }
+    },
+    /* depth: 中心から外へ放射、奥行き感 (小→大, 薄→濃) */
+    depth: {
+      emitters: {
+        position: { x: 50, y: 50 },
+        rate: { quantity: 3, delay: 0.25 },
+        size: { width: 0, height: 0 }
+      },
+      particles: {
+        number: { value: 0 },
+        shape: { type: 'circle' },
+        color: { value: PARTICLE_COLORS },
+        opacity: {
+          value: 0,
+          animation: { enable: true, speed: 0.6, startValue: 'min', destroy: 'max' }
+        },
+        size: {
+          value: 1,
+          animation: { enable: true, speed: 10, startValue: 'min', destroy: 'max', minimumValue: 1 }
+        },
+        move: {
+          enable: true,
+          speed: { min: 1, max: 5 },
+          direction: 'outside',
+          outModes: { default: 'destroy' }
+        },
+        life: { duration: { value: 4 }, count: 1 }
+      }
+    },
+    /* image: 任意画像を光パーティクルとして漂わせる */
+    image: {
+      particles: {
+        number: { value: 22, density: { enable: true, area: 1000 } },
+        shape: {
+          type: 'image',
+          options: {
+            image: [
+              { src: 'assets/particle_01.png', width: 64, height: 64 },
+              { src: 'assets/particle_02.png', width: 64, height: 64 }
+            ]
+          }
+        },
+        opacity: { value: { min: 0.3, max: 0.8 }, animation: { enable: true, speed: 0.5, minimumValue: 0.15, sync: false } },
+        size:    { value: { min: 14, max: 36 },   animation: { enable: true, speed: 1.5, minimumValue: 10, sync: false } },
+        move: { enable: true, speed: { min: 0.15, max: 0.6 }, direction: 'none', random: true, outModes: { default: 'bounce' } },
+        rotate: { value: { min: 0, max: 360 }, animation: { enable: true, speed: 2 } }
+      }
+    }
+  };
+
+  let currentPattern = 'float';
+  let particlesMain = null;
+
+  function buildConfig(patternName) {
+    const pattern = PARTICLE_PATTERNS[patternName] || PARTICLE_PATTERNS.float;
+    return Object.assign({}, PARTICLE_BASE, pattern);
+  }
+
+  async function initParticles(patternName) {
+    if (typeof tsParticles === 'undefined') return;
+    currentPattern = patternName || currentPattern;
+    try {
+      if (particlesMain) {
+        particlesMain.destroy();
+        particlesMain = null;
+      }
+      particlesMain = await tsParticles.load('particles-layer', buildConfig(currentPattern));
+      console.info('Particles pattern:', currentPattern);
+    } catch (e) {
+      console.warn('tsParticles init failed, falling back to emoji deco:', e);
+      spawnEmojiDecoFallback();
+    }
+  }
+
+  async function switchParticlePattern(patternName) {
+    if (!PARTICLE_PATTERNS[patternName]) {
+      console.warn('Unknown particle pattern:', patternName);
+      return;
+    }
+    await initParticles(patternName);
+  }
+
+  /* 画像パーティクル: WS から画像 URL を動的に差し替え */
+  async function switchParticleImage(images, patternBase) {
+    const srcs = Array.isArray(images) ? images : [images];
+    const imgOptions = srcs.map(function(s) { return { src: s, width: 64, height: 64 }; });
+    PARTICLE_PATTERNS.image.particles.shape.options.image = imgOptions;
+    await initParticles(patternBase || 'image');
+  }
+
+  /* スパチャ時の紙吹雪バースト設定 */
+  const CONFETTI_CONFIG = {
+    fullScreen: { enable: false },
+    particles: {
+      number: { value: 0 },
+      shape: { type: ['heart', 'star', 'square', 'circle'] },
+      color: { value: ['#ff77b7', '#ffd700', '#31d7b5', '#ff5ea8', '#fff'] },
+      opacity: { value: { min: 0.6, max: 1 } },
+      size: { value: { min: 8, max: 18 } },
+      move: {
+        enable: true, speed: { min: 8, max: 20 },
+        direction: 'top', gravity: { enable: true, acceleration: 6 },
+        outModes: { default: 'destroy' },
+        drift: { min: -3, max: 3 }
+      },
+      rotate: {
+        value: { min: 0, max: 360 },
+        animation: { enable: true, speed: 20 }
+      },
+      life: { duration: { value: 3 }, count: 1 }
+    },
+    emitters: [],
+    detectRetina: true
+  };
+
+  let particlesConfetti = null;
+
+  /* スパチャ紙吹雪バースト */
+  function triggerConfetti() {
+    if (!particlesMain) return;
+    const container = particlesMain;
+    /* 画面下中央からバースト */
+    for (let i = 0; i < 40; i++) {
+      container.particles.addParticle({
+        x: 960 + (Math.random() - 0.5) * 200,
+        y: 1080
+      }, {
+        shape: { type: ['heart', 'star'][Math.floor(Math.random() * 2)] },
+        color: { value: ['#ff77b7', '#ffd700', '#31d7b5', '#fff'][Math.floor(Math.random() * 4)] },
+        size: { value: 10 + Math.random() * 10 },
+        opacity: { value: 0.9 },
+        move: {
+          enable: true,
+          speed: 12 + Math.random() * 10,
+          direction: 'top',
+          gravity: { enable: true, acceleration: 5 },
+          outModes: { default: 'destroy' }
+        },
+        life: { duration: { value: 3 }, count: 1 },
+        rotate: { value: Math.random() * 360, animation: { enable: true, speed: 20 } }
+      });
+    }
+  }
+
+  /* tsParticles が読み込めなかった場合の絵文字フォールバック */
+  function spawnEmojiDecoFallback() {
+    const layer = document.getElementById('particles-layer');
+    const hearts = ['💖','💗','💕','✨','⭐','🌸'];
+    for (let i = 0; i < 12; i++) {
+      const el = document.createElement('div');
+      el.style.position = 'absolute';
+      el.style.animation = 'emoji-drift ' + (8 + Math.random() * 8) + 's ease-in-out infinite';
+      el.style.animationDelay = (Math.random() * 5) + 's';
+      el.style.opacity = '0.5';
+      el.textContent = hearts[i % hearts.length];
+      el.style.left = (Math.random() * 1800 + 60) + 'px';
+      el.style.top  = (Math.random() * 1000 + 40) + 'px';
+      el.style.fontSize = (16 + Math.random() * 20) + 'px';
+      layer.appendChild(el);
+    }
+  }
+
+  /* ── obs-websocket-js (OBS シーン制御) ── */
+  let obsWs = null;
+  const OBS_WS_URL = 'ws://127.0.0.1:4455';
+  const OBS_WS_PASSWORD = null; /* 環境に応じて設定。null=パスワード無し */
+
+  async function connectOBS() {
+    if (typeof OBSWebSocket === 'undefined') {
+      console.info('obs-websocket-js not loaded, OBS control disabled');
+      return;
+    }
+    try {
+      obsWs = new OBSWebSocket();
+      await obsWs.connect(OBS_WS_URL, OBS_WS_PASSWORD || undefined);
+      console.info('Connected to OBS WebSocket');
+    } catch (e) {
+      console.info('OBS WebSocket not available (optional):', e.message);
+      obsWs = null;
+    }
+  }
+
+  async function switchOBSScene(sceneName) {
+    if (!obsWs) return;
+    try {
+      await obsWs.call('SetCurrentProgramScene', { sceneName });
+    } catch (e) {
+      console.warn('OBS scene switch failed:', e.message);
+    }
+  }
+
+  /* OBS シーンマッピング (Orchestrator の scene 名 → OBS シーン名) */
+  const OBS_SCENE_MAP = {
+    'opening': 'Opening',
+    'chat':    'Main',
+    'game':    'Game',
+    'ending':  'Ending'
+  };
+
+  /* ── WebSocket ── */
+  const WS_URLS = [
+    'ws://127.0.0.1:31902',
+    'ws://localhost:31902',
+    'ws://127.0.0.1:31901',
+    'ws://localhost:31901'
+  ];
+  let wsIndex = 0;
+  let ws;
+
+  function connect() {
+    const url = WS_URLS[wsIndex % WS_URLS.length];
+    ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onmessage = (ev) => {
+      /* バイナリフレーム (高速パス) */
+      if (ev.data instanceof ArrayBuffer) {
+        const bytes = new Uint8Array(ev.data);
+        let binary = '';
+        const chunk = 8192;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        }
+        onFrame(btoa(binary));
+        return;
+      }
+
+      let d;
+      try { d = JSON.parse(ev.data); } catch { return; }
+
+      switch (d.type) {
+        case 'tha_frame':
+          if (d.data) onFrame(d.data);
+          break;
+        case 'tha_state':
+          onSpeakingState(!!d.speaking);
+          break;
+        case 'chat':
+          addChat(d.author || '', d.text || '', d.badge || '');
+          break;
+        case 'subtitle':
+          showSubtitle(d.text || '', d.duration_sec || 10);
+          break;
+        case 'config':
+          if (d.character_name) {
+            document.getElementById('nameplateNameFb').textContent = d.character_name;
+          }
+          if (d.character_subtitle) {
+            document.getElementById('nameplateTitleFb').textContent = d.character_subtitle;
+          }
+          break;
+        case 'layout':
+          if (d.mode === 'tha') applyLayout(d);
+          break;
+        case 'background':
+          if (d.image) {
+            bgImage.src = d.image;
+            bgImage.style.display = '';
+            bgFallback.style.display = 'none';
+          }
+          break;
+        case 'scene':
+          if (d.scene === 'opening' || d.scene === 'ending') {
+            root.classList.add('hidden');
+          } else {
+            root.classList.remove('hidden');
+          }
+          /* OBS シーン連動 */
+          if (OBS_SCENE_MAP[d.scene]) {
+            switchOBSScene(OBS_SCENE_MAP[d.scene]);
+          }
+          break;
+        case 'menu':
+          if (Array.isArray(d.items)) updateMenu(d.items);
+          break;
+        case 'info':
+          if (d.panel === 1 || d.panel === 2) {
+            const n = d.panel;
+            if (d.title) document.getElementById('info' + n + 'Title').textContent = d.title;
+            if (d.content) document.getElementById('info' + n + 'Content').textContent = d.content;
+          }
+          break;
+        case 'particles':
+          if (d.pattern === 'image' && d.images) {
+            switchParticleImage(d.images);
+          } else if (d.pattern) {
+            switchParticlePattern(d.pattern);
+          }
+          break;
+      }
+    };
+
+    ws.onclose = () => {
+      statusDot.classList.add('disconnected');
+      wsIndex++;
+      setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws.close();
+  }
+
+  connect();
+
+  /* ── 外部ライブラリ初期化 ── */
+  initParticles();
+  connectOBS();
+</script>
+
+<!-- tsParticles v2 bundle (MIT) — パーティクルエフェクト -->
+<script src="https://cdn.jsdelivr.net/npm/tsparticles@2/tsparticles.bundle.min.js"
+        onload="initParticles()"
+        onerror="console.info('tsParticles CDN unavailable'); spawnEmojiDecoFallback()"></script>
+
+<!-- obs-websocket-js (MIT) — CDN fallback: OBS シーン制御 -->
+<script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5/dist/json/obs-ws.min.js" defer
+        onload="connectOBS()"
+        onerror="console.info('obs-websocket-js CDN unavailable, OBS control disabled')"></script>
+</body>
+</html>

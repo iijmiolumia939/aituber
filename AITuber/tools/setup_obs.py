@@ -30,12 +30,17 @@ OBS_PROFILES_DIR = OBS_APPDATA / "basic" / "profiles"
 OBS_EXE = Path(r"C:\Program Files\obs-studio\bin\64bit\obs64.exe")
 
 COLLECTION_NAME = "AITuber"
+COLLECTION_NAME_THA = "AITuber_THA"
 PROFILE_NAME = "AITuber"
 SCENE_OPENING = "Opening"
 SCENE_CHAT = "Chat_Main"
 SCENE_GAME = "Game_Main"
 SCENE_ENDING = "Ending"
+SCENE_THA_CHAT = "THA_Chat"
+SCENE_THA_OPENING = "THA_Opening"
+SCENE_THA_ENDING = "THA_Ending"
 DEFAULT_SCENE = SCENE_CHAT
+DEFAULT_SCENE_THA = SCENE_THA_CHAT
 
 # Canvas
 CANVAS_W = 1920
@@ -505,6 +510,230 @@ def build_scene_collection() -> dict:
     }
 
 
+def build_tha_scene_collection() -> dict:
+    """Build OBS scene collection for THA mode (2D avatar, no Unity).
+
+    Uses tha_broadcast.html as a single unified overlay that handles
+    background, avatar, chat, menu, subtitle, and nameplate.
+    """
+
+    # UUIDs for THA scenes
+    scene_tha_chat_uuid = _uuid()
+    scene_tha_opening_uuid = _uuid()
+    scene_tha_ending_uuid = _uuid()
+
+    # UUIDs for THA media sources
+    tha_broadcast_uuid = _uuid()
+    opening_uuid = _uuid()
+    ending_uuid = _uuid()
+    transition_uuid = _uuid()
+    desktop_audio_uuid = _uuid()
+    mic_uuid = _uuid()
+    stream_bgm_uuid = _uuid()
+
+    # --- Audio devices ---
+    desktop_audio = _audio_source("wasapi_output_capture", "デスクトップ音声", desktop_audio_uuid)
+    mic_audio = _audio_source("wasapi_input_capture", "マイク", mic_uuid)
+    desktop_audio["muted"] = not OBS_INCLUDE_DESKTOP_AUDIO
+    mic_audio["muted"] = not OBS_INCLUDE_MIC_AUDIO
+
+    stream_bgm_source = _base_source(
+        "ffmpeg_source",
+        "配信BGM",
+        stream_bgm_uuid,
+        {
+            "is_local_file": True,
+            "local_file": OBS_STREAM_BGM_FILE,
+            "looping": OBS_STREAM_BGM_LOOP,
+            "restart_on_activate": False,
+            "close_when_inactive": False,
+            "clear_on_media_end": False,
+        },
+        mixers=255,
+    )
+    stream_bgm_source["muted"] = not OBS_INCLUDE_STREAM_BGM
+
+    # --- Browser Sources ---
+    def _browser_source(name: str, src_uuid: str, html_file: str, width: int, height: int) -> dict:
+        local_path = str(OVERLAYS_DIR / html_file).replace("\\", "/")
+        return _base_source(
+            "browser_source",
+            name,
+            src_uuid,
+            {
+                "is_local_file": True,
+                "local_file": local_path,
+                "width": width,
+                "height": height,
+                "css": "",
+                "shutdown": False,
+                "restart_when_active": False,
+                "fps_custom": False,
+                "fps": 30,
+            },
+        )
+
+    # 統合オーバーレイ: 背景+アバター+チャット+メニュー+字幕+ネームプレートすべて内包
+    tha_broadcast_source = _browser_source(
+        "THABroadcast", tha_broadcast_uuid, "tha_broadcast.html", 1920, 1080
+    )
+    opening_source = _browser_source(
+        "OpeningOverlay", opening_uuid, "opening.html", 1920, 1080
+    )
+    ending_source = _browser_source(
+        "EndingOverlay", ending_uuid, "ending.html", 1920, 1080
+    )
+    transition_source = _browser_source(
+        "TransitionOverlay", transition_uuid, "transition.html", 1920, 1080
+    )
+
+    # --- Scene: THA_Chat (main broadcast scene) ---
+    tha_chat_items = [
+        _scene_item(
+            0,
+            "THABroadcast",
+            tha_broadcast_uuid,
+            pos_x=0.0,
+            pos_y=0.0,
+            bounds_x=float(CANVAS_W),
+            bounds_y=float(CANVAS_H),
+            bounds_type=2,
+        ),
+        _scene_item(
+            1, "TransitionOverlay", transition_uuid, pos_x=0.0, pos_y=0.0
+        ),
+    ]
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        tha_chat_items.append(
+            _scene_item(len(tha_chat_items), "配信BGM", stream_bgm_uuid)
+        )
+
+    tha_chat_scene = _base_source(
+        "scene",
+        SCENE_THA_CHAT,
+        scene_tha_chat_uuid,
+        {
+            "custom_size": False,
+            "id_counter": len(tha_chat_items) + 1,
+            "items": tha_chat_items,
+        },
+        hotkeys={"OBSBasic.SelectScene": []},
+        canvas_uuid=MAIN_CANVAS_UUID,
+    )
+
+    # --- Scene: THA_Opening ---
+    tha_opening_items = [
+        _scene_item(
+            0,
+            "THABroadcast",
+            tha_broadcast_uuid,
+            pos_x=0.0,
+            pos_y=0.0,
+            bounds_x=float(CANVAS_W),
+            bounds_y=float(CANVAS_H),
+            bounds_type=2,
+        ),
+        _scene_item(
+            1, "OpeningOverlay", opening_uuid, pos_x=0.0, pos_y=0.0
+        ),
+        _scene_item(
+            2, "TransitionOverlay", transition_uuid, pos_x=0.0, pos_y=0.0
+        ),
+    ]
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        tha_opening_items.append(
+            _scene_item(len(tha_opening_items), "配信BGM", stream_bgm_uuid)
+        )
+
+    tha_opening_scene = _base_source(
+        "scene",
+        SCENE_THA_OPENING,
+        scene_tha_opening_uuid,
+        {
+            "custom_size": False,
+            "id_counter": len(tha_opening_items) + 1,
+            "items": tha_opening_items,
+        },
+        hotkeys={"OBSBasic.SelectScene": []},
+        canvas_uuid=MAIN_CANVAS_UUID,
+    )
+
+    # --- Scene: THA_Ending ---
+    tha_ending_items = [
+        _scene_item(
+            0,
+            "THABroadcast",
+            tha_broadcast_uuid,
+            pos_x=0.0,
+            pos_y=0.0,
+            bounds_x=float(CANVAS_W),
+            bounds_y=float(CANVAS_H),
+            bounds_type=2,
+        ),
+        _scene_item(
+            1, "EndingOverlay", ending_uuid, pos_x=0.0, pos_y=0.0
+        ),
+        _scene_item(
+            2, "TransitionOverlay", transition_uuid, pos_x=0.0, pos_y=0.0
+        ),
+    ]
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        tha_ending_items.append(
+            _scene_item(len(tha_ending_items), "配信BGM", stream_bgm_uuid)
+        )
+
+    tha_ending_scene = _base_source(
+        "scene",
+        SCENE_THA_ENDING,
+        scene_tha_ending_uuid,
+        {
+            "custom_size": False,
+            "id_counter": len(tha_ending_items) + 1,
+            "items": tha_ending_items,
+        },
+        hotkeys={"OBSBasic.SelectScene": []},
+        canvas_uuid=MAIN_CANVAS_UUID,
+    )
+
+    extra_sources = []
+    if OBS_INCLUDE_STREAM_BGM and OBS_STREAM_BGM_FILE:
+        extra_sources.append(stream_bgm_source)
+
+    return {
+        "DesktopAudioDevice1": desktop_audio,
+        "AuxAudioDevice1": mic_audio,
+        "current_scene": DEFAULT_SCENE_THA,
+        "current_program_scene": DEFAULT_SCENE_THA,
+        "scene_order": [
+            {"name": SCENE_THA_OPENING},
+            {"name": SCENE_THA_CHAT},
+            {"name": SCENE_THA_ENDING},
+        ],
+        "name": COLLECTION_NAME_THA,
+        "sources": [
+            tha_opening_scene,
+            tha_chat_scene,
+            tha_ending_scene,
+            tha_broadcast_source,
+            opening_source,
+            ending_source,
+            transition_source,
+        ]
+        + extra_sources,
+        "groups": [],
+        "quick_transitions": [
+            {
+                "id": 1,
+                "name": "カット",
+                "duration": 300,
+                "hotkeys": [],
+                "fade_to_black": False,
+            }
+        ],
+        "transitions": [],
+    }
+
+
 # ── Profile (basic.ini) ──────────────────────────────────────
 
 
@@ -635,18 +864,33 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="OBS Studio AITuber セットアップ")
     parser.add_argument("--launch", action="store_true", help="セットアップ後に OBS を起動")
     parser.add_argument("--force", action="store_true", help="既存のシーンコレクションを上書き")
+    parser.add_argument(
+        "--mode",
+        choices=["unity", "tha"],
+        default="unity",
+        help="アバターモード: unity (3D) or tha (2D, Unity不要)",
+    )
     args = parser.parse_args()
 
+    is_tha = args.mode == "tha"
+    collection_name = COLLECTION_NAME_THA if is_tha else COLLECTION_NAME
+    default_scene = DEFAULT_SCENE_THA if is_tha else DEFAULT_SCENE
+
     # Validate overlay files
-    for name in (
+    required_overlays = [
         "header.html",
         "chat.html",
         "subtitle.html",
         "opening.html",
         "ending.html",
         "transition.html",
-        "game_frame.html",
-    ):
+    ]
+    if is_tha:
+        required_overlays.extend(["tha_broadcast.html"])
+    else:
+        required_overlays.append("game_frame.html")
+
+    for name in required_overlays:
         path = OVERLAYS_DIR / name
         if not path.exists():
             print(f"ERROR: オーバーレイファイルが見つかりません: {path}", file=sys.stderr)
@@ -660,14 +904,14 @@ def main() -> None:
             print(f"デフォルトシーン削除: {default_scene.name}")
 
     # 1. Scene collection
-    scene_file = OBS_SCENES_DIR / f"{COLLECTION_NAME}.json"
+    scene_file = OBS_SCENES_DIR / f"{collection_name}.json"
     OBS_SCENES_DIR.mkdir(parents=True, exist_ok=True)
 
     if scene_file.exists() and not args.force:
         print(f"シーンコレクション既存: {scene_file}")
         print("上書きするには --force を指定してください")
     else:
-        collection = build_scene_collection()
+        collection = build_tha_scene_collection() if is_tha else build_scene_collection()
         scene_file.write_text(
             json.dumps(collection, ensure_ascii=False, indent=4), encoding="utf-8"
         )
@@ -691,20 +935,34 @@ def main() -> None:
     # 4. Summary
     print()
     print("=" * 50)
-    print("OBS AITuber セットアップ完了!")
+    print(f"OBS AITuber セットアップ完了! (モード: {args.mode})")
     print("=" * 50)
     print()
-    print(f"  シーンコレクション : {COLLECTION_NAME}")
-    print("  シーン名           : Opening / Chat_Main / Game_Main / Ending")
+    print(f"  シーンコレクション : {collection_name}")
+    if is_tha:
+        print("  シーン名           : THA_Opening / THA_Chat / THA_Ending")
+    else:
+        print("  シーン名           : Opening / Chat_Main / Game_Main / Ending")
     print(f"  プロファイル       : {PROFILE_NAME}")
     print(f"  キャンバス         : {CANVAS_W}x{CANVAS_H}")
     print()
-    print("ソース構成:")
-    print("  - Opening: opening.html + transition.html")
-    print("  - Chat_Main: Avatar + header/chat/subtitle + transition.html")
-    print("  - Game_Main: GameCapture + Avatar(corner) + game_frame/subtitle + transition.html")
-    print("  - Ending: ending.html + transition.html")
-    print("  ※ GameCapture の対象ウィンドウは OBS 側で選択してください")
+    if is_tha:
+        print("ソース構成 (THA モード):")
+        print("  - THA_Opening: THABroadcast + opening.html + transition.html")
+        print("  - THA_Chat: THABroadcast(統合) + transition.html")
+        print("  - THA_Ending: THABroadcast + ending.html + transition.html")
+        print("  ※ Unity は不要です。AVATAR_MODE=tha を .env に設定してください")
+        print("  ※ THABroadcast = 背景+アバター+チャット+メニュー+字幕 すべて内包")
+    else:
+        print("ソース構成:")
+        print("  - Opening: opening.html + transition.html")
+        print("  - Chat_Main: Avatar + header/chat/subtitle + transition.html")
+        print(
+            "  - Game_Main: GameCapture + Avatar(corner)"
+            " + game_frame/subtitle + transition.html"
+        )
+        print("  - Ending: ending.html + transition.html")
+        print("  ※ GameCapture の対象ウィンドウは OBS 側で選択してください")
     print()
     print("音声オプション:")
     print(f"  - Desktop音声: {'ON' if OBS_INCLUDE_DESKTOP_AUDIO else 'OFF'}")
@@ -737,11 +995,11 @@ def main() -> None:
             [
                 str(OBS_EXE),
                 "--collection",
-                COLLECTION_NAME,
+                collection_name,
                 "--profile",
                 PROFILE_NAME,
                 "--scene",
-                DEFAULT_SCENE,
+                default_scene,
             ],
             cwd=str(obs_cwd),
             creationflags=subprocess.DETACHED_PROCESS,
@@ -749,10 +1007,10 @@ def main() -> None:
         print("OBS 起動完了")
     else:
         print("OBS を起動するには:")
-        print(f"  python tools/setup_obs.py --launch")
+        print(f"  python tools/setup_obs.py --force --mode {args.mode} --launch")
         print()
         print("または手動で OBS を起動し、")
-        print(f'  シーンコレクション → "{COLLECTION_NAME}" を選択')
+        print(f'  シーンコレクション → "{collection_name}" を選択')
 
 
 if __name__ == "__main__":

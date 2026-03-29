@@ -1,6 +1,6 @@
 # PLANS.md — AITuber 実装計画トラッカー
 
-> **最終更新**: 2026-03-14 (M29 完了)  
+> **最終更新**: 2026-03-28 (Live2D/THA Issue 追加)  
 > これは計画の索引です。詳細はリンク先の exec-plan を参照。  
 > 完了した計画は `exec-plans/completed/` に移動し、ここでは状態を「✅完了」に更新する。
 
@@ -10,8 +10,7 @@
 
 | 計画 | 状態 | 概要 | 詳細 |
 |---|---|---|---|
-
-現在、active exec-plan はありません。
+| THA4 蒸留 | 🔄実行中 | ルミナキャラクターモデルの蒸留トレーニング (RTX 3080) | — |
 
 <!-- M10 完了 2026-03-04 → [exec-plans/completed/m10-tts-tests.md](AITuber/docs/exec-plans/completed/m10-tts-tests.md) -->
 
@@ -19,12 +18,39 @@
 
 ## バックログ
 
-> **方鉢**: バックログの詳細・进捗は [GitHub Issues](https://github.com/iijmiolumia939/aituber/issues) で管理する。ここには Issue 番号とタイトルのインデックスのみを記載する。
+> **方針**: バックログの詳細・進捗は [GitHub Issues](https://github.com/iijmiolumia939/aituber/issues) で管理する。ここには Issue 番号とタイトルのインデックスのみを記載する。
 
-| Issue | 剿先 | 概要 |
+### Live2D / THA アバター統合
+
+| Issue | 優先 | 概要 |
 |---|---|---|
+| #85 | 高 | THA アバターブリッジ — emotion/gesture/viseme → THA ポーズ変換 |
+| #86 | 高 | THA リアルタイムレンダラー — 蒸留済みモデルで 30fps フレーム生成 |
+| #87 | 高 | 配信画面構成 — THA 出力の OBS 取り込みとレイアウト |
+| #88 | 中 | Orchestrator dual-mode — Unity 3D / THA 2D 切り替え |
+| #89 | 中 | 感情・A2E → THA 表情パラメータ高精度マッピング |
+| #90 | 低 | THA テストハーネス — インタラクティブ表情確認 GUI |
 
-現在、バックログに未解決の Issue はありません。
+### 配信機能
+
+| Issue | 優先 | 概要 |
+|---|---|---|
+| #77 | 高 | スーパーチャット・スーパーサンクス読み上げ対応 |
+| #78 | 高 | 配信開始・終了アバター挨拶シーケンス |
+| #79 | 中 | 初見さん歓迎・常連さん認識・メンバーシップ反応 |
+| #80 | 中 | 同接数マイルストーン反応 |
+| #81 | 中 | 効果音（SE）対応 |
+| #82 | 中 | コメント視聴者名の明示的読み上げ強化 |
+| #84 | 低 | BGM 自動管理 |
+
+### 品質・Asset 調査
+
+| Issue | 優先 | 概要 |
+|---|---|---|
+| #83 | 中 | BehaviorSequenceRunner EditMode テスト |
+| #72 | 高 | Animation Rigging（公式）調査 |
+| #75 | 高 | AI Navigation（公式）調査 |
+| #68〜76 | 低 | その他 Asset 調査 (Animancer/Final IK/DOTween 等) |
 
 ---
 

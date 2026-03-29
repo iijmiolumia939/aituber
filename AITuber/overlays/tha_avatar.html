@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>THA Avatar Overlay</title>
+<style>
+  /* FR-A7-01 — THA4 アバター表示オーバーレイ
+     Issue #87: 配信画面構成
+     Issue #86: THA リアルタイムレンダラー
+
+     Python THA レンダラーが WS :31902 経由で base64 PNG フレームを送信。
+     このオーバーレイがそれを <img> に反映して 2D アバターを表示。
+
+     OBS ブラウザソース: 1920×1080, 背景の上・UI の下
+  */
+  @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap');
+  :root {
+    --avatar-x: 280px;    /* 左端からの位置 */
+    --avatar-y: 100px;    /* 上端からの位置 */
+    --avatar-w: 720px;    /* アバター幅 */
+    --avatar-h: 900px;    /* アバター高さ */
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    background: transparent;
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+  }
+
+  /* ── アバターコンテナ ── */
+  #avatar-container {
+    position: absolute;
+    left: var(--avatar-x);
+    top: var(--avatar-y);
+    width: var(--avatar-w);
+    height: var(--avatar-h);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    transition: left 0.6s ease, top 0.6s ease, width 0.6s ease, height 0.6s ease;
+  }
+
+  /* アバター画像 */
+  #avatar-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    image-rendering: auto;
+    /* ソフトなドロップシャドウ */
+    filter: drop-shadow(0 8px 24px rgba(60,30,60,0.18));
+    transition: opacity 0.15s ease;
+  }
+
+  /* 呼吸アニメーション (アイドル時) */
+  #avatar-container.breathing #avatar-img {
+    animation: breathe 3.5s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-4px); }
+  }
+
+  /* 話し中のソフトバウンス */
+  #avatar-container.speaking #avatar-img {
+    animation: speak-bounce 0.4s ease-in-out infinite alternate;
+  }
+  @keyframes speak-bounce {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-3px); }
+  }
+
+  /* ── 名前プレート ── */
+  .name-plate {
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(140deg, rgba(255,119,183,0.85), rgba(49,215,181,0.85));
+    border-radius: 20px;
+    padding: 6px 28px;
+    border: 2px solid rgba(255,255,255,0.5);
+    box-shadow: 0 4px 12px rgba(60,30,60,0.2);
+    white-space: nowrap;
+    z-index: 10;
+  }
+  .name-plate-text {
+    color: #fff;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: 0.1em;
+    text-shadow: 0 1px 3px rgba(60,30,60,0.3);
+  }
+
+  /* ── ステータスインジケーター ── */
+  .status-dot {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(34,197,94,0.5);
+    animation: status-pulse 2s ease-in-out infinite;
+  }
+  .status-dot.disconnected {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239,68,68,0.5);
+  }
+  @keyframes status-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.5; }
+  }
+
+  /* ── ローディング (THA レンダラー接続待ち) ── */
+  .loading-overlay {
+    position: absolute; inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
+  }
+  .loading-overlay.hidden { opacity: 0; }
+
+  .loading-spinner {
+    width: 48px; height: 48px;
+    border: 4px solid rgba(255,119,183,0.2);
+    border-top-color: #ff77b7;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .loading-text {
+    color: rgba(59,45,67,0.5);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  /* ── パーティクルデコレーション (tsParticles) ── */
+  #particles-layer {
+    position: absolute; inset: 0;
+    z-index: 6;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  /* 光の粒子: Canvas に blur + brightness でグロー効果 */
+  #particles-layer canvas {
+    filter: blur(4px) brightness(1.6);
+  }
+
+  /* ── シーン表示制御 ── */
+  #root {
+    position: absolute; inset: 0;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+  }
+  #root.hidden { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="root">
+  <!-- Particle Decorations (tsParticles) -->
+  <div id="particles-layer"></div>
+  <div id="avatar-container" class="breathing">
+    <img id="avatar-img" alt="">
+    <div class="name-plate">
+      <span class="name-plate-text" id="nameText">ルミナ</span>
+    </div>
+    <div class="status-dot" id="statusDot"></div>
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">アバター接続中…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* FR-A7-01 — THA Avatar overlay controller
+     WS events:
+       { type: "tha_frame", data: "<base64 PNG>" }
+       { type: "tha_state", speaking: true/false }
+       { type: "config", character_name: "..." }
+       { type: "scene", scene: "..." }
+       { type: "layout", mode: "tha", position: {x,y}, size: {w,h} }
+  */
+
+  const container  = document.getElementById('avatar-container');
+  const img        = document.getElementById('avatar-img');
+  const nameText   = document.getElementById('nameText');
+  const statusDot  = document.getElementById('statusDot');
+  const loading    = document.getElementById('loadingOverlay');
+  const root       = document.getElementById('root');
+
+  let frameReceived = false;
+  let lastFrameTime = 0;
+
+  function onFrame(base64Data) {
+    img.src = 'data:image/png;base64,' + base64Data;
+    if (!frameReceived) {
+      frameReceived = true;
+      loading.classList.add('hidden');
+      statusDot.classList.remove('disconnected');
+    }
+    lastFrameTime = performance.now();
+  }
+
+  function onSpeakingState(speaking) {
+    if (speaking) {
+      container.classList.remove('breathing');
+      container.classList.add('speaking');
+    } else {
+      container.classList.remove('speaking');
+      container.classList.add('breathing');
+    }
+  }
+
+  function applyLayout(data) {
+    if (data.position) {
+      if (data.position.x != null) container.style.left = data.position.x + 'px';
+      if (data.position.y != null) container.style.top  = data.position.y + 'px';
+    }
+    if (data.size) {
+      if (data.size.w != null) container.style.width  = data.size.w + 'px';
+      if (data.size.h != null) container.style.height = data.size.h + 'px';
+    }
+  }
+
+  /* フレーム途絶検知 (5 秒) */
+  setInterval(() => {
+    if (frameReceived && performance.now() - lastFrameTime > 5000) {
+      statusDot.classList.add('disconnected');
+    }
+  }, 2000);
+
+  /* ── tsParticles デコレーション (光の粒子) ── */
+
+  /* ── パーティクル動作パターン定義 ── */
+  const PARTICLE_BASE = {
+    fullScreen: { enable: false },
+    detectRetina: true
+  };
+  const PARTICLE_COLORS = ['#ff77b7', '#ffaa44', '#7ecfff', '#a78bfa', '#34d399', '#ffd700'];
+
+  const PARTICLE_PATTERNS = {
+    /* float: ランダムにふわふわ漂う (デフォルト) */
+    float: {
+      particles: {
+        number: { value: 25, density: { enable: true, area: 1000 } },
+        shape: { type: 'circle' },
+        color: { value: PARTICLE_COLORS },
+        opacity: { value: { min: 0.2, max: 0.7 }, animation: { enable: true, speed: 0.5, minimumValue: 0.1, sync: false } },
+        size:    { value: { min: 4, max: 14 },   animation: { enable: true, speed: 1.5, minimumValue: 3, sync: false } },
+        move: { enable: true, speed: { min: 0.15, max: 0.5 }, direction: 'none', random: true, outModes: { default: 'bounce' } }
+      }
+    },
+    /* rise: 下から上へゆっくり上昇 */
+    rise: {
+      particles: {
+        number: { value: 20, density: { enable: true, area: 1000 } },
+        shape: { type: 'circle' },
+        color: { value: PARTICLE_COLORS },
+        opacity: { value: { min: 0.15, max: 0.6 }, animation: { enable: true, speed: 0.4, minimumValue: 0.05, sync: false } },
+        size:    { value: { min: 3, max: 12 },    animation: { enable: true, speed: 1.2, minimumValue: 2, sync: false } },
+        move: { enable: true, speed: { min: 0.3, max: 1.0 }, direction: 'top', outModes: { default: 'out', bottom: 'out' }, drift: { min: -0.4, max: 0.4 } }
+      }
+    },
+    /* snow: 上からゆっくり降る */
+    snow: {
+      particles: {
+        number: { value: 30, density: { enable: true, area: 1200 } },
+        shape: { type: 'circle' },
+        color: { value: ['#ffffff', '#e0f0ff', '#c8e6ff', '#fff5ee'] },
+        opacity: { value: { min: 0.3, max: 0.8 }, animation: { enable: true, speed: 0.3, minimumValue: 0.2, sync: false } },
+        size:    { value: { min: 3, max: 10 },    animation: { enable: true, speed: 1.0, minimumValue: 2, sync: false } },
+        move: { enable: true, speed: { min: 0.3, max: 1.2 }, direction: 'bottom', outModes: { default: 'out', top: 'out' }, drift: { min: -0.5, max: 0.5 },
+                wobble: { enable: true, distance: 10, speed: 5 } }
+      }
+    },
+    /* firefly: ホタルのようにゆっくり明滅しながら漂う */
+    firefly: {
+      particles: {
+        number: { value: 15, density: { enable: true, area: 800 } },
+        shape: { type: 'circle' },
+        color: { value: ['#ffd700', '#ffec8b', '#fffacd', '#ffefd5'] },
+        opacity: { value: { min: 0.05, max: 0.8 }, animation: { enable: true, speed: 1.5, minimumValue: 0.02, sync: false } },
+        size:    { value: { min: 3, max: 10 },    animation: { enable: true, speed: 2.5, minimumValue: 2, sync: false } },
+        move: { enable: true, speed: { min: 0.05, max: 0.3 }, direction: 'none', random: true, outModes: { default: 'bounce' } }
+      }
+    },
+    /* sakura: 桜の花びら風 (ピンク系、斜め落下) */
+    sakura: {
+      particles: {
+        number: { value: 18, density: { enable: true, area: 1000 } },
+        shape: { type: 'circle' },
+        color: { value: ['#ffb7c5', '#ff77b7', '#ffc0cb', '#fff0f5', '#ff69b4'] },
+        opacity: { value: { min: 0.3, max: 0.7 }, animation: { enable: true, speed: 0.3, minimumValue: 0.15, sync: false } },
+        size:    { value: { min: 4, max: 12 },    animation: { enable: true, speed: 1.0, minimumValue: 3, sync: false } },
+        move: { enable: true, speed: { min: 0.5, max: 1.5 }, direction: 'bottom-right', outModes: { default: 'out' }, drift: { min: -0.3, max: 0.8 },
+                wobble: { enable: true, distance: 15, speed: 3 } },
+        rotate: { value: { min: 0, max: 360 }, animation: { enable: true, speed: 3 } }
+      }
+    },
+    /* off: パーティクル無効 */
+    off: {
+      particles: { number: { value: 0 } }
+    },
+    /* depth: 中心から外へ放射、奥行き感 (小→大, 薄→濃) */
+    depth: {
+      emitters: {
+        position: { x: 50, y: 50 },
+        rate: { quantity: 2, delay: 0.3 },
+        size: { width: 0, height: 0 }
+      },
+      particles: {
+        number: { value: 0 },
+        shape: { type: 'circle' },
+        color: { value: PARTICLE_COLORS },
+        opacity: {
+          value: 0,
+          animation: { enable: true, speed: 0.6, startValue: 'min', destroy: 'max' }
+        },
+        size: {
+          value: 1,
+          animation: { enable: true, speed: 8, startValue: 'min', destroy: 'max', minimumValue: 1 }
+        },
+        move: {
+          enable: true,
+          speed: { min: 1, max: 4 },
+          direction: 'outside',
+          outModes: { default: 'destroy' }
+        },
+        life: { duration: { value: 4 }, count: 1 }
+      }
+    },
+    /* image: 任意画像を光パーティクルとして漂わせる */
+    image: {
+      particles: {
+        number: { value: 18, density: { enable: true, area: 1000 } },
+        shape: {
+          type: 'image',
+          options: {
+            image: [
+              { src: 'assets/particle_01.png', width: 64, height: 64 },
+              { src: 'assets/particle_02.png', width: 64, height: 64 }
+            ]
+          }
+        },
+        opacity: { value: { min: 0.3, max: 0.8 }, animation: { enable: true, speed: 0.5, minimumValue: 0.15, sync: false } },
+        size:    { value: { min: 12, max: 32 },   animation: { enable: true, speed: 1.5, minimumValue: 8, sync: false } },
+        move: { enable: true, speed: { min: 0.15, max: 0.5 }, direction: 'none', random: true, outModes: { default: 'bounce' } },
+        rotate: { value: { min: 0, max: 360 }, animation: { enable: true, speed: 2 } }
+      }
+    }
+  };
+
+  let currentPattern = 'float';
+  let particlesMain = null;
+
+  function buildConfig(patternName) {
+    const pattern = PARTICLE_PATTERNS[patternName] || PARTICLE_PATTERNS.float;
+    return Object.assign({}, PARTICLE_BASE, pattern);
+  }
+
+  async function initParticles(patternName) {
+    if (typeof tsParticles === 'undefined') return;
+    currentPattern = patternName || currentPattern;
+    try {
+      /* 既存インスタンスがあれば破棄 */
+      if (particlesMain) {
+        particlesMain.destroy();
+        particlesMain = null;
+      }
+      particlesMain = await tsParticles.load('particles-layer', buildConfig(currentPattern));
+      console.info('Particles pattern:', currentPattern);
+    } catch (e) {
+      console.warn('tsParticles init failed, falling back to emoji deco:', e);
+      spawnEmojiDecoFallback();
+    }
+  }
+
+  async function switchParticlePattern(patternName) {
+    if (!PARTICLE_PATTERNS[patternName]) {
+      console.warn('Unknown particle pattern:', patternName);
+      return;
+    }
+    await initParticles(patternName);
+  }
+
+  /* 画像パーティクル: WS から画像 URL を動的に差し替え */
+  async function switchParticleImage(images, patternBase) {
+    /* images: string | string[] — 画像 URL の配列または単一 URL */
+    const srcs = Array.isArray(images) ? images : [images];
+    const imgOptions = srcs.map(function(s) { return { src: s, width: 64, height: 64 }; });
+    PARTICLE_PATTERNS.image.particles.shape.options.image = imgOptions;
+    await initParticles(patternBase || 'image');
+  }
+
+  /* tsParticles が読み込めなかった場合の絵文字フォールバック */
+  function spawnEmojiDecoFallback() {
+    const layer = document.getElementById('particles-layer');
+    const emojis = ['✨','⭐','🌸','💫'];
+    for (let i = 0; i < 6; i++) {
+      const el = document.createElement('div');
+      el.style.position = 'absolute';
+      el.style.animation = 'emoji-drift ' + (10 + Math.random() * 8) + 's ease-in-out infinite';
+      el.style.animationDelay = (Math.random() * 5) + 's';
+      el.style.opacity = '0.4';
+      el.textContent = emojis[i % emojis.length];
+      el.style.left = (Math.random() * 1800 + 60) + 'px';
+      el.style.top  = (Math.random() * 1000 + 40) + 'px';
+      el.style.fontSize = (14 + Math.random() * 16) + 'px';
+      layer.appendChild(el);
+    }
+  }
+
+  /* ── obs-websocket-js (OBS シーン制御) ── */
+  let obsWs = null;
+  const OBS_WS_URL = 'ws://127.0.0.1:4455';
+  const OBS_WS_PASSWORD = null; /* 環境に応じて設定。null=パスワード無し */
+
+  async function connectOBS() {
+    if (typeof OBSWebSocket === 'undefined') {
+      console.info('obs-websocket-js not loaded, OBS control disabled');
+      return;
+    }
+    try {
+      obsWs = new OBSWebSocket();
+      await obsWs.connect(OBS_WS_URL, OBS_WS_PASSWORD || undefined);
+      console.info('Connected to OBS WebSocket');
+    } catch (e) {
+      console.info('OBS WebSocket not available (optional):', e.message);
+      obsWs = null;
+    }
+  }
+
+  async function switchOBSScene(sceneName) {
+    if (!obsWs) return;
+    try {
+      await obsWs.call('SetCurrentProgramScene', { sceneName });
+    } catch (e) {
+      console.warn('OBS scene switch failed:', e.message);
+    }
+  }
+
+  const OBS_SCENE_MAP = {
+    'opening': 'Opening',
+    'chat':    'Main',
+    'game':    'Game',
+    'ending':  'Ending'
+  };
+
+  /* WebSocket */
+  const WS_URLS = [
+    'ws://127.0.0.1:31902',
+    'ws://localhost:31902',
+    'ws://127.0.0.1:31901',
+    'ws://localhost:31901'
+  ];
+  let wsIndex = 0;
+  let ws;
+  function connect() {
+    const url = WS_URLS[wsIndex % WS_URLS.length];
+    ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+    ws.onmessage = (ev) => {
+      /* バイナリフレーム (高速パス): 先頭が '{' でないなら raw PNG */
+      if (ev.data instanceof ArrayBuffer) {
+        const bytes = new Uint8Array(ev.data);
+        /* ArrayBuffer → base64 (チャンク処理で大きい画像も対応) */
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        onFrame(btoa(binary));
+        return;
+      }
+
+      let d;
+      try { d = JSON.parse(ev.data); } catch { return; }
+
+      if (d.type === 'tha_frame' && d.data) {
+        onFrame(d.data);
+      }
+      if (d.type === 'tha_state') {
+        onSpeakingState(!!d.speaking);
+      }
+      if (d.type === 'config') {
+        if (d.character_name) nameText.textContent = d.character_name;
+      }
+      if (d.type === 'layout' && d.mode === 'tha') {
+        applyLayout(d);
+      }
+      if (d.type === 'scene') {
+        if (d.scene === 'opening' || d.scene === 'ending') {
+          root.classList.add('hidden');
+        } else {
+          root.classList.remove('hidden');
+        }
+        const obsScene = OBS_SCENE_MAP[d.scene];
+        if (obsScene) switchOBSScene(obsScene);
+      }
+      /* パーティクルパターン切替: { type: "particles", pattern: "sakura" } */
+      if (d.type === 'particles' && d.pattern) {
+        if (d.pattern === 'image' && d.images) {
+          switchParticleImage(d.images);
+        } else {
+          switchParticlePattern(d.pattern);
+        }
+      }
+    };
+    ws.onclose = () => {
+      statusDot.classList.add('disconnected');
+      wsIndex += 1;
+      setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws.close();
+  }
+  connect();
+
+  /* ── 外部ライブラリ初期化 ── */
+  initParticles();
+  connectOBS();
+</script>
+
+<!-- tsParticles v2 bundle (MIT) — パーティクルエフェクト -->
+<script src="https://cdn.jsdelivr.net/npm/tsparticles@2/tsparticles.bundle.min.js"
+        onload="initParticles()"
+        onerror="console.info('tsParticles CDN unavailable'); spawnEmojiDecoFallback()"></script>
+
+<!-- obs-websocket-js (MIT) — CDN fallback: OBS シーン制御 -->
+<script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5/dist/json/obs-ws.min.js" defer
+        onload="connectOBS()"
+        onerror="console.info('obs-websocket-js CDN unavailable, OBS control disabled')"></script>
+</body>
+</html>

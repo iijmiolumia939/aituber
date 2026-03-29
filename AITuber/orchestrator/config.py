@@ -113,6 +113,21 @@ class AvatarWSConfig:
     viseme_audio_offset_ms: int = field(
         default_factory=lambda: int(os.environ.get("AVATAR_VISEME_OFFSET_MS", "80"))
     )
+    # アバターモード: "unity" (3D VRM) | "tha" (THA4 2D) — Issue #88
+    avatar_mode: str = field(default_factory=lambda: os.environ.get("AVATAR_MODE", "unity"))
+
+
+@dataclass(frozen=True)
+class THAConfig:
+    """THA4 アバターブリッジ設定。Issue #85, #86."""
+
+    model_dir: str = field(default_factory=lambda: os.environ.get("THA_MODEL_DIR", ""))
+    emotion_map_path: str = field(
+        default_factory=lambda: os.environ.get("THA_EMOTION_MAP", "config/tha_emotion_map.yml")
+    )
+    render_fps: int = 30
+    render_width: int = 512
+    render_height: int = 512
 
 
 @dataclass(frozen=True)
@@ -215,6 +230,7 @@ class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
     avatar_ws: AvatarWSConfig = field(default_factory=AvatarWSConfig)
+    tha: THAConfig = field(default_factory=THAConfig)
     safety: SafetyConfig = field(default_factory=SafetyConfig)
     seen_set: SeenSetConfig = field(default_factory=SeenSetConfig)
     bandit: BanditConfig = field(default_factory=BanditConfig)

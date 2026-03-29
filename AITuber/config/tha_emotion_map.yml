@@ -1,0 +1,111 @@
+# THA4 感情→ポーズパラメータ マッピング定義
+# Issue #89: 感情・A2E → THA 表情パラメータ高精度マッピング
+#
+# 各パラメータ名は THA4 の PoseParameters 定義に準拠 (45 params)
+# _left/_right サフィックスは省略可 → ブリッジが左右対称に展開
+# 範囲: 0..1 (標準), -1..1 (回転系: iris_rotation, head, body)
+# 未指定パラメータはデフォルト値 (0.0, mouth_aaa のみ 1.0)
+
+neutral:
+  breathing: 0.5
+
+happy:
+  eyebrow_happy: 0.7
+  eye_happy_wink: 0.3
+  eye_raised_lower_eyelid: 0.2
+  mouth_raised_corner: 0.8
+  mouth_aaa: 0.2
+  body_y: 0.05
+
+sad:
+  eyebrow_troubled: 0.8
+  eyebrow_lowered: 0.3
+  eye_relaxed: 0.5
+  mouth_lowered_corner: 0.7
+  mouth_aaa: 0.0
+  head_x: -0.1
+  body_y: -0.1
+
+surprised:
+  eyebrow_raised: 0.9
+  eye_surprised: 0.8
+  mouth_aaa: 0.6
+  mouth_ooo: 0.3
+  iris_small: 0.3
+  body_y: -0.15
+
+angry:
+  eyebrow_angry: 0.8
+  eyebrow_serious: 0.4
+  eye_unimpressed: 0.5
+  mouth_delta: 0.3
+  iris_small: 0.2
+  head_x: 0.1
+  body_y: 0.1
+
+thinking:
+  eyebrow_raised: 0.4
+  eyebrow_serious: 0.2
+  eye_relaxed: 0.2
+  iris_rotation_x: -0.3
+  iris_rotation_y: 0.4
+  mouth_uuu: 0.2
+  mouth_aaa: 0.0
+  head_x: 0.1
+  head_y: -0.15
+
+panic:
+  eyebrow_troubled: 0.6
+  eyebrow_raised: 0.5
+  eye_surprised: 0.7
+  iris_small: 0.5
+  mouth_aaa: 0.5
+  mouth_ooo: 0.2
+  body_y: -0.1
+  body_z: 0.1
+
+# ── Viseme マッピング ──
+# VOICEVOX mora → THA mouth params
+visemes:
+  a:
+    mouth_aaa: 1.0
+  i:
+    mouth_iii: 1.0
+    mouth_aaa: 0.0
+  u:
+    mouth_uuu: 1.0
+    mouth_aaa: 0.0
+  e:
+    mouth_eee: 1.0
+    mouth_aaa: 0.0
+  o:
+    mouth_ooo: 1.0
+    mouth_aaa: 0.0
+  sil:
+    mouth_aaa: 0.0
+  m:
+    mouth_uuu: 0.3
+    mouth_aaa: 0.0
+  fv:
+    mouth_iii: 0.3
+    mouth_aaa: 0.0
+
+# ── ジェスチャー → 体パラメータ ──
+gestures:
+  nod:
+    head_x: 0.15
+    _animation: "nod"  # 専用アニメーション制御用フラグ
+  shake:
+    head_y: 0.2
+    _animation: "shake"
+  wave:
+    body_z: 0.1
+    body_y: 0.05
+  bow:
+    head_x: 0.3
+    body_y: -0.2
+  shrug:
+    body_y: 0.1
+    body_z: 0.05
+    eyebrow_raised: 0.4
+  none: {}

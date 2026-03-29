@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>Background Overlay — THA Mode</title>
+<style>
+  /* FR-LAYOUT-01 — THA 2D モード用背景オーバーレイ
+     Issue #87: 配信画面構成
+
+     OBS ブラウザソース: 1920×1080, 最背面レイヤー
+     WS :31902 で背景切替イベントを受信
+  */
+  @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+  }
+
+  /* ── 背景レイヤー ── */
+  .bg-layer {
+    position: absolute; inset: 0;
+    transition: opacity 0.8s ease;
+  }
+
+  /* デフォルト: パステルグラデーション背景 */
+  .bg-gradient {
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(255,200,230,0.6) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(180,240,230,0.5) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(220,200,255,0.4) 0%, transparent 60%),
+      linear-gradient(160deg, #ffeef8 0%, #f0f4ff 30%, #e8faf6 60%, #fff5fb 100%);
+    z-index: 0;
+  }
+
+  /* 画像背景 (WS で URL 指定時) */
+  .bg-image {
+    z-index: 1;
+    opacity: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .bg-image.active { opacity: 1; }
+
+  /* ── パターンオーバーレイ ── */
+  .pattern-dots {
+    position: absolute; inset: 0; z-index: 2;
+    background-image: radial-gradient(rgba(180,140,200,0.12) 1.5px, transparent 1.5px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+
+  /* ── デコレーション要素 ── */
+  .deco-layer {
+    position: absolute; inset: 0; z-index: 3;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  /* 浮遊するソフトな丸 */
+  .float-circle {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.3;
+    animation: float-drift 12s ease-in-out infinite;
+  }
+  .float-circle:nth-child(1) {
+    width: 300px; height: 300px; left: -80px; top: 60%;
+    background: radial-gradient(circle, rgba(255,150,200,0.4), transparent 70%);
+    animation-duration: 14s;
+  }
+  .float-circle:nth-child(2) {
+    width: 250px; height: 250px; right: 30%; top: -60px;
+    background: radial-gradient(circle, rgba(150,220,210,0.35), transparent 70%);
+    animation-duration: 11s; animation-delay: 2s;
+  }
+  .float-circle:nth-child(3) {
+    width: 200px; height: 200px; right: -40px; bottom: 20%;
+    background: radial-gradient(circle, rgba(200,180,255,0.35), transparent 70%);
+    animation-duration: 16s; animation-delay: 4s;
+  }
+  .float-circle:nth-child(4) {
+    width: 180px; height: 180px; left: 40%; bottom: -40px;
+    background: radial-gradient(circle, rgba(255,200,160,0.3), transparent 70%);
+    animation-duration: 13s; animation-delay: 1s;
+  }
+  .float-circle:nth-child(5) {
+    width: 160px; height: 160px; left: 15%; top: 10%;
+    background: radial-gradient(circle, rgba(180,230,255,0.3), transparent 70%);
+    animation-duration: 15s; animation-delay: 3s;
+  }
+
+  @keyframes float-drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    25%      { transform: translate(20px, -15px) scale(1.05); }
+    50%      { transform: translate(-10px, 10px) scale(0.95); }
+    75%      { transform: translate(15px, 5px) scale(1.02); }
+  }
+
+  /* ── 窓枠風フレーム (オプション) ── */
+  .room-frame {
+    position: absolute; inset: 0; z-index: 4;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+  .room-frame.active { opacity: 1; }
+
+  /* 窓の光の差し込み */
+  .light-shaft {
+    position: absolute;
+    top: 0; right: 15%;
+    width: 300px; height: 100%;
+    background: linear-gradient(
+      180deg,
+      rgba(255,255,200,0.08) 0%,
+      rgba(255,255,200,0.03) 40%,
+      transparent 70%
+    );
+    transform: skewX(-15deg);
+    animation: light-sway 8s ease-in-out infinite;
+  }
+  @keyframes light-sway {
+    0%, 100% { transform: skewX(-15deg) translateX(0); opacity: 0.8; }
+    50%      { transform: skewX(-12deg) translateX(30px); opacity: 1; }
+  }
+
+  /* ── 時間帯による色温度変化 (WS で指定) ── */
+  .time-tint {
+    position: absolute; inset: 0; z-index: 5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.5s ease, background 1.5s ease;
+  }
+  .time-tint.morning   { background: rgba(255,240,200,0.1); opacity: 1; }
+  .time-tint.afternoon { background: rgba(255,255,255,0);   opacity: 0; }
+  .time-tint.evening   { background: rgba(255,180,120,0.12); opacity: 1; }
+  .time-tint.night     { background: rgba(80,60,120,0.15);   opacity: 1; }
+
+  /* ── シーン非表示 ── */
+  #root { position: absolute; inset: 0; }
+  #root.hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+</style>
+</head>
+<body>
+<div id="root">
+  <!-- グラデーション背景 (デフォルト) -->
+  <div class="bg-layer bg-gradient"></div>
+
+  <!-- 画像背景 (WS 切替) -->
+  <div class="bg-layer bg-image" id="bgImage"></div>
+
+  <!-- ドットパターン -->
+  <div class="pattern-dots"></div>
+
+  <!-- デコレーション -->
+  <div class="deco-layer">
+    <div class="float-circle"></div>
+    <div class="float-circle"></div>
+    <div class="float-circle"></div>
+    <div class="float-circle"></div>
+    <div class="float-circle"></div>
+  </div>
+
+  <!-- 窓枠フレーム -->
+  <div class="room-frame" id="roomFrame">
+    <div class="light-shaft"></div>
+  </div>
+
+  <!-- 時間帯ティント -->
+  <div class="time-tint" id="timeTint"></div>
+</div>
+
+<script>
+  /* FR-LAYOUT-01 — Background overlay controller
+     WS events:
+       { type: "background", image: "url or base64", room: true/false, time: "morning"|"afternoon"|"evening"|"night" }
+       { type: "scene", scene: "..." }
+  */
+  const bgImage = document.getElementById('bgImage');
+  const roomFrame = document.getElementById('roomFrame');
+  const timeTint = document.getElementById('timeTint');
+  const root = document.getElementById('root');
+
+  function setBackground(data) {
+    if (data.image) {
+      bgImage.style.backgroundImage = 'url(' + CSS.escape(data.image) + ')';
+      bgImage.classList.add('active');
+    } else {
+      bgImage.classList.remove('active');
+    }
+
+    if (data.room) {
+      roomFrame.classList.add('active');
+    } else {
+      roomFrame.classList.remove('active');
+    }
+
+    if (data.time) {
+      timeTint.className = 'time-tint ' + data.time;
+    }
+  }
+
+  /* WebSocket */
+  const WS_URLS = [
+    'ws://127.0.0.1:31902',
+    'ws://localhost:31902',
+    'ws://127.0.0.1:31901',
+    'ws://localhost:31901'
+  ];
+  let wsIndex = 0;
+  let ws;
+  function connect() {
+    const url = WS_URLS[wsIndex % WS_URLS.length];
+    ws = new WebSocket(url);
+    ws.onmessage = (ev) => {
+      let d;
+      try { d = JSON.parse(ev.data); } catch { return; }
+
+      if (d.type === 'background') {
+        setBackground(d);
+      }
+      if (d.type === 'scene') {
+        // opening/ending ではこの背景を非表示
+        if (d.scene === 'opening' || d.scene === 'ending') {
+          root.classList.add('hidden');
+        } else {
+          root.classList.remove('hidden');
+        }
+      }
+    };
+    ws.onclose = () => {
+      wsIndex += 1;
+      setTimeout(connect, 1500);
+    };
+    ws.onerror = () => ws.close();
+  }
+  connect();
+
+  /* 時間帯の自動設定 (WS 未受信時のフォールバック) */
+  function autoTimeTint() {
+    const h = new Date().getHours();
+    let period = 'afternoon';
+    if (h >= 5 && h < 10)       period = 'morning';
+    else if (h >= 10 && h < 17) period = 'afternoon';
+    else if (h >= 17 && h < 20) period = 'evening';
+    else                        period = 'night';
+    timeTint.className = 'time-tint ' + period;
+  }
+  autoTimeTint();
+  setInterval(autoTimeTint, 60000);
+</script>
+</body>
+</html>
