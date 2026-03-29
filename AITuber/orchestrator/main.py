@@ -45,6 +45,8 @@ from orchestrator.latency import LatencyTracker
 from orchestrator.life_scheduler import LifeScheduler
 from orchestrator.llm_client import LLMClient, LLMResult
 from orchestrator.memory import MemoryTracker
+from orchestrator.memory_budget import compile_fragments
+from orchestrator.micro_triage import triage_episode
 from orchestrator.narrative_builder import NarrativeBuilder
 from orchestrator.overlay_server import OverlayServer
 from orchestrator.safety import SafetyVerdict, check_safety
@@ -1341,7 +1343,9 @@ class Orchestrator:
             if fragment
         ]
         if fragments:
-            combined = "\n\n".join(fragments)
+            # FR-MEM-BUDGET-01: cap total fragment tokens to prevent
+            # unbounded context growth.
+            combined = compile_fragments(fragments)
             self._llm.set_world_context_fragment(combined)
 
         # LLM call (GRAYゾーンの場合は回避ヒント付き)
@@ -1468,7 +1472,7 @@ class Orchestrator:
 
         # FR-E2-01: Store episode in episodic memory
         try:
-            self._episodic.append(
+            ep = self._episodic.append(
                 author=msg.author_display_name,
                 user_text=msg.text,
                 ai_response=full_text,
@@ -1479,10 +1483,12 @@ class Orchestrator:
                 time_bucket=self._world_context.state.time_of_day,
                 related_viewer=msg.author_display_name,
             )
+            # FR-MEM-EVIDENCE-01: pass episode_id for evidence linking
             self._semantic.observe_conversation(
                 author=msg.author_display_name,
                 user_text=msg.text,
                 ai_response=full_text,
+                episode_id=ep.episode_id,
             )
             self._goals.observe_conversation(
                 author=msg.author_display_name,
@@ -1492,6 +1498,9 @@ class Orchestrator:
             self._goal_hint = self._goals.to_idle_hint()
             goal_focus, goal_focus_type = self._goals.get_scheduler_focus()
             self._life.set_goal_focus(goal_focus, focus_type=goal_focus_type)
+
+            # FR-MEM-TRIAGE-01: async micro-triage for contradiction detection
+            asyncio.create_task(self._micro_triage(msg, ep.episode_id))
         except Exception:
             logger.debug("Episodic store append failed")
 
@@ -1533,6 +1542,25 @@ class Orchestrator:
         if len(kept_lines) <= 1:
             return ""
         return "\n".join(kept_lines)
+
+    async def _micro_triage(self, msg: ChatMessage, episode_id: str) -> None:
+        """FR-MEM-TRIAGE-01: async post-reply contradiction scan."""
+        try:
+            flagged = triage_episode(
+                semantic=self._semantic,
+                author=msg.author_display_name,
+                user_text=msg.text,
+                ai_response="",
+                episode_id=episode_id,
+            )
+            if flagged:
+                logger.info(
+                    "[MicroTriage] %d fact(s) flagged for %s",
+                    flagged,
+                    msg.author_display_name,
+                )
+        except Exception:  # noqa: BLE001
+            logger.debug("Micro-triage failed (non-fatal)")
 
     async def _speak(
         self,

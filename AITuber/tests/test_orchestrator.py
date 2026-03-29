@@ -8,7 +8,7 @@ TC-PERC-01~05: _on_perception_update behavior_completed routing (L-5/R3-2/R4).
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -711,6 +711,7 @@ class TestReplyEpisodeMetadata:
             author="テストユーザー",
             user_text="shader の続きを教えて",
             ai_response="shader の続きを話そう。",
+            episode_id=ANY,
         )
 
     @pytest.mark.asyncio

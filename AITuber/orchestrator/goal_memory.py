@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_STORE_PATH = Path(__file__).parent.parent / "config" / "goal_memory.jsonl"
 _FOLLOW_UP_MARKERS: tuple[str, ...] = ("続き", "つづき", "また", "次回", "later", "follow up")
+_GOAL_CONFIDENCE_HALF_LIFE_DAYS = 21.0
 
 
 @dataclass
@@ -35,6 +37,16 @@ class GoalEntry:
     mention_count: int
     confidence: float
     last_updated: float
+
+    def effective_confidence(self, now: float) -> float:
+        """FR-MEM-DECAY-01: time-decayed confidence for goals.
+
+        Goals decay with a 21-day half-life so stale unmentioned goals
+        naturally lose priority.
+        """
+        age_days = max(0.0, now - self.last_updated) / 86400.0
+        decay = math.exp(-math.log(2.0) * age_days / _GOAL_CONFIDENCE_HALF_LIFE_DAYS)
+        return round(min(0.95, max(0.0, self.confidence * decay)), 4)
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -69,6 +69,9 @@ def extract_topics(text: str) -> list[str]:
     return ordered_topics
 
 
+_CONFIDENCE_HALF_LIFE_DAYS = 30.0
+
+
 @dataclass
 class SemanticFact:
     """A compact durable fact distilled from repeated interactions."""
@@ -80,9 +83,33 @@ class SemanticFact:
     mention_count: int
     confidence: float
     last_updated: float
+    evidence_ids: list[str] | None = None
+    last_contradicted: float = 0.0
+
+    def effective_confidence(self, now: float) -> float:
+        """FR-MEM-DECAY-01: time-decayed confidence.
+
+        Confidence decays with a 30-day half-life from *last_updated*.
+        A recent contradiction accelerates the decay.
+        """
+        import math
+
+        age_days = max(0.0, now - self.last_updated) / 86400.0
+        decay = math.exp(-math.log(2.0) * age_days / _CONFIDENCE_HALF_LIFE_DAYS)
+        base = self.confidence * decay
+        if self.last_contradicted > 0:
+            contra_age = max(0.0, now - self.last_contradicted) / 86400.0
+            if contra_age < 7.0:
+                base *= 0.5
+        return round(min(0.95, max(0.0, base)), 4)
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        if not d.get("evidence_ids"):
+            d.pop("evidence_ids", None)
+        if not d.get("last_contradicted"):
+            d.pop("last_contradicted", None)
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> SemanticFact:
@@ -94,6 +121,8 @@ class SemanticFact:
             mention_count=int(data.get("mention_count", 1) or 1),
             confidence=float(data.get("confidence", 0.5) or 0.5),
             last_updated=float(data.get("last_updated", 0.0) or 0.0),
+            evidence_ids=list(data.get("evidence_ids") or []) or None,
+            last_contradicted=float(data.get("last_contradicted", 0.0) or 0.0),
         )
 
 
@@ -155,14 +184,17 @@ class SemanticMemory:
         author: str,
         user_text: str,
         ai_response: str = "",
+        episode_id: str = "",
     ) -> None:
         now = float(self._time_fn())
         self._upsert_viewer_profile(author, now)
         for topic in extract_topics(user_text):
-            self._upsert_topic_interest(author, topic, now)
+            self._upsert_topic_interest(author, topic, now, episode_id=episode_id)
         if ai_response:
             for topic in extract_topics(ai_response):
-                self._upsert_topic_interest(author, topic, now, confidence_step=0.03)
+                self._upsert_topic_interest(
+                    author, topic, now, confidence_step=0.03, episode_id=episode_id
+                )
         self._save()
 
     def to_prompt_fragment(
@@ -185,6 +217,7 @@ class SemanticMemory:
         if profile is not None:
             lines.append(f"{author} は {profile.value} 寄りの視聴者で、会話の連続性を期待できる")
 
+        now = float(self._time_fn())
         query_topics = set(extract_topics(query))
         excluded_tokens = self._normalize_excluded_topics(exclude_topics)
         topic_facts = self.get_facts(category="viewer_interest", subject=author)
@@ -199,12 +232,15 @@ class SemanticMemory:
                 key=lambda fact: (
                     1 if fact.value in query_topics else 0,
                     fact.mention_count,
-                    fact.confidence,
+                    fact.effective_confidence(now),
                 ),
                 reverse=True,
             )
         else:
-            topic_facts.sort(key=lambda fact: (fact.mention_count, fact.confidence), reverse=True)
+            topic_facts.sort(
+                key=lambda fact: (fact.mention_count, fact.effective_confidence(now)),
+                reverse=True,
+            )
 
         for fact in topic_facts[:top_k]:
             if fact.value in query_topics:
@@ -328,6 +364,7 @@ class SemanticMemory:
         now: float,
         *,
         confidence_step: float = 0.06,
+        episode_id: str = "",
     ) -> None:
         fact = self._find_fact("viewer_interest", author, topic)
         if fact is None:
@@ -340,12 +377,21 @@ class SemanticMemory:
                     mention_count=1,
                     confidence=0.35,
                     last_updated=now,
+                    evidence_ids=[episode_id] if episode_id else None,
                 )
             )
             return
         fact.mention_count += 1
         fact.confidence = min(0.95, fact.confidence + confidence_step)
         fact.last_updated = now
+        if episode_id:
+            if fact.evidence_ids is None:
+                fact.evidence_ids = []
+            if episode_id not in fact.evidence_ids:
+                fact.evidence_ids.append(episode_id)
+                # Keep bounded to avoid unbounded growth
+                if len(fact.evidence_ids) > 20:
+                    fact.evidence_ids = fact.evidence_ids[-20:]
 
     def _find_fact(self, category: str, subject: str, value: str) -> SemanticFact | None:
         for fact in self._facts:

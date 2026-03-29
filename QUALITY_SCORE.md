@@ -1,6 +1,6 @@
 # QUALITY_SCORE.md — AITuber 品質スコアカード
 
-> **最終更新**: 2026-03-14 (M29完了)  
+> **最終更新**: 2026-03-26 (M30完了)  
 > **更新ルール**: PR マージ後、影響するドメインのスコアを更新する。  
 > 改善が必要な領域は `tech-debt-tracker.md` にも反映すること。
 
@@ -38,6 +38,7 @@
 | Runtime/Semantic Memory (M27) | A | 高 | viewer familiarity + repeated topic durable facts。`[FACTS]` を compact に維持 |
 | Runtime/Goal/Narrative Continuity (M28) | A | 高 | goal memory、viewer-aware follow-up、ambient grounded recall、scheduler bias まで配線済み |
 | Runtime/Memory Maintenance (M29) | A | 高 | post-stream CLI で duplicate merge、stale archive、conservative semantic/goal backfill を実装 |
+| Runtime/Memory Quality (M30) | A | 高 (24/24 TC) | FR-MEM-BUDGET/EVIDENCE/DECAY/TRIAGE。Budget Compiler + Evidence-Linked Facts + Time-Decayed Confidence + Micro-Triage |
 | Behavior/BehaviorDefinitionLoader (M20) | B | 中 (テスト未実装) | FR-BEHAVIOR-SEQ-01。behaviors.json ロード+ルックアップシングルトン |
 | Behavior/BehaviorSequenceRunner (M20) | B | 中 (テスト未実装) | FR-BEHAVIOR-SEQ-01。walk_to/gesture/wait コルーチン |
 
@@ -81,6 +82,7 @@
 | Python pytest (targeted M26) | 48 | 48 | 0 |
 | Python pytest (targeted M27/M28) | 53 | 53 | 0 |
 | Python pytest (targeted M29) | 4 | 4 | 0 |
+| Python pytest (targeted M30) | 24 | 24 | 0 |
 | Python pytest (全スイート inventory, `-m "not slow"`) | 806 | 806 collected | 10 deselected |
 
 ---

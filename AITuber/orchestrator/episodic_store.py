@@ -372,7 +372,9 @@ class EpisodicStore:
     def _freshness_factor(timestamp: float, now: float) -> float:
         age_days = max(0.0, now - timestamp) / 86400.0
         freshness = math.exp(-math.log(2.0) * age_days / _HALF_LIFE_DAYS)
-        return 0.7 + freshness * 0.3
+        # FR-MEM-DECAY-01: floor lowered from 0.7 → 0.3 so old memories
+        # genuinely fade rather than forever dominating retrieval.
+        return 0.3 + freshness * 0.7
 
     def _touch_recalled_episodes(self, episodes: list[EpisodeEntry], now: float) -> None:
         for ep in episodes:

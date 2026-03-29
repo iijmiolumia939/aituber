@@ -42,6 +42,8 @@ class MaintenanceReport:
     archived_episode_count: int
     semantic_facts_added: int
     goal_entries_added: int
+    decayed_semantic_facts: int
+    decayed_goal_entries: int
     archive_path: str
 
     def to_dict(self) -> dict[str, object]:
@@ -166,6 +168,11 @@ class MemoryMaintenanceCLI:
         semantic_added = self._promote_semantic_facts(archived_episodes, semantic, now=now)
         goal_added = self._promote_goals(archived_episodes, goals, now=now)
 
+        # FR-MEM-DECAY-01: prune facts/goals whose effective_confidence
+        # has decayed below usable threshold.
+        decayed_sem = self._prune_decayed_semantic(semantic, now=now)
+        decayed_goal = self._prune_decayed_goals(goals, now=now)
+
         report = MaintenanceReport(
             dry_run=self.dry_run,
             active_episode_count_before=len(episodes),
@@ -175,6 +182,8 @@ class MemoryMaintenanceCLI:
             archived_episode_count=len(archived_episodes),
             semantic_facts_added=semantic_added,
             goal_entries_added=goal_added,
+            decayed_semantic_facts=decayed_sem,
+            decayed_goal_entries=decayed_goal,
             archive_path=str(self.archive_path),
         )
 
@@ -388,6 +397,30 @@ class MemoryMaintenanceCLI:
     @staticmethod
     def _episode_topics(episode: EpisodeEntry) -> list[str]:
         return extract_topics(f"{episode.user_text}\n{episode.ai_response}")
+
+    @staticmethod
+    def _prune_decayed_semantic(semantic: SemanticMemory, *, now: float) -> int:
+        """FR-MEM-DECAY-01: remove viewer_interest facts whose effective
+        confidence has decayed below 0.10 — no longer useful for prompts."""
+        before = len(semantic._facts)  # noqa: SLF001
+        semantic._facts = [  # noqa: SLF001
+            fact
+            for fact in semantic._facts  # noqa: SLF001
+            if fact.category != "viewer_interest" or fact.effective_confidence(now) >= 0.10
+        ]
+        return before - len(semantic._facts)  # noqa: SLF001
+
+    @staticmethod
+    def _prune_decayed_goals(goals: GoalMemory, *, now: float) -> int:
+        """FR-MEM-DECAY-01: remove warming goals whose effective confidence
+        has decayed below 0.10 — active goals are kept regardless."""
+        before = len(goals._goals)  # noqa: SLF001
+        goals._goals = [  # noqa: SLF001
+            goal
+            for goal in goals._goals  # noqa: SLF001
+            if goal.status == "active" or goal.effective_confidence(now) >= 0.10
+        ]
+        return before - len(goals._goals)  # noqa: SLF001
 
     def _promote_semantic_facts(
         self,
