@@ -296,5 +296,17 @@ namespace AITuber.Avatar
             Debug.Log("[AvatarCtrl] Reset to neutral");
         }
 
+        // ── set_background_mode (FR-BCAST-BG-01) ────────────────────
+
+        private void HandleSetBackgroundMode(SetBackgroundModeParams p)
+        {
+            if (p == null || string.IsNullOrEmpty(p.mode)) return;
+            var ctrl = Room.TransparentBackgroundController.Instance;
+            if (ctrl != null)
+                ctrl.SetMode(p.mode);
+            else
+                Debug.LogWarning("[AvatarCtrl] set_background_mode received but TransparentBackgroundController not found.");
+        }
+
     }
 }

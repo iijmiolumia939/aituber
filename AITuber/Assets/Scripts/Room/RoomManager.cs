@@ -179,6 +179,18 @@ namespace AITuber.Room
             ? _rooms[_currentIndex].roomId
             : string.Empty;
 
+        /// <summary>
+        /// Show or hide the active room instance. FR-BCAST-BG-01
+        /// Used by TransparentBackgroundController to hide rooms in chroma-key mode.
+        /// </summary>
+        public void SetRoomsVisible(bool visible)
+        {
+            if (_currentIndex < 0 || _rooms[_currentIndex] == null) return;
+            var id = _rooms[_currentIndex].roomId;
+            if (_roomMap.TryGetValue(id, out var entry) && entry.instance != null)
+                entry.instance.SetActive(visible);
+        }
+
         // ── Switch Coroutine ─────────────────────────────────────────
 
         private IEnumerator DoSwitch(int newIndex, RoomDefinition def, GameObject newInstance)

@@ -30,6 +30,10 @@ commands:
       events: "list<{t_ms:int, v:str}>"
       crossfade_ms: "int (40..80 recommended)"
       strength: "0..1"
+  - cmd: "set_background_mode"
+    description: "Toggle Unity camera background for chroma-key streaming. FR-BCAST-BG-01."
+    params:
+      mode: ["room","transparent"]
 viseme_sets:
   jp_basic_8: ["sil","a","i","u","e","o","m","fv"]
 live2d_mapping:

@@ -130,6 +130,7 @@ class BroadcastLayoutManager:
         send_layout_fn: _OverlayFn | None = None,
         send_transition_fn: _OverlayFn | None = None,
         obs_switch_fn: _ObsSwitchFn | None = None,
+        send_background_mode_fn: _OverlayFn | None = None,
         transition_duration_ms: int = 600,
         default_transition: TransitionName = TransitionName.FADE,
     ) -> None:
@@ -138,6 +139,7 @@ class BroadcastLayoutManager:
         self._send_layout = send_layout_fn or _noop_async
         self._send_transition = send_transition_fn or _noop_async
         self._obs_switch = obs_switch_fn or (lambda _: True)
+        self._send_bg_mode = send_background_mode_fn or _noop_async
         self._transition_ms = transition_duration_ms
         self._default_transition = default_transition
         self._current_scene: BroadcastScene = BroadcastScene.CHAT
@@ -204,6 +206,10 @@ class BroadcastLayoutManager:
         obs_ok = self._obs_switch(cfg.obs_scene)
         if not obs_ok:
             logger.warning("[Layout] OBS switch to %s failed", cfg.obs_scene)
+
+        # Step 2.5: background mode — transparent for CHAT/GAME, room otherwise
+        bg_mode = "transparent" if scene in {BroadcastScene.CHAT, BroadcastScene.GAME} else "room"
+        await self._send_bg_mode(bg_mode)
 
         # Step 3: overlay scene event
         await self._send_scene(scene.value)

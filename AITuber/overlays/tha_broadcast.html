@@ -174,11 +174,60 @@
     color: transparent;
   }
 
-  /* ── チャットパネル (right) ── */
+  /* ── チャットパネル (right) ── レイヤー構成:
+     1. comment-frame.png  外枠フレーム (background-size: 100% 100%)
+     2. comment-title.png  タイトルバー (上端中央・固定サイズ)
+     3. .heart-column      左ハート列 (HTMLで複製)
+     4. #chatMessages      コメント本文 (WSから動的挿入)
+  ── */
   #chat-panel {
     right: 30px; top: 30px;
     width: 580px; height: 780px;
     display: flex; flex-direction: column;
+    border: none; border-radius: 0;
+    overflow: visible;
+    background: url('assets/comment-frame.png') no-repeat center / 100% 100%;
+  }
+  #chat-panel .panel-frame,
+  #chat-panel .panel-fallback {
+    display: none;
+  }
+
+  /* ── タイトルバー (Comment バナー) ── */
+  .chat-title-bar {
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 310px;
+    height: auto;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .chat-title-bar img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* ── 左ハート列 ── */
+  .heart-column {
+    position: absolute;
+    left: 8px;
+    top: 100px;
+    bottom: 80px;
+    width: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .heart-column img {
+    width: 36px;
+    height: auto;
+    filter: drop-shadow(0 2px 4px rgba(255, 120, 180, 0.3));
   }
   #chat-panel .panel-header {
     display: flex; justify-content: space-between; align-items: center;
@@ -496,17 +545,30 @@
       </div>
     </div>
 
-    <!-- Chat Panel -->
+    <!-- Chat Panel — comment-frame.png + comment-title.png + HTML hearts -->
     <div id="chat-panel" class="panel">
       <div class="panel-fallback" id="chatFallback"></div>
-      <div class="panel-frame" id="chatFrame"
-           style="background-image: url('assets/frame_chat.png')"></div>
-      <div class="panel-header">
+      <div class="panel-frame" id="chatFrame"></div>
+      <!-- タイトルバー -->
+      <div class="chat-title-bar">
+        <img src="assets/comment-title.png" alt="Comment">
+      </div>
+      <!-- 左ハート列 -->
+      <div class="heart-column" id="heartColumn">
+        <img src="assets/heart.png" alt="">
+        <img src="assets/heart.png" alt="">
+        <img src="assets/heart.png" alt="">
+        <img src="assets/heart.png" alt="">
+        <img src="assets/heart.png" alt="">
+        <img src="assets/heart.png" alt="">
+      </div>
+      <!-- ヘッダー + メッセージ -->
+      <div class="panel-header" style="margin-top: 55px; margin-left: 50px;">
         <span class="panel-header-icon">💬</span>
         チャット
         <span class="chat-count" id="chatCount">0</span>
       </div>
-      <div class="panel-body">
+      <div class="panel-body" style="margin-left: 50px;">
         <div class="chat-messages" id="chatMessages"></div>
       </div>
     </div>

@@ -119,6 +119,10 @@ namespace AITuber.Avatar
                         var a2eEmo = JsonUtility.FromJson<A2EEmotionEnvelope>(json);
                         typed = a2eEmo?.@params;
                         break;
+                    case "set_background_mode":
+                        var bgMode = JsonUtility.FromJson<SetBackgroundModeEnvelope>(json);
+                        typed = bgMode?.@params;
+                        break;
                     default:
                         // Unknown command – ignore (backward compatible)
                         Debug.Log($"[AvatarWS] Unknown cmd: {msg.cmd}");
@@ -513,6 +517,28 @@ namespace AITuber.Avatar
         public string ts;
         public string cmd;
         public A2EEmotionParams @params;
+    }
+
+    // ── set_background_mode params ───────────────────────────────────
+    // FR-BCAST-BG-01: Switch between room environment and transparent chroma-key background.
+    // Wire: { "cmd": "set_background_mode", "params": { "mode": "transparent" } }
+    // mode: "room" (default, show 3D room) | "transparent" (chroma-key green, rooms hidden)
+
+    /// <summary>Parameters for the "set_background_mode" command.</summary>
+    [Serializable]
+    public class SetBackgroundModeParams
+    {
+        /// <summary>"room" for 3D room environment, "transparent" for chroma-key green.</summary>
+        public string mode = "room";
+    }
+
+    [Serializable]
+    internal class SetBackgroundModeEnvelope
+    {
+        public string id;
+        public string ts;
+        public string cmd;
+        public SetBackgroundModeParams @params;
     }
 
 }

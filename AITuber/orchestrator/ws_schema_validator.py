@@ -85,6 +85,7 @@ KNOWN_CMDS: frozenset[str] = frozenset(
         "zone_change",
         "behavior_start",
         "appearance_update",
+        "set_background_mode",  # FR-BCAST-BG-01: chroma-key toggle
         "a2f_audio",
         "a2f_chunk",
         "a2f_stream_close",
@@ -351,6 +352,26 @@ def _validate_appearance_update(params: dict) -> WsValidationResult:
     return WsValidationResult.valid()
 
 
+_VALID_BG_MODES: frozenset[str] = frozenset({"room", "transparent"})
+
+
+def _validate_set_background_mode(params: dict) -> WsValidationResult:
+    """Validate set_background_mode params. FR-BCAST-BG-01."""
+    mode = params.get("mode")
+    if mode is None:
+        return WsValidationResult.error("MISSING_PARAM", "'mode' is required")
+    if not isinstance(mode, str):
+        return WsValidationResult.error(
+            "INVALID_PARAM_TYPE", f"'mode' must be a string, got {type(mode)}"
+        )
+    if mode not in _VALID_BG_MODES:
+        return WsValidationResult.error(
+            "INVALID_PARAM_VALUE",
+            f"'mode' must be one of {sorted(_VALID_BG_MODES)}, got '{mode}'",
+        )
+    return WsValidationResult.valid()
+
+
 _CMD_VALIDATORS: dict[str, Any] = {
     "avatar_update": _validate_avatar_update,
     "avatar_event": _validate_avatar_event,
@@ -368,6 +389,7 @@ _CMD_VALIDATORS: dict[str, Any] = {
     "a2f_stream_close": _validate_a2f_stream_close,
     "a2g_chunk": _validate_a2g_chunk,
     "a2g_stream_close": _validate_a2g_stream_close,
+    "set_background_mode": _validate_set_background_mode,
 }
 
 

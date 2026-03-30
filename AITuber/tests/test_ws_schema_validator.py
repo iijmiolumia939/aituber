@@ -391,6 +391,7 @@ class TestKnownCmds:
             "zone_change",
             "behavior_start",
             "appearance_update",
+            "set_background_mode",  # FR-BCAST-BG-01
             "a2f_audio",
             "a2f_chunk",
             "a2f_stream_close",
@@ -505,3 +506,29 @@ class TestKnownCmds:
             {"cmd": "appearance_update", "params": {"costume": "casual", "hair": "ponytail"}}
         )
         assert result.ok
+
+    # ── set_background_mode (FR-BCAST-BG-01) ───────────────────────────
+
+    def test_set_background_mode_transparent(self, validator: WsSchemaValidator) -> None:
+        """set_background_mode mode=transparent 正常系"""
+        result = validator.validate(
+            {"cmd": "set_background_mode", "params": {"mode": "transparent"}}
+        )
+        assert result.ok
+
+    def test_set_background_mode_room(self, validator: WsSchemaValidator) -> None:
+        """set_background_mode mode=room 正常系"""
+        result = validator.validate({"cmd": "set_background_mode", "params": {"mode": "room"}})
+        assert result.ok
+
+    def test_set_background_mode_invalid(self, validator: WsSchemaValidator) -> None:
+        """set_background_mode 不正値 → INVALID_PARAM_VALUE"""
+        result = validator.validate({"cmd": "set_background_mode", "params": {"mode": "blue"}})
+        assert not result.ok
+        assert result.error_code == "INVALID_PARAM_VALUE"
+
+    def test_set_background_mode_missing(self, validator: WsSchemaValidator) -> None:
+        """set_background_mode mode 欠損 → MISSING_PARAM"""
+        result = validator.validate({"cmd": "set_background_mode", "params": {}})
+        assert not result.ok
+        assert result.error_code == "MISSING_PARAM"

@@ -203,6 +203,9 @@ namespace AITuber.Avatar
                 case "a2e_emotion":
                     HandleA2EEmotion(typedParams as A2EEmotionParams);
                     break;
+                case "set_background_mode":
+                    HandleSetBackgroundMode(typedParams as SetBackgroundModeParams);
+                    break;
                 default:
                     // Unknown command: ignore (protocol: backward compatible)
                     Debug.Log($"[AvatarCtrl] Ignoring unknown cmd: {msg.cmd}");

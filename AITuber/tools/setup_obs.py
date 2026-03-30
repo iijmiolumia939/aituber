@@ -216,6 +216,18 @@ def build_scene_collection() -> dict:
     mic_audio["muted"] = not OBS_INCLUDE_MIC_AUDIO
 
     # --- Avatar (Window Capture / WGC - more reliable than game_capture for Unity DX12) ---
+    # Chroma key filter for transparent avatar mode (FR-BCAST-BG-01)
+    chroma_key_filter = _base_source(
+        "color_key_filter_v2",
+        "ChromaKey",
+        _uuid(),
+        {
+            "key_color": 65280,  # 0x0000FF00 = pure green in OBS ABGR
+            "key_color_type": "green",
+            "similarity": 400,
+            "smoothness": 80,
+        },
+    )
     avatar_source = _base_source(
         "window_capture",
         "Avatar",
@@ -227,7 +239,7 @@ def build_scene_collection() -> dict:
             "client_area": False,
             "force_sdr": False,
         },
-        filters=[],  # No chroma key - using full 3D AlchemistRoom environment
+        filters=[chroma_key_filter],  # FR-BCAST-BG-01: chroma key for transparent bg mode
     )
 
     # --- Background (color source) ---

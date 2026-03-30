@@ -420,6 +420,20 @@ class AvatarWSSender:
         )
         await self._send(msg)
 
+    async def send_background_mode(self, mode: str) -> None:
+        """Send set_background_mode command to Unity TransparentBackgroundController.
+
+        FR-BCAST-BG-01: Switch between room environment and transparent chroma-key.
+
+        Args:
+            mode: "room" (3D room visible) or "transparent" (chroma-key green bg).
+        """
+        msg = AvatarMessage(
+            cmd="set_background_mode",
+            params={"mode": mode},
+        )
+        await self._send(msg)
+
     async def send_zone_change(self, zone_id: str) -> None:
         """Send zone_change command to Unity RoomManager.
 
